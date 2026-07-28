@@ -1,0 +1,1106 @@
+/* ============================================================
+   BSG — thème néon fil de fer
+   ============================================================ */
+:root {
+  --bg: #070616;
+  --neon-cyan: #33ffff;
+  --neon-magenta: #ff3388;
+  --neon-green: #66ff99;
+  --neon-amber: #ffaa33;
+  --neon-violet: #a97bff;
+  --text: #bfe9ff;
+  --dim: #4b6a7a;
+  --panel: rgba(8, 16, 26, 0.82);
+  --panel-border: rgba(51, 255, 255, 0.35);
+  --font: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  user-select: none;
+  cursor: crosshair;
+}
+
+/* ============================================================
+   On est DANS le vaisseau. #bay est la passerelle, #scene est
+   l'ÉCRAN TACTIQUE encadré par le décor (#cockpit-shell).
+   Les marges sont des variables : `body.expanded` les met à 0
+   pour passer la vue en plein écran (touche V).
+   ============================================================ */
+:root {
+  --bay-l: 214px;
+  --bay-r: 258px;
+  --bay-t: 56px;
+  --bay-b: 200px;
+  --shell: rgba(120, 200, 235, 0.30); /* liseré des montants */
+}
+body.expanded {
+  --bay-l: 0px; --bay-r: 0px; --bay-t: 0px; --bay-b: 0px;
+}
+
+#bay { position: fixed; inset: 0; }
+
+/* Le canvas est un ÉLÉMENT REMPLACÉ : avec width:auto il prend sa taille
+   intrinsèque (ses attributs width/height) et ignore right/bottom. Il faut donc
+   des dimensions explicites, sinon il déborde du cadre au lieu de s'y ajuster. */
+#scene {
+  position: absolute;
+  left: var(--bay-l);
+  top: var(--bay-t);
+  width: calc(100vw - var(--bay-l) - var(--bay-r));
+  height: calc(100vh - var(--bay-t) - var(--bay-b));
+  display: block;
+  border-radius: 4px;
+  transition: left 0.25s ease, top 0.25s ease, width 0.25s ease, height 0.25s ease;
+}
+
+/* Structure de la passerelle : montants, bandeaux, coins. Purement décoratif
+   (pointer-events: none) — les instruments, eux, sont posés par le HUD. */
+#cockpit-shell {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 12;
+}
+body.expanded #cockpit-shell { opacity: 0; }
+#cockpit-shell > * { position: absolute; transition: opacity 0.2s; }
+.shell-post {
+  top: var(--bay-t);
+  bottom: var(--bay-b);
+  width: 10px;
+  background: linear-gradient(90deg, transparent, rgba(20, 40, 60, 0.55));
+  border-inline: 1px solid var(--shell);
+}
+.shell-left { left: calc(var(--bay-l) - 11px); }
+.shell-right { right: calc(var(--bay-r) - 11px); transform: scaleX(-1); }
+.shell-bar {
+  left: calc(var(--bay-l) - 11px);
+  right: calc(var(--bay-r) - 11px);
+  height: 9px;
+  background: linear-gradient(180deg, rgba(20, 40, 60, 0.55), transparent);
+  border-block: 1px solid var(--shell);
+}
+.shell-top { top: calc(var(--bay-t) - 10px); }
+.shell-bottom { bottom: calc(var(--bay-b) - 10px); transform: scaleY(-1); }
+/* Étiquette du poste, gravée sur le montant supérieur */
+.shell-tag {
+  position: absolute;
+  left: 14px;
+  top: -14px;
+  font-size: 9px;
+  letter-spacing: 4px;
+  color: var(--station-accent, var(--neon-cyan));
+  opacity: 0.75;
+}
+/* Coins : équerres lumineuses, elles donnent le « verre » de l'écran */
+.shell-corner {
+  width: 22px; height: 22px;
+  border-color: var(--station-accent, var(--neon-cyan));
+  border-style: solid;
+  opacity: 0.55;
+}
+.shell-corner.tl { left: var(--bay-l); top: var(--bay-t); border-width: 2px 0 0 2px; }
+.shell-corner.tr { right: var(--bay-r); top: var(--bay-t); border-width: 2px 2px 0 0; }
+.shell-corner.bl { left: var(--bay-l); bottom: var(--bay-b); border-width: 0 0 2px 2px; }
+.shell-corner.br { right: var(--bay-r); bottom: var(--bay-b); border-width: 0 2px 2px 0; }
+
+/* Bouton d'agrandissement, dans le coin de l'écran */
+#btn-expand {
+  position: absolute;
+  right: calc(var(--bay-r) + 8px);
+  top: calc(var(--bay-t) + 8px);
+  z-index: 19;
+  width: 26px; height: 26px;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text);
+  background: rgba(8, 16, 26, 0.7);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.45;
+  transition: opacity 0.15s;
+}
+#btn-expand:hover { opacity: 1; }
+
+/* Chaque poste a son ambiance : l'accent colore les équerres, l'étiquette et
+   le liseré de son cockpit. On sait où l'on est assis sans rien lire. */
+/* La console du commandant porte trois groupes (énergie, ordres, modules) : elle
+   est plus haute, donc son cadre laisse plus de place en bas. Changer --bay-b
+   déclenche la transition, et `transitionend` remesure le viewport. */
+body[data-station="command"] { --station-accent: var(--neon-cyan); --bay-b: 244px; }
+body[data-station="helm"] { --station-accent: var(--neon-green); }
+body[data-station="gunnery"] { --station-accent: var(--neon-magenta); }
+body[data-station="drones"] { --station-accent: var(--neon-amber); }
+body[data-station] .cockpit-panel { border-color: color-mix(in srgb, var(--station-accent) 42%, transparent); }
+body[data-station] .ck-head { color: var(--station-accent); border-bottom-color: color-mix(in srgb, var(--station-accent) 25%, transparent); }
+body[data-station] .shell-post,
+body[data-station] .shell-bar { border-color: color-mix(in srgb, var(--station-accent) 22%, transparent); }
+
+/* Surcouche « CRT néon » : vignette + scanlines, sur l'écran tactique */
+#fx-overlay {
+  position: fixed;
+  z-index: 5;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0) 52%, rgba(4,2,14,0.6) 100%);
+}
+#fx-overlay::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,0.035) 0, rgba(255,255,255,0.035) 1px, transparent 1px, transparent 3px);
+  opacity: 0.5;
+}
+
+.hidden { display: none !important; }
+
+/* ---- Barre supérieure ---- */
+#topbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 20px;
+  z-index: 20;
+  background: linear-gradient(180deg, rgba(5,7,13,0.9), rgba(5,7,13,0));
+  pointer-events: none;
+}
+#topbar .title {
+  font-weight: 800;
+  letter-spacing: 6px;
+  font-size: 20px;
+  color: var(--neon-cyan);
+  text-shadow: 0 0 8px var(--neon-cyan);
+}
+#topbar .screen-name {
+  letter-spacing: 3px;
+  color: var(--dim);
+  font-size: 13px;
+}
+#btn-switch {
+  margin-left: auto;
+  pointer-events: auto;
+}
+
+/* ---- Boutons ---- */
+button {
+  font-family: var(--font);
+  cursor: pointer;
+}
+.btn-primary, .btn-ghost {
+  background: transparent;
+  color: var(--neon-cyan);
+  border: 1px solid var(--panel-border);
+  padding: 8px 16px;
+  border-radius: 4px;
+  letter-spacing: 2px;
+  font-size: 13px;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+  text-shadow: 0 0 6px rgba(51,255,255,0.5);
+}
+.btn-primary:hover, .btn-ghost:hover {
+  background: rgba(51,255,255,0.12);
+  box-shadow: 0 0 14px rgba(51,255,255,0.35);
+}
+.btn-ghost { color: var(--dim); border-color: rgba(75,106,122,0.4); text-shadow: none; }
+.btn-ghost:hover { color: var(--text); }
+button:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; background: transparent; }
+
+/* ---- Couche UI générique ---- */
+.ui-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+}
+.ui-layer > * { pointer-events: auto; }
+
+/* ---- Panneau hangar (liste des slots) ---- */
+#slot-panel {
+  position: fixed;
+  top: 70px;
+  left: 20px;
+  width: 300px;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 14px;
+  backdrop-filter: blur(4px);
+}
+#slot-panel h2 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: var(--neon-cyan);
+  text-transform: uppercase;
+}
+.credits-line {
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--neon-amber);
+  margin-bottom: 12px;
+}
+.slot-row {
+  border: 1px solid rgba(75,106,122,0.35);
+  border-radius: 5px;
+  padding: 10px;
+  margin-bottom: 10px;
+  transition: border-color 0.15s;
+}
+.slot-row.highlight { border-color: var(--neon-cyan); box-shadow: 0 0 12px rgba(51,255,255,0.25); }
+.slot-row .slot-name {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--dim);
+  text-transform: uppercase;
+}
+.slot-row .slot-module {
+  font-size: 14px;
+  margin: 4px 0 8px;
+  color: var(--text);
+}
+.slot-row .slot-module .lv { color: var(--neon-amber); font-size: 12px; }
+.slot-row .slot-module.empty { color: var(--dim); font-style: italic; }
+.slot-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.slot-actions button, .equip-menu button {
+  font-size: 11px;
+  padding: 5px 9px;
+  letter-spacing: 1px;
+  border-radius: 4px;
+  border: 1px solid rgba(75,106,122,0.5);
+  background: transparent;
+  color: var(--text);
+  transition: all 0.12s;
+}
+.slot-actions button:hover, .equip-menu button:hover {
+  border-color: var(--neon-cyan);
+  color: var(--neon-cyan);
+  box-shadow: 0 0 8px rgba(51,255,255,0.25);
+}
+
+/* ---- Menu d'équipement (popover) ---- */
+.equip-menu {
+  position: fixed;
+  z-index: 40;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 8px;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 0 0 20px rgba(0,0,0,0.6);
+}
+.equip-menu .menu-title {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--dim);
+  text-transform: uppercase;
+  padding: 2px 4px 6px;
+}
+
+.hint {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--dim);
+  text-align: center;
+  background: var(--panel);
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(75,106,122,0.3);
+}
+
+/* ---- HUD champ de tir ---- */
+/* Les modules vivent maintenant dans la console du COMMANDANT (cf. #cockpit) */
+.mod-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.mod-chip {
+  position: relative;
+  overflow: hidden;
+  min-width: 66px;
+  padding: 8px 10px;
+  text-align: center;
+  border: 1px solid rgba(75,106,122,0.5);
+  border-radius: 6px;
+  background: var(--panel);
+  transition: all 0.12s;
+  cursor: pointer;
+}
+.mod-body { position: relative; z-index: 1; }
+.mod-fill {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 0;
+  background: linear-gradient(180deg, rgba(143,223,255,0.10), rgba(143,223,255,0.35));
+  z-index: 0;
+  transition: height 0.1s linear;
+}
+.mod-chip .key {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--bg);
+  background: var(--dim);
+  border-radius: 3px;
+  padding: 0 5px;
+  margin-bottom: 4px;
+}
+.mod-chip .mod-name { font-size: 11px; letter-spacing: 1px; color: var(--dim); }
+.mod-chip .mod-lv { font-size: 10px; color: var(--neon-amber); }
+.mod-chip.active {
+  border-color: var(--chip-color, var(--neon-cyan));
+  box-shadow: 0 0 14px var(--chip-color, rgba(51,255,255,0.4));
+}
+.mod-chip.active .key { background: var(--chip-color, var(--neon-cyan)); }
+.mod-chip.active .mod-name { color: var(--chip-color, var(--neon-cyan)); }
+
+/* Panneau cible + radar */
+#enemy-panel {
+  position: fixed;
+  top: var(--bay-t);
+  right: 8px;
+  width: calc(var(--bay-r) - 20px);
+  z-index: 16;
+}
+.hp-block { margin-bottom: 10px; }
+.hp-label { font-size: 11px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; display:flex; justify-content:space-between;}
+.hp-bar { height: 10px; border: 1px solid var(--panel-border); border-radius: 5px; overflow: hidden; margin-top: 4px; background: rgba(0,0,0,0.4);}
+.hp-fill { height: 100%; width: 100%; background: var(--neon-magenta); box-shadow: 0 0 10px var(--neon-magenta); transition: width 0.1s linear;}
+.radar-status { font-size: 12px; letter-spacing: 1px; margin-top: 6px; }
+.radar-status.ok { color: var(--neon-green); }
+.radar-status.ko { color: var(--neon-magenta); }
+
+/* Mini-radar (scope) */
+#minimap {
+  position: fixed;
+  bottom: 16px;
+  right: 12px;
+  z-index: 16;
+  border-radius: 50%;
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 0 14px rgba(60,255,140,0.2);
+}
+
+/* Réticule cible (brackets) projeté depuis la 3D */
+#reticle {
+  position: fixed;
+  width: 54px; height: 54px;
+  margin-left: -27px; margin-top: -27px;
+  z-index: 14;
+  pointer-events: none;
+  border: 2px solid transparent;
+  display: none;
+}
+#reticle::before, #reticle::after {
+  content: "";
+  position: absolute;
+  width: 14px; height: 14px;
+  border-color: var(--neon-green);
+  border-style: solid;
+}
+#reticle::before { top: 0; left: 0; border-width: 2px 0 0 2px; }
+#reticle::after  { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
+#reticle .tl, #reticle .tr, #reticle .bl { display:none; }
+
+/* ---- Panneau joueur (défense + énergie) ---- */
+/* Constantes vitales : toujours visibles, quel que soit le poste */
+#vital-panel {
+  position: fixed;
+  top: var(--bay-t);
+  left: 8px;
+  width: calc(var(--bay-l) - 24px);
+  z-index: 16;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  backdrop-filter: blur(4px);
+}
+.pp-title {
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: var(--neon-cyan);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.hp-fill.energy { background: var(--neon-amber); box-shadow: 0 0 10px var(--neon-amber); }
+.hp-fill.structure { background: var(--neon-cyan); box-shadow: 0 0 10px var(--neon-cyan); }
+.hp-fill.shield { background: var(--neon-violet); box-shadow: 0 0 10px var(--neon-violet); }
+.hp-fill.enemy { background: var(--neon-magenta); box-shadow: 0 0 10px var(--neon-magenta); }
+
+/* Munitions + état "épuisé" sur les chips */
+.mod-ammo { font-size: 10px; color: var(--neon-amber); margin-top: 2px; min-height: 12px; }
+.mod-chip.depleted { opacity: 0.4; filter: grayscale(0.6); }
+.mod-chip.depleted .key { background: var(--neon-magenta); }
+
+/* ---- Flash de dégâts (vignette rouge) ---- */
+#damage-flash {
+  position: fixed;
+  z-index: 18;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, rgba(255,40,70,0) 45%, rgba(255,40,70,0.55) 100%);
+}
+
+.pp-credits {
+  margin-top: 10px;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--neon-amber);
+}
+
+/* ---- Indicateurs d'ennemis hors-champ ---- */
+.enemy-indicator {
+  position: fixed;
+  width: 0; height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 14px solid var(--neon-magenta);
+  z-index: 17;
+  pointer-events: none;
+}
+
+/* ---- Ligne de vague ---- */
+.wave-line {
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--neon-cyan);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+/* ---- Bannière de vague (transitoire, centrée) ---- */
+#wave-banner {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  z-index: 19;
+  pointer-events: none;
+  opacity: 0;
+  font-size: 52px;
+  font-weight: 800;
+  letter-spacing: 10px;
+  color: var(--neon-cyan);
+  text-shadow: 0 0 22px var(--neon-cyan);
+}
+
+/* ---- Overlay d'issue de combat ---- */
+#outcome {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: rgba(3, 6, 12, 0.72);
+  backdrop-filter: blur(3px);
+}
+#outcome.hidden { display: none; }
+.outcome-title {
+  font-size: 64px;
+  font-weight: 800;
+  letter-spacing: 10px;
+}
+#outcome.win .outcome-title { color: var(--neon-green); text-shadow: 0 0 24px var(--neon-green); }
+#outcome.lose .outcome-title { color: var(--neon-magenta); text-shadow: 0 0 24px var(--neon-magenta); }
+.outcome-sub { color: var(--dim); letter-spacing: 3px; font-size: 13px; text-transform: uppercase; }
+.hof {
+  margin-top: 6px;
+  width: 320px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 12px 16px;
+}
+.hof-title { font-size: 12px; letter-spacing: 3px; color: var(--neon-amber); text-align: center; margin-bottom: 8px; }
+.hof ol { list-style: none; margin: 0; padding: 0; }
+.hof li { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 3px 6px; color: var(--text); border-radius: 3px; }
+.hof li span:first-child { color: var(--dim); width: 34px; }
+.hof li span:last-child { color: var(--dim); font-size: 11px; }
+.hof li.me { background: rgba(255,170,51,0.14); color: var(--neon-amber); }
+.hof li.me span { color: var(--neon-amber); }
+.outcome-actions { display: flex; gap: 14px; margin-top: 12px; }
+
+/* ============================================================
+   Panneau de réglages in-game (touche T)
+   ============================================================ */
+#tune-panel {
+  position: fixed;
+  top: 62px;
+  right: 20px;
+  width: 300px;
+  max-height: calc(100vh - 90px);
+  overflow-y: auto;
+  z-index: 40;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  backdrop-filter: blur(4px);
+  font-size: 12px;
+}
+#tune-panel.hidden { display: none !important; }
+#tune-panel { scrollbar-width: thin; scrollbar-color: rgba(51,255,255,0.45) rgba(0,0,0,0.3); }
+#tune-panel::-webkit-scrollbar { width: 10px; }
+#tune-panel::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); border-radius: 5px; }
+#tune-panel::-webkit-scrollbar-thumb { background: rgba(51,255,255,0.45); border-radius: 5px; }
+#tune-panel::-webkit-scrollbar-thumb:hover { background: rgba(51,255,255,0.7); }
+.tp-title { font-size: 12px; letter-spacing: 2px; color: var(--neon-cyan); text-transform: uppercase; margin-bottom: 10px; }
+.tp-title .tp-hint { color: var(--dim); letter-spacing: 1px; font-size: 10px; }
+.tp-row { margin-bottom: 8px; }
+.tp-row label { display: block; color: var(--text); margin-bottom: 2px; }
+.tp-ctl { display: flex; align-items: center; gap: 8px; }
+.tp-ctl input[type="range"] { flex: 1; accent-color: var(--neon-cyan); }
+.tp-val { width: 44px; text-align: right; color: var(--neon-amber); font-variant-numeric: tabular-nums; }
+.tp-actions { display: flex; gap: 8px; margin: 10px 0 8px; }
+.tp-actions button { font-size: 11px; padding: 5px 10px; }
+.tp-json {
+  width: 100%;
+  height: 120px;
+  background: rgba(0,0,0,0.4);
+  color: var(--dim);
+  border: 1px solid rgba(75,106,122,0.3);
+  border-radius: 4px;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 10px;
+  resize: none;
+}
+
+/* ============================================================
+   « Boss key » — faux écran de travail (barre Espace)
+   ============================================================ */
+#work-mode {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  font-family: "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  cursor: default;
+}
+#work-mode.hidden { display: none !important; }
+.wm-titlebar {
+  height: 30px;
+  background: #323233;
+  color: #cccccc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  flex: 0 0 auto;
+}
+.wm-body { flex: 1 1 auto; display: flex; min-height: 0; }
+.wm-sidebar {
+  width: 240px;
+  background: #252526;
+  padding: 8px 0;
+  overflow: auto;
+  font-size: 12px;
+  color: #bbbbbb;
+  flex: 0 0 auto;
+}
+.wm-sidebar .sec { padding: 4px 14px; color: #8a8a8a; text-transform: uppercase; font-size: 10px; letter-spacing: 1px; }
+.wm-file { padding: 2px 14px; white-space: nowrap; }
+.wm-file.active { background: #37373d; color: #ffffff; }
+.wm-main { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+.wm-tabs { height: 35px; background: #2d2d2d; display: flex; align-items: stretch; flex: 0 0 auto; }
+.wm-tab { padding: 9px 16px; background: #2d2d2d; color: #969696; font-size: 12px; border-right: 1px solid #252526; }
+.wm-tab.active { background: #1e1e1e; color: #ffffff; }
+.wm-code {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 12px 8px;
+  overflow: auto;
+  line-height: 1.5;
+  counter-reset: line;
+  tab-size: 2;
+}
+.wm-code .ln { display: block; white-space: pre; }
+.wm-code .ln::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  width: 34px;
+  margin-right: 14px;
+  text-align: right;
+  color: #6e7681;
+}
+.wm-code .kw { color: #569cd6; }
+.wm-code .pl { color: #c586c0; }
+.wm-code .str { color: #ce9178; }
+.wm-code .cm { color: #6a9955; }
+.wm-code .fn { color: #dcdcaa; }
+.wm-code .num { color: #b5cea8; }
+.wm-code .ty { color: #4ec9b0; }
+.wm-terminal {
+  height: 190px;
+  background: #181818;
+  border-top: 1px solid #333333;
+  padding: 8px 14px;
+  overflow: auto;
+  font-size: 12px;
+  color: #cccccc;
+  line-height: 1.5;
+  flex: 0 0 auto;
+}
+.wm-terminal .dim { color: #8a8a8a; }
+.wm-terminal .ok { color: #4ec994; }
+.wm-cursor {
+  display: inline-block;
+  width: 7px; height: 14px;
+  background: #cccccc;
+  vertical-align: -2px;
+  animation: wmblink 1s steps(2, start) infinite;
+}
+@keyframes wmblink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
+
+#loading {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--neon-cyan);
+  letter-spacing: 4px;
+  font-size: 14px;
+  z-index: 100;
+  text-shadow: 0 0 10px var(--neon-cyan);
+}
+
+/* ============================================================
+   Répartition d'énergie : barres de bus + anneau de passerelle
+   ============================================================ */
+
+.prof-name {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--profile-color, var(--neon-cyan));
+  text-shadow: 0 0 8px var(--profile-color, var(--neon-cyan));
+}
+.prof-name.shifting { opacity: 0.55; }
+
+/* Trois bus côte à côte (barres verticales compactes) */
+.bus-row { display: flex; gap: 8px; }
+.bus {
+  flex: 1;
+  text-align: center;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--dim);
+}
+.bus-track {
+  height: 40px;
+  border: 1px solid var(--panel-border);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.4);
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 3px;
+}
+.bus-fill {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  background: var(--bus-color);
+  box-shadow: 0 0 8px var(--bus-color);
+  transition: height 0.12s linear;
+}
+/* Repère du tiers : au-dessus = renforcé, en dessous = sacrifié */
+.bus-track::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0;
+  bottom: 33.3%;
+  border-top: 1px dashed rgba(191, 233, 255, 0.28);
+}
+.bus-pct { color: var(--bus-color); }
+.bus-weapons { --bus-color: var(--neon-magenta); }
+.bus-shields { --bus-color: var(--neon-violet); }
+.bus-engines { --bus-color: var(--neon-amber); }
+
+/* ============================================================
+   COCKPITS : un bloc d'instruments par poste, en bas au centre.
+   Un seul est visible à la fois — c'est ce qui règle le fouillis.
+   ============================================================ */
+#cockpit {
+  position: fixed;
+  /* S'arrête avant le radar (156 px à droite) et après la colonne des postes */
+  left: calc(var(--bay-l) - 96px);
+  right: calc(var(--bay-r) - 88px);
+  bottom: 14px;
+  z-index: 17;
+}
+/* En plein écran la console passe en surimpression, mais garde des bornes
+   gauche/droite : avec `right: auto` sa largeur tombe à 100vw-50% et les modules
+   s'empilent en colonne. On laisse la place à la colonne des postes et au radar. */
+body.expanded #cockpit { left: 108px; right: 176px; }
+/* --bay-t vaut 0 en plein écran : sans ça les panneaux passent sous la topbar */
+/* Leur largeur est dérivée des marges du cadre, nulles en plein écran : sans
+   largeur explicite le texte se tronque. */
+body.expanded #vital-panel { top: 60px; left: 12px; width: 196px; }
+body.expanded #enemy-panel { top: 60px; right: 12px; width: 232px; }
+body.expanded #capital-panel { top: 156px; }
+#cockpit.installing { opacity: 0.45; filter: grayscale(0.5); }
+.cockpit-panel {
+  background: linear-gradient(180deg, rgba(10, 20, 32, 0.9), rgba(6, 12, 22, 0.92));
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 8px 14px 10px;
+  backdrop-filter: blur(5px);
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.45);
+}
+.cockpit-panel.hidden { display: none; }
+.ck-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--neon-cyan);
+  border-bottom: 1px solid rgba(51, 255, 255, 0.18);
+  padding-bottom: 5px;
+  margin-bottom: 8px;
+}
+.ck-icon { font-size: 13px; }
+.ck-role {
+  margin-left: auto;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--dim);
+  text-transform: none;
+}
+.ck-body { display: flex; align-items: flex-end; gap: 18px; }
+.ck-group { display: flex; flex-direction: column; gap: 4px; }
+.ck-gauges { flex-direction: row; gap: 14px; align-items: flex-end; }
+.ck-label {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--dim);
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.ck-center { justify-content: center; }
+.ck-sub, .ck-hint { font-size: 8px; letter-spacing: 1px; color: rgba(75, 106, 122, 0.75); }
+.ck-cmds { display: flex; gap: 8px; margin-top: 9px; justify-content: center; }
+
+/* Jauges génériques des cockpits */
+.gauge { text-align: center; min-width: 62px; }
+.g-label { font-size: 8px; letter-spacing: 1px; color: var(--dim); }
+.g-val {
+  font-size: 17px;
+  color: var(--text);
+  text-shadow: 0 0 8px rgba(191, 233, 255, 0.35);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Compas de cap (poste de pilote) */
+.dial {
+  position: relative;
+  width: 54px; height: 54px;
+  border: 1px solid var(--panel-border);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(51, 255, 255, 0.06), transparent 70%);
+}
+.dial-needle {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 22px; height: 2px;
+  margin-top: -1px;
+  background: var(--neon-cyan);
+  box-shadow: 0 0 8px var(--neon-cyan);
+  transform-origin: 0 50%;
+}
+.dial-val {
+  position: absolute;
+  inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.ck-warn { font-size: 9px; letter-spacing: 1px; color: transparent; min-height: 12px; }
+.ck-warn.on { color: var(--neon-amber); text-shadow: 0 0 8px var(--neon-amber); }
+
+/* Solution de tir (poste d'artilleur) */
+.sol-big { font-size: 19px; letter-spacing: 2px; }
+.sol-good { color: var(--neon-green); text-shadow: 0 0 10px var(--neon-green); }
+.sol-fair { color: var(--neon-amber); text-shadow: 0 0 10px var(--neon-amber); }
+.sol-bad { color: var(--neon-magenta); text-shadow: 0 0 10px var(--neon-magenta); }
+.sol-manual { color: var(--neon-cyan); text-shadow: 0 0 10px var(--neon-cyan); }
+
+/* Console d'ordres du commandant : poser les consignes des autres postes */
+.ord-row { display: flex; align-items: center; gap: 4px; margin-top: 3px; }
+.ord-lab {
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--dim);
+  width: 58px;
+  flex: none;
+}
+.ord-btn {
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--dim);
+  border: 1px solid rgba(75, 106, 122, 0.45);
+  border-radius: 3px;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+}
+.ord-btn:hover { color: var(--text); border-color: var(--text); }
+.ord-btn.on {
+  color: var(--neon-green);
+  border-color: var(--neon-green);
+  box-shadow: 0 0 8px rgba(102, 255, 153, 0.25);
+}
+
+/* Cible désignée (poste de drones) */
+.desig { font-size: 12px; color: var(--dim); letter-spacing: 1px; }
+.desig.on { color: var(--neon-green); text-shadow: 0 0 8px rgba(102, 255, 153, 0.5); }
+
+/* Escadron (poste de drones) */
+.squad-row { display: flex; gap: 4px; align-items: center; min-height: 16px; }
+.sq-pip {
+  display: block;
+  width: 12px; height: 14px;
+  border: 1px solid var(--neon-green);
+  border-radius: 2px;
+  background: linear-gradient(0deg, var(--neon-green) var(--pip), transparent var(--pip));
+}
+.sq-empty { font-size: 9px; color: var(--dim); letter-spacing: 1px; }
+/* ---- Panneau du cuirassé : ce qu'il reste à démonter ---- */
+#capital-panel {
+  position: fixed;
+  top: calc(var(--bay-t) + 96px);
+  right: 8px;
+  width: calc(var(--bay-r) - 20px);
+  z-index: 16;
+  background: rgba(26, 8, 14, 0.82);
+  border: 1px solid rgba(255, 106, 90, 0.45);
+  border-radius: 6px;
+  padding: 10px 12px;
+  backdrop-filter: blur(4px);
+}
+#capital-panel.hidden { display: none; }
+.cap-title {
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: #ff8a7a;
+  text-shadow: 0 0 10px rgba(255, 106, 90, 0.7);
+}
+.cap-sub {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--neon-amber);
+  margin: 3px 0 8px;
+}
+.cap-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: #e9c9c4;
+  margin-top: 3px;
+}
+.cap-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cap-bar {
+  width: 46px;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 2px;
+  overflow: hidden;
+  flex: none;
+}
+.cap-fill { display: block; height: 100%; width: 100%; background: #ff6a5a; }
+/* Moteurs et pont : cibles de valeur, on les distingue */
+.cap-engine .cap-fill { background: var(--neon-amber); }
+.cap-bridge .cap-fill { background: var(--neon-violet); }
+.cap-row.dead { color: rgba(150, 120, 118, 0.5); text-decoration: line-through; }
+.cap-row.dead .cap-bar { display: none; }
+
+/* ---- Colonne des POSTES (à gauche, cliquable) ---- */
+/* En bas à gauche : le panneau joueur occupe déjà le haut de cette colonne */
+#station-bar {
+  position: fixed;
+  left: 8px;
+  bottom: 16px;
+  z-index: 17;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.st-tile {
+  width: 76px;
+  padding: 8px 4px 6px;
+  text-align: center;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.st-tile:hover { border-color: var(--text); }
+.st-icon { font-size: 20px; line-height: 1; color: var(--dim); }
+.st-tname { font-size: 9px; letter-spacing: 1px; color: var(--dim); margin-top: 4px; }
+.st-hold { font-size: 8px; letter-spacing: 1px; color: var(--dim); margin-top: 2px; }
+.st-bar { height: 2px; margin-top: 4px; background: rgba(0, 0, 0, 0.5); border-radius: 1px; overflow: hidden; }
+.st-fill { height: 100%; width: 0; background: var(--neon-cyan); }
+
+.st-tile.manned {
+  border-color: var(--neon-green);
+  box-shadow: 0 0 14px rgba(102, 255, 153, 0.28);
+}
+.st-tile.manned .st-icon,
+.st-tile.manned .st-tname { color: var(--neon-green); }
+.st-tile.manned .st-hold { color: var(--neon-green); }
+
+/* En transit : le poste est VACANT, plus personne ne le tient */
+.st-tile.installing { border-color: var(--neon-amber); }
+.st-tile.installing .st-hold { color: var(--neon-amber); }
+.st-tile.installing .st-icon { color: var(--neon-amber); }
+
+/* ---- Commandes du poste courant (1/2/3), dans son cockpit ---- */
+.cmd {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--dim);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  padding: 5px 10px;
+  backdrop-filter: blur(3px);
+}
+.cmd-key {
+  display: inline-block;
+  min-width: 12px;
+  margin-right: 6px;
+  color: var(--text);
+  opacity: 0.6;
+}
+.cmd.on {
+  color: var(--neon-cyan);
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 12px rgba(51, 255, 255, 0.25);
+}
+.cmd.on .cmd-key { color: var(--neon-cyan); opacity: 1; }
+
+/* ---- Anneau radial (clic droit maintenu, console du commandant) ---- */
+#command-ring {
+  position: fixed;
+  width: 0; height: 0;
+  z-index: 22;
+  pointer-events: none;
+}
+#command-ring.hidden { display: none; }
+
+.cr-item, .cr-hub {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--panel);
+  backdrop-filter: blur(3px);
+  padding: 6px 10px;
+  text-align: center;
+  white-space: nowrap;
+  transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
+}
+.cr-item {
+  border-color: color-mix(in srgb, var(--cr-color) 45%, transparent);
+}
+.cr-name {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--cr-color);
+}
+.cr-mix {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--dim);
+  margin-top: 2px;
+}
+.cr-item.sel {
+  border-color: var(--cr-color);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--cr-color) 55%, transparent);
+  transform: translate(-50%, -50%) scale(1.12);
+}
+.cr-item.sel .cr-mix { color: var(--text); }
+
+.cr-hub {
+  left: 0; top: 0;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--dim);
+  padding: 4px 8px;
+  opacity: 0.5;
+}
+.cr-hub.sel { opacity: 1; color: var(--text); border-color: var(--text); }
+
+/* Liseré cyan pendant l'ouverture : on sent que le temps est suspendu */
+#slowmo-tint {
+  position: fixed;
+  inset: 0;
+  z-index: 13;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s linear;
+  box-shadow: inset 0 0 120px rgba(51, 255, 255, 0.18);
+}
+#slowmo-tint.on { opacity: 1; }
+
+/* ============================================================
+   « L'affichage, c'est juste cet écran » : tout ce qui appartient
+   à la surface de l'écran tactique (vignette, flash, bannières,
+   overlay de fin) est cadré sur LUI, pas sur la fenêtre — sinon
+   ça déborde sur le décor et n'est pas centré sur la vue.
+   Les consoles, elles, restent dans la passerelle : ce sont des
+   objets du vaisseau, pas de l'affichage.
+   ============================================================ */
+#fx-overlay,
+#damage-flash,
+#outcome,
+#wave-banner {
+  --scr-w: calc(100vw - var(--bay-l) - var(--bay-r));
+  --scr-h: calc(100vh - var(--bay-t) - var(--bay-b));
+}
+#fx-overlay, #damage-flash, #outcome {
+  inset: auto;
+  left: var(--bay-l);
+  top: var(--bay-t);
+  width: var(--scr-w);
+  height: var(--scr-h);
+  border-radius: 4px;
+}
+/* Centrées sur l'écran, pas sur la fenêtre */
+#wave-banner {
+  left: calc(var(--bay-l) + var(--scr-w) / 2);
+  top: calc(var(--bay-t) + var(--scr-h) * 0.34);
+}

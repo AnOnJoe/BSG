@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BSG — Chantier de vaisseaux</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='28,16 6,26 6,6' fill='none' stroke='%2366ff99' stroke-width='2'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="css/style.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <!-- On est DANS le vaisseau : la vue du monde est l'écran tactique du poste,
+       encadré par le décor de la passerelle. #btn-expand le passe en plein écran. -->
+  <div id="bay">
+    <div id="cockpit-shell">
+      <div class="shell-bar shell-top"><span class="shell-tag"></span></div>
+      <div class="shell-post shell-left"></div>
+      <div class="shell-post shell-right"></div>
+      <div class="shell-bar shell-bottom"></div>
+      <span class="shell-corner tl"></span><span class="shell-corner tr"></span>
+      <span class="shell-corner bl"></span><span class="shell-corner br"></span>
+    </div>
+    <canvas id="scene"></canvas>
+    <div id="fx-overlay"></div>
+    <button id="btn-expand" title="Vue plein écran (V)">⛶</button>
+  </div>
+
+  <!-- Barre supérieure commune -->
+  <header id="topbar">
+    <span class="title">B S G</span>
+    <span id="screen-name" class="screen-name">HANGAR</span>
+    <button id="btn-switch" class="btn-primary">COMBAT →</button>
+  </header>
+
+  <!-- Conteneurs d'UI injectés par le JS -->
+  <div id="hangar-ui" class="ui-layer"></div>
+  <div id="range-ui" class="ui-layer hidden"></div>
+
+  <!-- « Boss key » : faux écran de travail (barre Espace) -->
+  <div id="work-mode" class="hidden">
+    <div class="wm-titlebar">invoices.controller.ts — bsg-platform — Visual Studio Code</div>
+    <div class="wm-body">
+      <div class="wm-sidebar">
+        <div class="sec">Explorer</div>
+        <div class="wm-file">▸ node_modules</div>
+        <div class="wm-file">▾ src</div>
+        <div class="wm-file">&nbsp;&nbsp;▾ api</div>
+        <div class="wm-file active">&nbsp;&nbsp;&nbsp;&nbsp;invoices.controller.ts</div>
+        <div class="wm-file">&nbsp;&nbsp;&nbsp;&nbsp;auth.middleware.ts</div>
+        <div class="wm-file">&nbsp;&nbsp;▾ services</div>
+        <div class="wm-file">&nbsp;&nbsp;&nbsp;&nbsp;invoice.service.ts</div>
+        <div class="wm-file">&nbsp;&nbsp;&nbsp;&nbsp;billing.service.ts</div>
+        <div class="wm-file">&nbsp;&nbsp;index.ts</div>
+        <div class="wm-file">package.json</div>
+        <div class="wm-file">tsconfig.json</div>
+      </div>
+      <div class="wm-main">
+        <div class="wm-tabs">
+          <div class="wm-tab active">invoices.controller.ts</div>
+          <div class="wm-tab">invoice.service.ts</div>
+        </div>
+        <pre class="wm-code"><span class="ln"><span class="pl">import</span> { Router } <span class="pl">from</span> <span class="str">'express'</span>;</span>
+<span class="ln"><span class="pl">import</span> { <span class="ty">InvoiceService</span> } <span class="pl">from</span> <span class="str">'../services/invoice.service'</span>;</span>
+<span class="ln"><span class="pl">import</span> { authGuard } <span class="pl">from</span> <span class="str">'../middleware/auth'</span>;</span>
+<span class="ln"></span>
+<span class="ln"><span class="kw">const</span> router = <span class="ty">Router</span>();</span>
+<span class="ln"><span class="kw">const</span> invoices = <span class="kw">new</span> <span class="ty">InvoiceService</span>();</span>
+<span class="ln"></span>
+<span class="ln"><span class="cm">// GET /api/invoices — liste paginée des factures fournisseurs</span></span>
+<span class="ln">router.<span class="fn">get</span>(<span class="str">'/'</span>, authGuard, <span class="kw">async</span> (req, res) => {</span>
+<span class="ln">  <span class="kw">const</span> page = <span class="ty">Number</span>(req.query.page ?? <span class="num">1</span>);</span>
+<span class="ln">  <span class="kw">const</span> size = <span class="ty">Number</span>(req.query.size ?? <span class="num">50</span>);</span>
+<span class="ln">  <span class="kw">try</span> {</span>
+<span class="ln">    <span class="kw">const</span> result = <span class="kw">await</span> invoices.<span class="fn">list</span>({ page, size });</span>
+<span class="ln">    <span class="kw">return</span> res.<span class="fn">json</span>({ data: result.items, total: result.total });</span>
+<span class="ln">  } <span class="kw">catch</span> (err) {</span>
+<span class="ln">    req.log.<span class="fn">error</span>({ err }, <span class="str">'invoice list failed'</span>);</span>
+<span class="ln">    <span class="kw">return</span> res.<span class="fn">status</span>(<span class="num">500</span>).<span class="fn">json</span>({ error: <span class="str">'internal_error'</span> });</span>
+<span class="ln">  }</span>
+<span class="ln">});</span>
+<span class="ln"></span>
+<span class="ln"><span class="pl">export</span> <span class="kw">default</span> router;</span></pre>
+        <div class="wm-terminal"><div>$ npm run build</div>
+<div class="dim">&gt; bsg-platform@1.4.2 build</div>
+<div class="dim">&gt; tsc -p tsconfig.json &amp;&amp; vite build</div>
+<div>&nbsp;</div>
+<div class="ok">✓ 142 modules transpiled</div>
+<div class="ok">✓ bundled in 3.28s</div>
+<div>$ npm test</div>
+<div class="ok"> PASS  src/services/invoice.service.spec.ts (18 tests)</div>
+<div class="ok"> PASS  src/api/invoices.spec.ts (11 tests)</div>
+<div>Test Suites: 6 passed, 6 total · Tests: 74 passed, 74 total</div>
+<div>$ <span class="wm-cursor"></span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading">Chargement du chantier…</div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
