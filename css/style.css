@@ -1153,3 +1153,12 @@ body.expanded #capital-panel { top: 156px; }
 }
 .jp-sub { font-size: 11px; letter-spacing: 2px; color: var(--text); opacity: 0.75; }
 .jp-repair { margin-top: 14px; font-size: 11px; letter-spacing: 1px; color: var(--neon-green); }
+
+/* Annonce radar du prochain contact (rend la respiration active) */
+.incoming { min-height: 13px; font-size: 10px; letter-spacing: 1px; color: transparent; }
+.incoming.on {
+  color: var(--neon-amber);
+  text-shadow: 0 0 8px var(--neon-amber);
+  animation: inc-pulse 1s ease-in-out infinite;
+}
+@keyframes inc-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }

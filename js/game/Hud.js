@@ -79,6 +79,7 @@ export class Hud {
       <div class="sector-sub"></div>
       <div class="sector-dots"></div>
       <div class="wave-line"></div>
+      <div class="incoming"></div>
       <div class="hp-block">
         <div class="hp-label"><span>CIBLE</span><span class="hp-num"></span></div>
         <div class="hp-bar"><div class="hp-fill enemy"></div></div>
@@ -89,6 +90,7 @@ export class Hud {
     this.sectorLine = this.enemyPanel.querySelector('.sector-line');
     this.sectorSub = this.enemyPanel.querySelector('.sector-sub');
     this.sectorDots = this.enemyPanel.querySelector('.sector-dots');
+    this.incoming = this.enemyPanel.querySelector('.incoming');
     this.enemyFill = this.enemyPanel.querySelector('.hp-fill');
     this.enemyNum = this.enemyPanel.querySelector('.hp-num');
   }
@@ -478,6 +480,17 @@ export class Hud {
       this.sectorSub.textContent = run.terrain || run.sector.subtitle || '';
       this.sectorDots.innerHTML = Array.from({ length: run.total }, (_, i) =>
         `<span class="dot ${i < run.index - 1 ? 'done' : i === run.index - 1 ? 'here' : ''}"></span>`).join('');
+    }
+    // Annonce du contact : c'est ce qui rend la respiration ACTIVE — on sait ce
+    // qui arrive, donc on prépare l'énergie et l'escadron avant le choc.
+    if (this.incoming) {
+      if (run.incoming) {
+        this.incoming.textContent = `⚠ CONTACT ${Math.ceil(run.eta)}s — ${run.incoming.name}`;
+        this.incoming.className = 'incoming on';
+      } else {
+        this.incoming.textContent = '';
+        this.incoming.className = 'incoming';
+      }
     }
     const th = run.theme ? run.theme.name : '';
     if (th !== this._themeLabel) {

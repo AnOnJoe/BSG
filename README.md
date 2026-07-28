@@ -49,6 +49,24 @@ plutôt vers la proue.
   **crédits** (gagnés en combat) ; retirer rembourse 50 %.
 - Le **build et les crédits** sont sauvegardés (localStorage) et rechargés au démarrage.
 
+## La traversée
+
+On ne survit plus indéfiniment : on **traverse cinq secteurs** jusqu'à un refuge — Périphérie,
+la Ceinture, Cimetière de coques, le Blocus, la Porte. Chacun a son **décor** et son caractère :
+la Ceinture est un dédale de roches où le radar se brouille, le Blocus un vide dégagé où rien
+ne protège. Un **cuirassé** garde la sortie de deux d'entre eux. Entre deux secteurs, un
+**saut** : coque réparée, munitions rechargées, prime encaissée. Au bout : la **victoire**.
+
+Le décor n'est pas décoratif — **les astéroïdes et les épaves arrêtent les tirs**. Se mettre à
+couvert fonctionne, pour toi comme pour l'ennemi : ton équipage refuse même de tirer sur une
+cible masquée et te le dit. Les nuages de poussière, eux, laissent passer les tirs mais
+aveuglent le radar : s'y cacher se paie en précision.
+
+Les vagues **changent de nature** et pas seulement de PV : nuée de chasseurs, colonne blindée,
+escadre porte-drones, force de siège… Chacune demande une autre réponse. Et pendant la
+respiration entre deux vagues, **le radar annonce ce qui arrive** — de quoi répartir l'énergie
+et déployer l'escadron avant le contact plutôt que d'attendre.
+
 ## Combat (vagues vs CPU)
 
 - **Vaste arène** (±190 × ±120) aux **limites visibles** ; la **caméra suit** ta

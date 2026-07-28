@@ -102,6 +102,9 @@ export class Range {
     this.waveTheme = null;
     this.jumping = false;   // saut inter-secteurs en cours
     this.jumpTimer = 0;
+    this._dramaT = 0;       // ralenti dramatique restant (s)
+    this._dramaScale = 1;
+    this.nextTheme = null;  // vague annoncée par le radar pendant la respiration
     this.betweenWaves = false;
     this.waveTimer = 0;
     this.over = false;
@@ -258,6 +261,19 @@ export class Range {
   _isCapitalWave(n) { return this.sector.capital && n >= this.sector.waves; }
 
   /**
+   * Choisit à l'avance le thème de la prochaine vague pour que le radar puisse
+   * l'annoncer. `_composeWave` réutilisera ce choix.
+   */
+  _announceNextWave() {
+    if (this.wave >= this.sector.waves) { this.nextTheme = null; return; } // fin de secteur : c'est un saut
+    const next = this.wave + 1;
+    this.nextTheme = (this.sector.capital && next >= this.sector.waves)
+      ? CAPITAL_THEME
+      : pickTheme(this._allowedThemes, this._progress(), this.waveTheme?.id);
+    this.audio.ping?.();
+  }
+
+  /**
    * Compose la vague par THÈME et non par « n ennemis + PV en plus ». C'est ce
    * qui fait qu'une vague tardive ne ressemble pas à une vague précoce gonflée.
    */
@@ -266,7 +282,8 @@ export class Range {
       this.waveTheme = CAPITAL_THEME;
       return CAPITAL_THEME.comp.slice(0, MAX_ENEMIES);
     }
-    const theme = pickTheme(this._allowedThemes, this._progress(), this.waveTheme?.id);
+    const theme = this.nextTheme || pickTheme(this._allowedThemes, this._progress(), this.waveTheme?.id);
+    this.nextTheme = null;
     this.waveTheme = theme;
     return theme.comp.slice(0, MAX_ENEMIES);
   }
@@ -399,7 +416,18 @@ export class Range {
    * Vitesse du temps : ralenti tant que l'anneau de passerelle est ouvert.
    * Lu par App._loop, qui met le dt à l'échelle avant d'appeler update().
    */
-  get timeScale() { return this.ring.isOpen && !this.over ? TUNE.slowMoScale : 1; }
+  get timeScale() {
+    // Ralenti dramatique (destruction d'un cuirassé, mort) : l'épique est un
+    // CONTRASTE, il faut suspendre le temps sur les moments qui comptent.
+    if (this._dramaT > 0) return this._dramaScale;
+    return this.ring.isOpen && !this.over ? TUNE.slowMoScale : 1;
+  }
+
+  /** Suspend le temps quelques instants pour laisser voir ce qui vient de se passer. */
+  drama(scale, duration) {
+    this._dramaScale = scale;
+    this._dramaT = duration;
+  }
 
   /**
    * Bascule de profil d'énergie. Prérogative du COMMANDANT : c'est ce qui fait
@@ -935,6 +963,7 @@ export class Range {
     }
     this.audio.boom(1.4);
     this.audio.win();
+    this.drama(0.32, 1.8); // on regarde le colosse se démonter
     this.shake.add(1.0);
     this.app.renderer.pulse(1.0);
     this.app.addCredits(cfg.reward);
@@ -953,6 +982,7 @@ export class Range {
     this.fx.debris(this.ship.group.position, 0x3df0ff, 22, 1.4);
     this.audio.lose();
     this.audio.boom(1.3);
+    this.drama(0.28, 2.2); // sa propre fin mérite d'être vue
     this.hud.flashDamage(0.9);
     this.shake.add(0.85);
     this.app.renderer.pulse(1.0);
@@ -1000,6 +1030,8 @@ export class Range {
     this.hud.setWave(this.wave, this.aliveEnemies.length, {
       sector: this.sector, index: this.sectorIndex + 1, total: SECTOR_COUNT,
       waves: this.sector.waves, theme: this.waveTheme, terrain: this.terrain.name,
+      incoming: this.betweenWaves && this.nextTheme ? this.nextTheme : null,
+      eta: this.betweenWaves ? Math.max(0, this.waveTimer) : 0,
     });
     if (nearest) this.hud.setEnemy(true, nearest.hp, nearest.maxHp);
     else this.hud.setEnemy(false);
@@ -1068,6 +1100,10 @@ export class Range {
   }
 
   update(dt) {
+    // Le dt reçu est déjà mis à l'échelle : on divise pour retomber en temps réel,
+    // sinon un ralenti à 0,3 durerait plus de trois fois la durée demandée.
+    if (this._dramaT > 0) this._dramaT -= dt / Math.max(0.05, this._dramaScale);
+
     if (this.over) {
       this._followCamera(dt);
       this.fx.update(dt);
@@ -1257,6 +1293,10 @@ export class Range {
         this.enemies.every((e) => e.state !== 'exploding')) {
       this.betweenWaves = true;
       this.waveTimer = TUNE.waveBreak; // respiration : on souffle entre deux vagues
+      // Le radar annonce CE QUI ARRIVE : la respiration devient active — on sait
+      // qu'une nuée approche, donc on repasse l'énergie en armes et on déploie
+      // l'escadron avant le contact, au lieu d'attendre bêtement.
+      this._announceNextWave();
       // Prime PLAFONNÉE : à 40 × vague elle croissait quadratiquement alors que
       // la menace ne monte que linéairement — le build finissait maxé et le
       // hangar n'avait plus aucune décision à offrir.

@@ -99,6 +99,8 @@ export class Audio {
   shieldBreak() { this._noise(0.35, 1800, 0.5); this._tone('square', 700, 110, 0.3, 0.4); }
   pickup() { this._tone('triangle', 660, 880, 0.1, 0.4); this._tone('triangle', 990, 1240, 0.12, 0.35, 0.09); }
   emp() { this._tone('sawtooth', 1400, 90, 0.45, 0.5); this._noise(0.4, 3500, 0.4); }
+  /** Ping radar : un contact vient d'être annoncé. */
+  ping() { this._tone('sine', 1500, 1500, 0.06, 0.22); this._tone('sine', 1900, 1900, 0.08, 0.16, 0.12); }
   /** Bascule de profil d'énergie : deux clacs de relais de passerelle. */
   relay() { this._tone('square', 420, 300, 0.07, 0.35); this._tone('square', 300, 520, 0.09, 0.3, 0.07); }
 

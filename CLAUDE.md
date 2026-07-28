@@ -43,6 +43,45 @@ cd BSG && python3 -m http.server 8000   # http://localhost:8000
 - `js/core/AutoHelm.js` — **barreur IA** : produit les mêmes `thrust`/`turn` que
   l'InputController, donc la physique de `Range` est identique qu'on soit à la barre ou non.
 
+## La TRAVERSÉE (structure du jeu)
+Le jeu n'est plus une survie sans fin mais une **traversée de 5 secteurs** vers un refuge
+(`data/campaign.js`). Chaque secteur a son terrain, son nombre de vagues et ses thèmes
+autorisés — c'est ce qui lui donne un caractère : la Ceinture grouille de chasseurs dans les
+rochers, le Blocus aligne des bâtiments lourds dans le vide (rien pour se cacher). Un cuirassé
+garde la sortie du Cimetière et de la Porte. Entre deux secteurs, un **saut** répare
+(`JUMP_REPAIR`) : franchir doit soigner, pas seulement enchaîner. Au bout, `_win()` appelle
+enfin `_end('victory')`, qui n'avait jamais été déclenché.
+
+### Vagues à THÈME (`data/waves.js`)
+`_composeWave` renvoyait la même composition dès la vague 3 et seuls les PV montaient. Sept
+thèmes qui demandent chacun une réponse différente (NUÉE → IEM et CIWS ; COLONNE BLINDÉE →
+missiles et mode SEMI ; PORTE-DRONES → défense rapprochée). Chacun a un seuil de progression et
+on évite de répéter le précédent. Mesuré : 7 thèmes distincts sur 14 vagues.
+Prime de vague plafonnée à 6 (elle était quadratique face à une menace linéaire).
+
+## TERRAIN (`data/terrainConfig.js` + `entities/Terrain.js`)
+L'arène était un rectangle vide. Les obstacles **coupent les tirs**, donc la ligne de vue est
+une ressource et se placer devient une décision :
+- le laser hitscan s'arrête sur le rocher **avant** la cible (`Terrain.rayHit`) ;
+- les projectiles meurent à l'impact, quelle que soit leur faction ;
+- l'équipage **refuse** de tirer sur une cible masquée et l'annonce (« CIBLE MASQUÉE ») —
+  attention, il faut aussi mettre `quality` à 0, sinon le HUD affiche BONNE alors que rien ne
+  peut partir (piège rencontré) ;
+- les nuages de poussière ne bloquent rien mais divisent la portée radar par ~3, ce qui fait
+  exploser la dispersion de l'équipage : s'y cacher a un prix.
+Génération : tout placement chevauchant un obstacle posé ou la zone franche centrale est rejeté.
+
+## MISE EN SCÈNE
+L'épique est un **contraste**, pas une intensité constante :
+- **Annonce radar** : pendant la respiration, le HUD annonce le thème qui arrive
+  (`⚠ CONTACT 8s — NUÉE`) et `_announceNextWave` fixe le thème à l'avance pour que l'annonce
+  soit tenue. Cela rend la respiration **active** : on prépare l'énergie et l'escadron avant le
+  choc au lieu d'attendre.
+- **Ralenti dramatique** (`Range.drama`) sur la destruction d'un cuirassé et sur sa propre mort.
+  ⚠ Le `dt` reçu est déjà mis à l'échelle : il faut le rediviser par `_dramaScale` pour
+  décompter en temps réel, sinon un ralenti à 0,3 dure trois fois trop longtemps.
+- Bannières de secteur, pastilles de progression, ping radar.
+
 ## Rythme : jeu de postes, pas beat'em all
 Un jeu de postes **ne peut pas** être nerveux : sans respiration, on n'a jamais le temps de
 changer de poste, et la mécanique centrale devient inutilisable. Le ralentissement n'est donc
