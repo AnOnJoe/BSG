@@ -2,8 +2,8 @@
 
 Jeu spatial WebGL au style **low-poly fil de fer néon**. On **construit et améliore**
 un vaisseau mère « baleine » (livrée **bleu & blanc**, dos foncé / ventre clair) dans
-un **hangar**, puis on affronte des **vagues d'ennemis** dans une arène de combat
-naval spatial.
+un **hangar**, puis on **traverse cinq secteurs** hostiles jusqu'à un refuge, en
+commandant l'équipage depuis les postes de la passerelle.
 
 Rendu **Three.js** (chargé depuis un CDN via import map) + post-processing bloom.
 Aucun build ni dépendance : c'est un **site statique**.
@@ -73,7 +73,7 @@ et déployer l'escadron avant le contact plutôt que d'attendre.
   baleine puis se **bloque aux bords** (tu te décentres vers le bord).
 - Les ennemis apparaissent **hors-champ** et foncent : **flèches en bord d'écran**
   + **mini-radar** (coin bas-droite) pour les repérer.
-- **CUIRASSÉ toutes les 5 vagues** : un bâtiment **quatre fois plus long que ta baleine**, qui
+- **CUIRASSÉ** gardant la sortie de certains secteurs : un bâtiment **quatre fois plus long que ta baleine**, qui
   déborde de l'écran (la caméra recule pour le contenir). On ne l'esquive pas, on le **démonte**
   — il n'a pas de barre de vie, il a **dix pièces** : sept batteries, un îlot de commandement,
   deux moteurs. Chacune se vise et se détruit séparément, et chacune change la donne : une
@@ -83,7 +83,8 @@ et déployer l'escadron avant le contact plutôt que d'attendre.
 - **Rythme posé, pas beat'em all** : les ennemis sont lents, tirent peu souvent, apparaissent
   loin (approche longue et lisible), et une **respiration de ~8 s** sépare les vagues. Sans ça
   on n'aurait jamais le temps de changer de poste — la mécanique centrale serait inutilisable.
-- **Vagues** croissantes (plus d'ennemis, PV et dégâts). **Types d'ennemis** :
+- **Vagues à thème** (cf. la traversée), et non plus une composition figée dont seuls
+  les PV montaient. **Types d'ennemis** :
   **Chasseur** (rapide, fragile), **Raider** (polyvalent), **Cuirassé** (lourd,
   gros PV/dégâts), **Porte-drones** (déploie des intercepteurs). Ils **encerclent**
   (maintiennent leur distance et tournent autour), avec un léger **temps de réaction**.
@@ -91,7 +92,7 @@ et déployer l'escadron avant le contact plutôt que d'attendre.
 - **Bonus** ramassables en volant dessus : **caisse de munitions** (recharge les
   missiles) et **kit de réparation** (restaure la coque). Ils clignotent puis disparaissent.
 - Coque à 0 = **défaite** → overlay **Rejouer / Hangar** + **🏆 Hall of Fame**
-  (meilleures vagues atteintes, persistées). Survie sans fin.
+  (persisté). Arriver au refuge = **victoire**.
 
 ## Systèmes
 

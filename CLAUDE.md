@@ -38,7 +38,7 @@ cd BSG && python3 -m http.server 8000   # http://localhost:8000
   Audio, Tune, HallOfFame, SaveManager, NeonMaterials.
 - `js/core/PowerBus.js` + `js/core/CommandRing.js` — **répartition d'énergie** (armes /
   boucliers / moteurs) et son menu radial. Voir ci-dessous.
-- `js/core/Stations.js` — **postes** (pilote / artilleur / drones) : lequel le joueur tient,
+- `js/core/Stations.js` — **postes** (commandant / pilote / artilleur / drones) : lequel le joueur tient,
   et le transit. Point d'extension unique pour un futur coop.
 - `js/core/AutoHelm.js` — **barreur IA** : produit les mêmes `thrust`/`turn` que
   l'InputController, donc la physique de `Range` est identique qu'on soit à la barre ou non.
