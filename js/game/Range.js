@@ -9,6 +9,7 @@ import { FIRE_MODES } from '../core/WeaponControl.js';
 import { POWER_PRESETS } from '../core/PowerBus.js';
 import { HELM_ORDERS, DRONE_ORDERS } from '../data/orders.js';
 import { WAVE_THEMES, CAPITAL_THEME, pickTheme } from '../data/waves.js';
+import { SECTORS, sectorAt, SECTOR_COUNT, JUMP_REPAIR } from '../data/campaign.js';
 import { viewport } from '../core/Viewport.js';
 import { EnemyShip, ENEMY_TYPES } from '../entities/EnemyShip.js';
 import { CapitalShip } from '../entities/CapitalShip.js';
@@ -96,8 +97,11 @@ export class Range {
     this.pickups = [];
     this._pickupTimer = 8;
 
-    this.wave = 0;
+    this.wave = 0;          // vague dans le SECTEUR courant (1..sector.waves)
+    this.sectorIndex = 0;   // avancement de la traversée
     this.waveTheme = null;
+    this.jumping = false;   // saut inter-secteurs en cours
+    this.jumpTimer = 0;
     this.betweenWaves = false;
     this.waveTimer = 0;
     this.over = false;
@@ -197,6 +201,10 @@ export class Range {
     this.over = false;
     this.aim.firing = false;
     this.wave = 0;
+    this.sectorIndex = 0;
+    this.jumping = false;
+    this.jumpTimer = 0;
+    this.waveTheme = null;
     this.ship.group.visible = true;
     this.ship.group.position.set(0, 0, 0);
     this.ship.group.rotation.z = 0;
@@ -207,7 +215,7 @@ export class Range {
     this.autoHelm.reset();
     this.weapons.setFireMode('burst');
     this._setDroneOrder('attack'); // escadron déployé d'emblée : la baie est payée
-    this.terrain.build(this.terrainId || 'asteroids', ARENA, { x: 0, y: 0, r: 34 });
+    this.terrain.build(this.sector.terrain, ARENA, { x: 0, y: 0, r: 34 });
     this.helmOrder = 'engage';
     this.camZoom = 1;
     this._camZoomWant = 1;
@@ -233,16 +241,21 @@ export class Range {
     this.fx.clear();
   }
 
-  /** Vague « boss » : un cuirassé toutes les 5 vagues. */
-  _isCapitalWave(n) { return n > 0 && n % 5 === 0; }
+  get sector() { return sectorAt(this.sectorIndex); }
 
-  /** Thèmes autorisés (le secteur les restreindra au palier suivant). */
+  /** Thèmes autorisés : le caractère du secteur restreint l'opposition. */
   get _allowedThemes() {
-    return Object.keys(WAVE_THEMES);
+    return this.sector.themes || Object.keys(WAVE_THEMES);
   }
 
-  /** Progression 0 → 1, qui débloque les thèmes lourds. */
-  _progress(n) { return Math.min(1, (n - 1) / 14); }
+  /** Progression sur la TRAVERSÉE entière (0 → 1) : débloque les thèmes lourds. */
+  _progress() {
+    const done = this.sectorIndex + (this.wave - 1) / Math.max(1, this.sector.waves);
+    return Math.min(1, done / Math.max(1, SECTOR_COUNT - 1));
+  }
+
+  /** Dernière vague du secteur : c'est là que le cuirassé garde la sortie. */
+  _isCapitalWave(n) { return this.sector.capital && n >= this.sector.waves; }
 
   /**
    * Compose la vague par THÈME et non par « n ennemis + PV en plus ». C'est ce
@@ -253,7 +266,7 @@ export class Range {
       this.waveTheme = CAPITAL_THEME;
       return CAPITAL_THEME.comp.slice(0, MAX_ENEMIES);
     }
-    const theme = pickTheme(this._allowedThemes, this._progress(n), this.waveTheme?.id);
+    const theme = pickTheme(this._allowedThemes, this._progress(), this.waveTheme?.id);
     this.waveTheme = theme;
     return theme.comp.slice(0, MAX_ENEMIES);
   }
@@ -299,7 +312,7 @@ export class Range {
       this.app.renderer.pulse(1.0);
       this.shake.add(0.5);
     } else {
-      this.hud.showWaveBanner(n);
+      this.hud.showWaveBanner(n, `${this.sector.name} · ${this.waveTheme.name}`);
     }
   }
 
@@ -859,6 +872,53 @@ export class Range {
     }
   }
 
+  /**
+   * Fin de secteur : on saute. C'est la respiration de la traversée — l'équipage
+   * répare, on encaisse la prime, et le secteur suivant a son propre caractère.
+   */
+  _beginJump() {
+    this.betweenWaves = false;
+    if (this.sectorIndex + 1 >= SECTOR_COUNT) { this._win(); return; }
+    this.jumping = true;
+    this.jumpTimer = 4.2;
+    this._clearEntities();
+    // Réparations du saut : franchir doit soigner, pas seulement enchaîner.
+    this.ship.structure = Math.min(this.ship.structureMax, this.ship.structure + JUMP_REPAIR.structure);
+    if (JUMP_REPAIR.ammo) for (const m of this.ship.modules) if (m.reload) m.reload();
+    this.app.addCredits(JUMP_REPAIR.credits);
+    this.hud.showJump(this.sector, sectorAt(this.sectorIndex + 1), JUMP_REPAIR);
+    this.audio.pickup();
+    this.app.renderer.pulse(0.8);
+  }
+
+  /** Arrivée dans le secteur suivant : nouveau décor, nouvelle opposition. */
+  _arriveSector() {
+    this.jumping = false;
+    this.sectorIndex++;
+    this.wave = 0;
+    this.waveTheme = null;
+    this.ship.group.position.set(0, 0, 0);
+    this.shipVel.set(0, 0, 0);
+    this.shipAngVel = 0;
+    this.terrain.build(this.sector.terrain, ARENA, { x: 0, y: 0, r: 34 });
+    this.hud.hideJump();
+    this.hud.showSector(this.sector, this.sectorIndex + 1, SECTOR_COUNT);
+    this._spawnWave(1);
+  }
+
+  /** Traversée achevée : la victoire que `_end(type)` n'a jamais reçue. */
+  _win() {
+    this.over = true;
+    this.aim.firing = false;
+    this.ring.cancel();
+    this.stations.reset();
+    this.audio.win();
+    this.app.renderer.pulse(1);
+    const hof = HallOfFame.add(SECTOR_COUNT, this.app.credits);
+    this.hud.showOutcome('victory', 'Refuge atteint — traversée achevée',
+      () => this._startGame(), () => this.app.toggleScreen(), hof);
+  }
+
   /** Le cuirassé n'a plus une seule pièce : il part en morceaux, longuement. */
   _destroyCapital() {
     const cfg = this.capital.config;
@@ -937,7 +997,10 @@ export class Range {
       drones: this.droneOrder,
     });
     this.hud.setCredits(this.app.credits);
-    this.hud.setWave(this.wave, this.aliveEnemies.length);
+    this.hud.setWave(this.wave, this.aliveEnemies.length, {
+      sector: this.sector, index: this.sectorIndex + 1, total: SECTOR_COUNT,
+      waves: this.sector.waves, theme: this.waveTheme, terrain: this.terrain.name,
+    });
     if (nearest) this.hud.setEnemy(true, nearest.hp, nearest.maxHp);
     else this.hud.setEnemy(false);
     if (radar && nearest) {
@@ -1022,6 +1085,17 @@ export class Range {
 
     // Postes : le joueur en tient un, l'équipage tient les autres.
     this.stations.update(dt);
+    // Pendant un saut : plus d'ennemis, on laisse le vaisseau sur son erre.
+    if (this.jumping) {
+      this.jumpTimer -= dt;
+      if (this.jumpTimer <= 0) this._arriveSector();
+      this._followCamera(dt);
+      this.ship.updateDefense(dt);
+      this.fx.update(dt);
+      this._updateHud(dt);
+      this.shake.applyShake(dt);
+      return;
+    }
     const atHelm = this.stations.manned('helm');
     if (!atHelm) {
       // Le barreur IA produit les MÊMES commandes que le joueur (thrust/turn),
@@ -1190,8 +1264,12 @@ export class Range {
     }
     if (this.betweenWaves) {
       this.waveTimer -= dt;
-      if (this.waveTimer <= 0) this._spawnWave(this.wave + 1);
+      if (this.waveTimer <= 0) {
+        if (this.wave >= this.sector.waves) this._beginJump();
+        else this._spawnWave(this.wave + 1);
+      }
     }
+
 
     this._updateHud(dt);
     this.shake.applyShake(dt);

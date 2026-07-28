@@ -75,6 +75,9 @@ export class Hud {
     this.enemyPanel = document.createElement('div');
     this.enemyPanel.id = 'enemy-panel';
     this.enemyPanel.innerHTML = `
+      <div class="sector-line"></div>
+      <div class="sector-sub"></div>
+      <div class="sector-dots"></div>
       <div class="wave-line"></div>
       <div class="hp-block">
         <div class="hp-label"><span>CIBLE</span><span class="hp-num"></span></div>
@@ -83,6 +86,9 @@ export class Hud {
     `;
     this.container.appendChild(this.enemyPanel);
     this.waveLine = this.enemyPanel.querySelector('.wave-line');
+    this.sectorLine = this.enemyPanel.querySelector('.sector-line');
+    this.sectorSub = this.enemyPanel.querySelector('.sector-sub');
+    this.sectorDots = this.enemyPanel.querySelector('.sector-dots');
     this.enemyFill = this.enemyPanel.querySelector('.hp-fill');
     this.enemyNum = this.enemyPanel.querySelector('.hp-num');
   }
@@ -457,8 +463,27 @@ export class Hud {
     }
   }
 
-  setWave(wave, enemiesLeft) {
-    this.waveLine.textContent = `VAGUE ${wave} · ennemis ${enemiesLeft}`;
+  /**
+   * Progression de la TRAVERSÉE : sans ça « vague 3 » ne dit pas où l'on va.
+   * Les pastilles montrent les secteurs franchis, le secteur courant et ce qui
+   * reste — c'est ce qui donne une direction au jeu.
+   */
+  setWave(wave, enemiesLeft, run) {
+    this.waveLine.textContent = `VAGUE ${wave}${run ? `/${run.waves}` : ''} · ennemis ${enemiesLeft}`;
+    if (!run || !this.sectorLine) return;
+    const label = `${run.index}/${run.total} — ${run.sector.name}`;
+    if (label !== this._sectorLabel) {
+      this._sectorLabel = label;
+      this.sectorLine.textContent = label;
+      this.sectorSub.textContent = run.terrain || run.sector.subtitle || '';
+      this.sectorDots.innerHTML = Array.from({ length: run.total }, (_, i) =>
+        `<span class="dot ${i < run.index - 1 ? 'done' : i === run.index - 1 ? 'here' : ''}"></span>`).join('');
+    }
+    const th = run.theme ? run.theme.name : '';
+    if (th !== this._themeLabel) {
+      this._themeLabel = th;
+      this.sectorSub.textContent = `${run.terrain} · ${th}`;
+    }
   }
 
   setCredits(n) {
@@ -610,6 +635,32 @@ export class Hud {
     ctx.fillStyle = '#7fe8ff';
     ctx.beginPath(); ctx.moveTo(5, 0); ctx.lineTo(-3.5, 3); ctx.lineTo(-3.5, -3); ctx.closePath(); ctx.fill();
     ctx.restore();
+  }
+
+  /** Écran de saut : la respiration entre deux secteurs, et ce qu'on y gagne. */
+  showJump(from, to, repair) {
+    if (!this.jumpEl) {
+      this.jumpEl = document.createElement('div');
+      this.jumpEl.id = 'jump-screen';
+      this.container.appendChild(this.jumpEl);
+    }
+    this.jumpEl.className = '';
+    this.jumpEl.innerHTML =
+      `<div class="jp-tag">SECTEUR FRANCHI</div>` +
+      `<div class="jp-from">${from.name}</div>` +
+      `<div class="jp-arrow">↓ saut en cours ↓</div>` +
+      `<div class="jp-to">${to.name}</div>` +
+      `<div class="jp-sub">${to.subtitle}</div>` +
+      `<div class="jp-repair">+${repair.structure} coque · munitions rechargées · +${repair.credits} ◈</div>`;
+  }
+
+  hideJump() {
+    if (this.jumpEl) this.jumpEl.className = 'hidden';
+  }
+
+  /** Annonce d'entrée dans un secteur. */
+  showSector(sector, index, total) {
+    this.showWaveBanner(0, `${index}/${total} — ${sector.name}`);
   }
 
   showWaveBanner(n, sub) {
