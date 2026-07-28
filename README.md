@@ -49,9 +49,26 @@ plutôt vers la proue.
   **crédits** (gagnés en combat) ; retirer rembourse 50 %.
 - Le **build et les crédits** sont sauvegardés (localStorage) et rechargés au démarrage.
 
-## La traversée
+## La fuite
 
-On ne survit plus indéfiniment : on **traverse cinq secteurs** jusqu'à un refuge — Périphérie,
+Les Colonies sont tombées. Tu escortes ce qui reste : **cinq transports civils, 34 600 âmes**,
+qui ne peuvent ni tirer ni manœuvrer. Les Cylons vous retrouvent à chaque saut, on ne sait pas
+comment. Le seul recours est de **sauter encore**.
+
+Un secteur n'est pas une arène à nettoyer, c'est un **saut à préparer** : tu entres par la
+gauche, la porte de saut est loin à droite, et le **moteur FTL calcule** pendant que la flotte
+avance. Les assauts ne s'arrêtent jamais — tu ne peux pas « finir » une vague, seulement tenir
+jusqu'à l'échéance.
+
+Le commandant peut **forcer le calcul** pour partir plus tôt, mais l'énergie qu'il y met est
+prise sur les armes et les boucliers. Et le saut **n'emporte que ce qui est arrivé à la porte** :
+si un transport traîne, il faut choisir — l'attendre sous le feu, ou ordonner le départ (**J**)
+et le laisser. Les âmes perdues le sont pour de bon, jusqu'à la fin de la partie.
+
+Les Cylons ne viennent pas pour toi : **ils viennent pour eux**. Rester planté à côté du convoi
+ne suffit pas, il faut aller intercepter.
+
+Cinq secteurs jusqu'au refuge — Périphérie,
 la Ceinture, Cimetière de coques, le Blocus, la Porte. Chacun a son **décor** et son caractère :
 la Ceinture est un dédale de roches où le radar se brouille, le Blocus un vide dégagé où rien
 ne protège. Un **cuirassé** garde la sortie de deux d'entre eux. Entre deux secteurs, un

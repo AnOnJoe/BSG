@@ -541,7 +541,8 @@ export class Hud {
    * reste — c'est ce qui donne une direction au jeu.
    */
   setWave(wave, enemiesLeft, run) {
-    this.waveLine.textContent = `VAGUE ${wave}${run ? `/${run.waves}` : ''} · ennemis ${enemiesLeft}`;
+    // Les assauts sont INFINIS : pas de dénominateur (il affichait « /undefined »).
+    this.waveLine.textContent = `ASSAUT ${wave} · en vue ${enemiesLeft}`;
     if (!run || !this.sectorLine) return;
     const label = `${run.index}/${run.total} — ${run.sector.name}`;
     if (label !== this._sectorLabel) {
@@ -718,6 +719,34 @@ export class Hud {
     ctx.fillStyle = '#7fe8ff';
     ctx.beginPath(); ctx.moveTo(5, 0); ctx.lineTo(-3.5, 3); ctx.lineTo(-3.5, -3); ctx.closePath(); ctx.fill();
     ctx.restore();
+  }
+
+  /**
+   * Effet de saut FTL : traits qui filent puis flash blanc. En DOM plutôt qu'en
+   * 3D — étirer un nuage de `Points` coûterait cher pour un effet d'une seconde,
+   * et l'écran tactique est justement l'endroit où un artefact d'affichage se
+   * justifie.
+   */
+  playJumpFx() {
+    if (!this.jumpFx) {
+      this.jumpFx = document.createElement('div');
+      this.jumpFx.id = 'jump-fx';
+      // Des traînées HORIZONTALES : on file vers la droite, les étoiles s'étirent
+      // dans notre dos. Un dégradé répété donnait des barres verticales — l'effet
+      // inverse de celui qu'on cherche.
+      const lines = Array.from({ length: 46 }, () => {
+        const top = Math.random() * 100;
+        const len = 6 + Math.random() * 26;
+        const delay = Math.random() * 0.22;
+        const from = Math.random() * 70;
+        return `<i class="jfx-line" style="top:${top}%;left:${from}%;--len:${len}%;animation-delay:${delay}s"></i>`;
+      }).join('');
+      this.jumpFx.innerHTML = `<div class="jfx-streaks">${lines}</div><div class="jfx-flash"></div>`;
+      this.container.appendChild(this.jumpFx);
+    }
+    this.jumpFx.classList.remove('run');
+    void this.jumpFx.offsetWidth;   // force le reflow, sinon l'animation ne rejoue pas
+    this.jumpFx.classList.add('run');
   }
 
   /** Écran de saut : la respiration entre deux secteurs, et ce qu'on y gagne. */

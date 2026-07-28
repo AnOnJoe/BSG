@@ -1068,6 +1068,7 @@ export class Range {
     this.app.renderer.pulse(1);
     this.shake.add(0.6);
     this.drama(0.4, 1.2);
+    this.hud.playJumpFx();
 
     const last = this.sectorIndex + 1 >= SECTOR_COUNT;
     this.hud.showJump(this.sector, last ? null : sectorAt(this.sectorIndex + 1), {
@@ -1474,6 +1475,7 @@ export class Range {
       if (!this.capital.livingParts.length) this._destroyCapital();
     }
 
+    this.terrain.update(dt);
     this._updateDrones(dt);
     this._updateBolts(dt);
     this._updatePickups(dt);

@@ -43,6 +43,43 @@ cd BSG && python3 -m http.server 8000   # http://localhost:8000
 - `js/core/AutoHelm.js` — **barreur IA** : produit les mêmes `thrust`/`turn` que
   l'InputController, donc la physique de `Range` est identique qu'on soit à la barre ou non.
 
+## LA FUITE — modèle Battlestar Galactica saison 1
+**Le renversement d'objectif est le cœur du jeu.** On ne nettoie plus des vagues (un stock à
+épuiser ⇒ fin garantie, donc trop facile) : on **tient une échéance en protégeant des gens**.
+
+- `data/convoyConfig.js` + `entities/Convoy.js` — la **flotte civile**. Les transports ne tirent
+  pas, ne manœuvrent pas, et **le plus lent commande le départ**. Un transport perdu emporte ses
+  survivants **définitivement** : l'échec est partiel et cumulatif, pas un game over.
+- `core/FtlDrive.js` — le **moteur de saut**, horloge du niveau. Le commandant peut **forcer** le
+  calcul (×2,4) au prix de l'énergie des armes et boucliers : mesuré +11 %/4 s contre +4,6 %, et
+  90 → 42 d'énergie. C'est l'arbitrage central — gagner du temps contre encaisser.
+- **Le dilemme** : le saut n'emporte que ce qui est dans `JUMP_RADIUS`. Il part seul quand toute
+  la flotte est à la porte ; sinon c'est au commandant d'ordonner le départ (**J**) en
+  abandonnant le traînard, sous le feu qui continue.
+- **COULOIR et non arène** : `ARENA.x` passe à 430, on entre par `ENTRY_X` (gauche) et la porte
+  est à `JUMP_X` (droite). Le niveau a une direction — c'était le grief « enchaînement d'arènes ».
+- **Les Cylons viennent pour la flotte**, pas pour le joueur : chacun prend le transport le plus
+  proche de lui, sauf si la baleine est à moins de `TUNE.cylonPlayerAggro`. Vérifié : baleine
+  parquée à 364 d'écart, ils passent de 67 à 15 de distance moyenne de la flotte et lui infligent
+  70 PV en 14 s. **Sans ça, « escorter » ne voulait rien dire.**
+- **Assauts continus** : le compteur ne s'arrête jamais, même si le précédent n'est pas nettoyé.
+  La difficulté monte par la PRESSION (`ftlTime`, `assaultEvery`), pas par les PV.
+
+### Décor : des VOLUMES, pas des disques
+Les rochers étaient des `ExtrudeGeometry` — des prismes dont on voyait la face plate. Désormais
+`Terrain._rockGeo` déforme un icosaèdre par un **bruit continu de la direction** (et non
+`Math.random()` par sommet, qui trouerait la maille non indexée), plus des carcasses de vaisseaux
+(`wreckage`), des menus débris, plusieurs plans de profondeur et une dérive lente. ~160 objets
+par secteur, dimensionnés pour un couloir de 860×216. Seuls les obstacles `blocks` ont besoin
+d'être espacés — les débris peuvent se serrer.
+
+### Saut FTL et Raiders
+L'effet de saut est en **DOM** (46 traînées horizontales qui s'allongent puis flash) : étirer un
+nuage de `Points` coûterait cher pour une seconde d'animation. ⚠ Un `repeating-linear-gradient`
+donnait des barres **verticales** — l'inverse de l'effet cherché. Les ennemis ont une silhouette
+de **Raider** : ailes en croissant et **œil rouge qui balaye** en triangle (vitesse constante
+puis inversion nette), ce qui les rend vivants et reconnaissables bien plus que la forme.
+
 ## La TRAVERSÉE (structure du jeu)
 Le jeu n'est plus une survie sans fin mais une **traversée de 5 secteurs** vers un refuge
 (`data/campaign.js`). Chaque secteur a son terrain, son nombre de vagues et ses thèmes

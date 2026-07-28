@@ -52,6 +52,12 @@ export class EnemyShip {
   /** Paralysie (IEM) : fige déplacement et tir pendant `dur` secondes. */
   stun(dur) { this.stunTimer = Math.max(this.stunTimer, dur); }
 
+  /**
+   * Silhouette de RAIDER CYLON : aile en croissant, corps mince, et surtout
+   * l'ŒIL ROUGE UNIQUE qui balaye d'un bord à l'autre. C'est ce balayage qui
+   * rend la chose vivante et reconnaissable d'un coup d'œil — bien plus que la
+   * forme elle-même.
+   */
   _buildBody() {
     const shape = new THREE.Shape();
     shape.moveTo(PROFILE[0][0], PROFILE[0][1]);
@@ -61,9 +67,47 @@ export class EnemyShip {
     geo.translate(0, 0, -0.55);
     this.body = makeSolid(geo, this.color, { fill: 0x2a0f12, thresholdAngle: 22 });
     this.group.add(this.body);
-    const eye = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.14), new THREE.MeshBasicMaterial({ color: 0xffdd66 }));
-    eye.position.set(-1.6, 0, 0.56);
-    this.group.add(eye);
+
+    // Ailes en croissant, recourbées vers l'avant
+    for (const sy of [1, -1]) {
+      const w = new THREE.Shape();
+      w.moveTo(-0.2, 0.5 * sy);
+      w.lineTo(-2.4, 1.9 * sy);
+      w.lineTo(-3.4, 1.5 * sy);
+      w.lineTo(-2.9, 0.85 * sy);
+      w.lineTo(-1.0, 0.35 * sy);
+      w.closePath();
+      const wg = new THREE.ExtrudeGeometry(w, { depth: 0.5, bevelEnabled: false, steps: 1 });
+      wg.translate(0, 0, -0.25);
+      this.group.add(makeSolid(wg, this.color, { fill: 0x2a0f12, thresholdAngle: 30 }));
+    }
+
+    // Fente du capteur + œil qui coulisse dedans
+    const slot = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.5, 0.16),
+      new THREE.MeshBasicMaterial({ color: 0x2b0a0c })
+    );
+    slot.position.set(-1.4, 0, 0.57);
+    this.group.add(slot);
+    this.eye = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.34, 0.2),
+      new THREE.MeshBasicMaterial({ color: 0xff2d2d })
+    );
+    this.eye.position.set(-1.4, 0, 0.6);
+    this.group.add(this.eye);
+    this._eyeT = Math.random() * 6;
+  }
+
+  /** Balayage de l'œil : va-et-vient continu, indépendant du reste. */
+  _updateEye(dt) {
+    if (!this.eye) return;
+    this._eyeT += dt * 2.6;
+    // Triangle plutôt que sinus : le balayage a une vitesse constante puis
+    // s'inverse net, comme le Cylon de la série.
+    const p = (this._eyeT % 2);
+    const k = p < 1 ? p : 2 - p;
+    this.eye.position.x = -2.0 + k * 1.2;
+    this.eye.material.color.setHex(0xff2d2d);
   }
 
   get position() { return this.group.position.clone(); }
@@ -127,6 +171,7 @@ export class EnemyShip {
       return;
     }
     if (this.state !== 'alive') return;
+    this._updateEye(dt);
 
     // Paralysé par une IEM : clignote, ne bouge pas, ne tire pas
     if (this.stunTimer > 0) {
