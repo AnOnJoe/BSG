@@ -35,6 +35,8 @@ export const TUNE = {
   spawnDist: 78,       // distance d'apparition des ennemis (approche longue et lisible)
   waveBreak: 8,        // respiration entre deux vagues (s) — hérité, peu utilisé
   ftlChargeRate: 1.15, // vitesse du calcul de saut (%/s au rythme normal)
+  cylonPlayerAggro: 26, // en dessous de cette distance, un Cylon traite la baleine
+                        // avant les civils ; au-delà il va droit sur la flotte
   capitalCamZoom: 1.55, // recul de caméra (×) quand un cuirassé est en vue
   viewZoom: 1.15,      // recul de caméra général (vue plus large)
   screenRefH: 800,     // hauteur d'écran de référence : en dessous, on dézoome d'autant
@@ -101,6 +103,7 @@ export const TUNE_SPECS = [
   ['spawnDist', 'Distance d\'apparition', 40, 130, 2],
   ['waveBreak', 'Respiration entre vagues (s)', 1, 20, 0.5],
   ['ftlChargeRate', 'Calcul de saut (%/s)', 0.3, 4, 0.05],
+  ['cylonPlayerAggro', 'Cylons : distance d\'agressivité', 8, 60, 2],
   ['capitalCamZoom', 'Recul caméra cuirassé (×)', 1, 2.5, 0.05],
   ['viewZoom', 'Recul caméra général (×)', 0.8, 2.2, 0.05],
   ['shieldRadius', 'Rayon bouclier', 5, 16, 0.5],

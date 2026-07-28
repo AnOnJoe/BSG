@@ -779,7 +779,7 @@ export class Range {
       let hitEntity = null;
       const targets = b.faction === 'player'
         ? this._hostilesForPlayer()
-        : [this._playerTarget, ...this.playerDrones.filter((d) => d.isAlive())];
+        : [this._playerTarget, ...this.convoy.alive, ...this.playerDrones.filter((d) => d.isAlive())];
       for (const t of targets) {
         if (b.mesh.position.distanceTo(t.position) < (t.radius || 0.8)) { hitEntity = t; break; }
       }
@@ -787,7 +787,22 @@ export class Range {
       let done = false;
       if (hitEntity && !this.over) {
         let impactColor = b.color;
-        if (hitEntity.isPlayer) {
+        if (hitEntity.def && hitEntity.souls !== undefined) {
+          // Un civil encaisse : alerte forte, on doit le voir même à l'autre bout
+          hitEntity.takeDamage(b.damage);
+          this.fx.sparks(b.mesh.position, 0xff6a7a, 4);
+          if (!hitEntity.alive) {
+            this.fx.explosion(hitEntity.position, hitEntity.def.color, 2.4);
+            this.fx.debris(hitEntity.position, hitEntity.def.color, 20, 1.6);
+            this.audio.boom(1.3);
+            this.shake.add(0.7);
+            this.app.renderer.pulse(1);
+            this.convoy.lostSouls += hitEntity.souls;
+            this.hud.showWaveBanner(0, `✖ ${hitEntity.name.toUpperCase()} PERDU — ${hitEntity.souls.toLocaleString('fr-FR')} âmes`);
+            this.drama(0.4, 1.4);
+          }
+          done = true;
+        } else if (hitEntity.isPlayer) {
           const wasShield = this.ship.shieldUp;
           this.ship.takeDamage(b.damage);
           if (wasShield) { impactColor = SHIELD_COLOR; this.shake.add(0.06); } // absorbé par le bouclier
@@ -911,12 +926,18 @@ export class Range {
     }
     const barrier = this.ship.shieldUp ? TUNE.shieldRadius : 0; // bulle infranchissable
     for (const d of this.enemyDrones) {
+      // Les drones cylons mordent les civils : c'est ce qui donne son sens à la
+      // consigne ESCORTE de ton escadron et à la défense rapprochée.
+      const civ = this.convoy.nearestTo(d.position.x, d.position.y);
+      const dPlayer = d.position.distanceTo(this.ship.group.position);
+      const goCiv = civ && dPlayer > TUNE.cylonPlayerAggro * 0.7;
       d.update(dt, {
-        targetPos: this.ship.group.position,
+        targetPos: goCiv ? civ.position : this.ship.group.position,
         targetAlive: !this.over,
         ownerPos: d.owner.group.position,
         spawnBolt,
-        barrier,
+        // La bulle de bouclier ne protège que la baleine
+        barrier: goCiv ? 0 : barrier,
       });
     }
   }
@@ -1407,7 +1428,19 @@ export class Range {
     };
     const prevAlive = this.aliveEnemies.length;
     const wasAlive = this.enemies.map((e) => e.state === 'alive');
-    for (const e of this.enemies) if (e.state === 'alive' || e.state === 'exploding') e.update(dt, enemyCtx);
+    for (const e of this.enemies) {
+      if (e.state !== 'alive' && e.state !== 'exploding') continue;
+      // Ils ne viennent pas pour toi : ils viennent pour la flotte. Chaque Cylon
+      // prend le transport le plus proche de LUI — sauf si la baleine se met
+      // franchement en travers (< TUNE.cylonPlayerAggro), auquel cas il faut
+      // bien la traiter d'abord. C'est ça qui transforme le jeu en escorte : on
+      // ne peut pas rester planté à côté du convoi, il faut aller intercepter.
+      const civ = this.convoy.nearestTo(e.group.position.x, e.group.position.y);
+      const dPlayer = e.group.position.distanceTo(this.ship.group.position);
+      enemyCtx.playerPos = (civ && dPlayer > TUNE.cylonPlayerAggro) ? civ.position : this.ship.group.position;
+      e.update(dt, enemyCtx);
+    }
+    enemyCtx.playerPos = this.ship.group.position;
 
     // Détecte les explosions (transition vivant -> détruit) : juice + crédits
     this.enemies.forEach((e, i) => {
