@@ -8,6 +8,7 @@ import { AutoHelm } from '../core/AutoHelm.js';
 import { FIRE_MODES } from '../core/WeaponControl.js';
 import { POWER_PRESETS } from '../core/PowerBus.js';
 import { HELM_ORDERS, DRONE_ORDERS } from '../data/orders.js';
+import { WAVE_THEMES, CAPITAL_THEME, pickTheme } from '../data/waves.js';
 import { viewport } from '../core/Viewport.js';
 import { EnemyShip, ENEMY_TYPES } from '../entities/EnemyShip.js';
 import { CapitalShip } from '../entities/CapitalShip.js';
@@ -22,7 +23,9 @@ import { TUNE } from '../core/Tune.js';
 import { HallOfFame } from '../core/HallOfFame.js';
 
 const ARENA = { x: 190, y: 120 };
-const MAX_ENEMIES = 4;
+// Dimensionné pour le plus gros thème (NUÉE : 7 chasseurs). Le pool est
+// pré-alloué une fois pour toutes et réutilisé de vague en vague.
+const MAX_ENEMIES = 8;
 const SHIELD_COLOR = 0xa97bff;
 const REWARD = { fighter: 20, raider: 30, gunship: 70, carrier: 50 };
 
@@ -89,6 +92,7 @@ export class Range {
     this._pickupTimer = 8;
 
     this.wave = 0;
+    this.waveTheme = null;
     this.betweenWaves = false;
     this.waveTimer = 0;
     this.over = false;
@@ -223,14 +227,26 @@ export class Range {
   /** Vague « boss » : un cuirassé toutes les 5 vagues. */
   _isCapitalWave(n) { return n > 0 && n % 5 === 0; }
 
+  /** Thèmes autorisés (le secteur les restreindra au palier suivant). */
+  get _allowedThemes() {
+    return Object.keys(WAVE_THEMES);
+  }
+
+  /** Progression 0 → 1, qui débloque les thèmes lourds. */
+  _progress(n) { return Math.min(1, (n - 1) / 14); }
+
+  /**
+   * Compose la vague par THÈME et non par « n ennemis + PV en plus ». C'est ce
+   * qui fait qu'une vague tardive ne ressemble pas à une vague précoce gonflée.
+   */
   _composeWave(n) {
-    // Face au cuirassé, on allège l'escorte : le morceau de bravoure, c'est lui.
-    const size = this._isCapitalWave(n) ? 1 : Math.min(n, MAX_ENEMIES);
-    const types = [];
-    if (n >= 3) types.push('gunship');
-    if (n >= 2) types.push('carrier');
-    while (types.length < size) types.push(types.length % 2 === 0 ? 'raider' : 'fighter');
-    return types.slice(0, size);
+    if (this._isCapitalWave(n)) {
+      this.waveTheme = CAPITAL_THEME;
+      return CAPITAL_THEME.comp.slice(0, MAX_ENEMIES);
+    }
+    const theme = pickTheme(this._allowedThemes, this._progress(n), this.waveTheme?.id);
+    this.waveTheme = theme;
+    return theme.comp.slice(0, MAX_ENEMIES);
   }
 
   _spawnWave(n) {
@@ -1124,7 +1140,10 @@ export class Range {
         this.enemies.every((e) => e.state !== 'exploding')) {
       this.betweenWaves = true;
       this.waveTimer = TUNE.waveBreak; // respiration : on souffle entre deux vagues
-      this.app.addCredits(40 * this.wave); // prime de fin de vague
+      // Prime PLAFONNÉE : à 40 × vague elle croissait quadratiquement alors que
+      // la menace ne monte que linéairement — le build finissait maxé et le
+      // hangar n'avait plus aucune décision à offrir.
+      this.app.addCredits(40 * Math.min(this.wave, 6));
     }
     if (this.betweenWaves) {
       this.waveTimer -= dt;
