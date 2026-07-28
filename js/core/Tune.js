@@ -35,6 +35,10 @@ export const TUNE = {
   spawnDist: 78,       // distance d'apparition des ennemis (approche longue et lisible)
   waveBreak: 8,        // respiration entre deux vagues (s) — hérité, peu utilisé
   ftlChargeRate: 1.15, // vitesse du calcul de saut (%/s au rythme normal)
+  // « 33 » : dans la série les Cylons reviennent toutes les 33 minutes. On affiche
+  // ce décompte en temps FICTION, comprimé par ce facteur pour tenir dans une
+  // partie (33 min / 16.5 ≈ 2 min de répit réel avant le premier contact).
+  dradisCompress: 16.5,
   cylonPlayerAggro: 26, // en dessous de cette distance, un Cylon traite la baleine
                         // avant les civils ; au-delà il va droit sur la flotte
   capitalCamZoom: 1.55, // recul de caméra (×) quand un cuirassé est en vue
@@ -45,7 +49,11 @@ export const TUNE = {
   pickupLife: 22,      // durée de vie d'un bonus avant disparition (s)
   repairAmount: 45,    // PV de coque rendus par un kit de réparation
   shipPivot: 3.5,      // pivot de rotation vers la proue (0 = centre)
-  radarRangeMul: 1,    // portée de détection du radar (× la portée du module)
+  // DEUX portées distinctes, et il faut les séparer : détecter un écho n'est pas
+  // avoir une solution de tir. Un DRADIS qui porte loin ne doit pas rendre
+  // l'équipage précis partout (cf. crewNoRadarMul).
+  radarRangeMul: 1.5,   // portée utile à la CONDUITE DE TIR
+  dradisRangeMul: 11,   // portée d'AFFICHAGE du DRADIS (couvre le couloir)
   empRangeMul: 1,      // rayon d'effet de l'IEM (× le rayon du module)
 };
 
@@ -103,6 +111,7 @@ export const TUNE_SPECS = [
   ['spawnDist', 'Distance d\'apparition', 40, 130, 2],
   ['waveBreak', 'Respiration entre vagues (s)', 1, 20, 0.5],
   ['ftlChargeRate', 'Calcul de saut (%/s)', 0.3, 4, 0.05],
+  ['dradisCompress', 'Compression des 33 min (×)', 4, 40, 0.5],
   ['cylonPlayerAggro', 'Cylons : distance d\'agressivité', 8, 60, 2],
   ['capitalCamZoom', 'Recul caméra cuirassé (×)', 1, 2.5, 0.05],
   ['viewZoom', 'Recul caméra général (×)', 0.8, 2.2, 0.05],
@@ -111,6 +120,7 @@ export const TUNE_SPECS = [
   ['pickupLife', 'Durée bonus (s)', 5, 45, 1],
   ['repairAmount', 'Réparation (PV)', 10, 100, 5],
   ['shipPivot', 'Pivot rotation (± proue/poupe)', -7, 7, 0.5],
-  ['radarRangeMul', 'Portée radar (×)', 0.5, 4, 0.25],
+  ['radarRangeMul', 'Portée conduite de tir (×)', 0.5, 6, 0.25],
+  ['dradisRangeMul', 'Portée DRADIS (×)', 1, 24, 0.5],
   ['empRangeMul', 'Portée IEM (×)', 0.5, 3, 0.25],
 ];

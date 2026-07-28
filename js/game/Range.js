@@ -119,6 +119,9 @@ export class Range {
     this.jumping = false;   // saut inter-secteurs en cours
     this.jumpTimer = 0;
     this.assaultNo = 0;     // numéro d'assaut dans le secteur courant
+    this.dradisT = 0;       // décompte des « 33 minutes » (temps réel restant)
+    this.contact = false;   // les Cylons sont arrivés : la bataille a commencé
+    this._logIdx = 0;
     this._dramaT = 0;       // ralenti dramatique restant (s)
     this._dramaScale = 1;
     this.nextTheme = null;  // vague annoncée par le radar pendant la respiration
@@ -157,6 +160,23 @@ export class Range {
     this.convoy.setVisible(false);
     this.jumpGate.visible = false;
     this.scene.add(this.boundary);
+  }
+
+  /**
+   * Journal de passerelle pendant le répit. Les « 33 minutes » sont vides de
+   * combat : sans rien à lire, l'attente n'est pas de la tension mais du temps
+   * mort. Chaque palier du décompte livre un rapport.
+   */
+  static get DRADIS_LOG() {
+    return [
+      { at: 33, txt: 'Saut effectué. DRADIS vide. Décompte lancé.' },
+      { at: 28, txt: 'La flotte confirme sa position. Tous les vaisseaux répondent.' },
+      { at: 22, txt: 'Calcul des coordonnées en cours. Rien sur le DRADIS.' },
+      { at: 16, txt: 'Repos par roulement. Ils sont toujours en retard.' },
+      { at: 10, txt: 'Les civils demandent combien de temps encore.' },
+      { at: 5, txt: 'Postes de combat. Ils vont venir.' },
+      { at: 1, txt: 'DRADIS : échos multiples en approche…' },
+    ];
   }
 
   /** Porte de saut : le but du couloir, visible de loin. */
@@ -252,6 +272,7 @@ export class Range {
     this.convoy.build(FLEET, ENTRY_X, ARENA.y * 1.2);
     this.convoy.lostSouls = 0;
     this.ftl.reset();
+    this._resetDradis();
     this.jumping = false;
     this.jumpTimer = 0;
     this.waveTheme = null;
@@ -274,7 +295,10 @@ export class Range {
     this._clearEntities();
     this.hud.hideOutcome();
     this.hud.refreshStates();
-    this._spawnWave(1);
+    // AUCUN ennemi au départ : le répit des « 33 minutes » commence DRADIS vide,
+    // c'est tout son sens. Le premier assaut vient du décompte (_updateDradis),
+    // pas d'un spawn d'ouverture hérité de l'ancienne boucle par vagues.
+    this.hud.pushLog(`${this.sector.name} — ${this.sector.subtitle}`);
   }
 
   _clearEntities() {
@@ -531,6 +555,43 @@ export class Range {
     const behind = laggard && laggard.position.x < JUMP_X - JUMP_RADIUS;
     if (behind) this.hud.showWaveBanner(0, `⚠ SAUT SANS ${laggard.name.toUpperCase()}`);
     this._beginJump();
+  }
+
+  /** Remet le décompte des 33 minutes (converti en secondes réelles). */
+  _resetDradis() {
+    this.dradisT = (33 * 60) / TUNE.dradisCompress;
+    this.contact = false;
+    this._logIdx = 0;
+    this.assaultTimer = Infinity;   // aucun assaut pendant le répit
+    this.nextTheme = null;
+  }
+
+  /** Minutes de fiction restantes (ce que lit le joueur). */
+  get dradisMinutes() { return Math.max(0, (this.dradisT * TUNE.dradisCompress) / 60); }
+
+  /**
+   * Répit : on égrène le journal, puis à zéro les Cylons débarquent et la
+   * bataille commence. Après le contact, les assauts s'enchaînent normalement.
+   */
+  _updateDradis(dt) {
+    if (this.contact) return;
+    this.dradisT -= dt;
+    const mins = this.dradisMinutes;
+    const log = Range.DRADIS_LOG;
+    while (this._logIdx < log.length && mins <= log[this._logIdx].at) {
+      this.hud.pushLog(log[this._logIdx].txt);
+      this.audio.ping?.();
+      this._logIdx++;
+    }
+    if (this.dradisT <= 0) {
+      this.contact = true;
+      this.hud.pushLog('CONTACT — RAIDERS SUR LE DRADIS');
+      this.hud.showWaveBanner(0, '⚠ CONTACT CYLON');
+      this.audio.lose();
+      this.shake.add(0.5);
+      this.app.renderer.pulse(1);
+      this.assaultTimer = 0.6;
+    }
   }
 
   /** Rejoindre un poste (clic sur l'icône, ou Tab pour cycler). */
@@ -1098,7 +1159,7 @@ export class Range {
     this.shipVel.set(0, 0, 0);
     this.shipAngVel = 0;
     this.terrain.build(this.sector.terrain, ARENA, { x: ENTRY_X, y: 0, r: 60 });
-    this.assaultTimer = Math.min(10, this.sector.assaultEvery * 0.5);
+    this._resetDradis();
     this.hud.hideJump();
     this.hud.showSector(this.sector, this.sectorIndex + 1, SECTOR_COUNT);
   }
@@ -1206,6 +1267,8 @@ export class Range {
     this.hud.setCredits(this.app.credits);
     this.hud.setFtl(this.ftl, this.convoy, {
       soulsStart: this.soulsAtStart,
+      dradis: this.dradisMinutes,
+      contact: this.contact,
       nextAssault: Math.max(0, this.assaultTimer),
       // Distance qui reste au traînard : c'est lui qui commande le départ
       laggardToGate: this.convoy.laggard
@@ -1229,11 +1292,20 @@ export class Range {
     // Mini-radar : portée = celle du module radar (0 => scope vide)
     const p = this.ship.group.position;
     this.hud.updateMinimap(dt, {
-      range: radar ? radar.range * TUNE.radarRangeMul : 0, // portée de détection réglable
+      // Le DRADIS affiche BEAUCOUP plus loin que la portée de conduite de tir :
+      // on escorte une flotte étalée sur ~100 unités dans un couloir de 860, il
+      // faut voir qui se fait mordre à l'autre bout.
+      range: radar ? radar.range * TUNE.dradisRangeMul : 0,
       player: { x: p.x, y: p.y },
       heading: this.ship.group.rotation.z,
       enemies: this.aliveEnemies.map((e) => ({ x: e.group.position.x, y: e.group.position.y })),
       pickups: this.pickups.map((pk) => ({ x: pk.position.x, y: pk.position.y, type: pk.type })),
+      // On escorte : voir la flotte sur le DRADIS est vital, sinon on ne sait pas
+      // qui se fait mordre à l'autre bout du couloir.
+      civils: this.convoy.alive.map((t) => ({
+        x: t.position.x, y: t.position.y, hurt: t.hp / t.maxHp < 0.5,
+      })),
+      gate: { x: JUMP_X, y: 0 },
     });
     this._updateIndicators();
   }
@@ -1493,9 +1565,12 @@ export class Range {
     // La flotte anéantie, il n'y a plus rien à sauver.
     if (!this.convoy.alive.length) { this._end('lost-fleet'); this._updateHud(dt); this.shake.applyShake(dt); return; }
 
-    // Assauts en continu : le compteur ne s'arrête jamais, même si le précédent
-    // n'est pas nettoyé. C'est la pression, et elle ne dépend pas de nos kills.
-    this.assaultTimer -= dt;
+    // Le décompte des « 33 minutes » : répit scénarisé, puis le contact.
+    this._updateDradis(dt);
+
+    // Assauts en continu APRÈS le contact : le compteur ne s'arrête jamais, même
+    // si le précédent n'est pas nettoyé. La pression ne dépend pas de nos kills.
+    if (this.contact) this.assaultTimer -= dt;
     if (this.assaultTimer <= 0) {
       this._launchAssault();
       this.assaultTimer = this.sector.assaultEvery;

@@ -26,19 +26,110 @@ class Transport {
     this._build();
   }
 
+  /**
+   * Chaque type a sa PROPRE construction. Auparavant tous partaient du même
+   * profil extrudé avec les mêmes hublots : à l'écran, ils se ressemblaient tous.
+   * Ce sont les superstructures, conteneurs, réservoirs et nacelles qui font
+   * qu'on les distingue d'un coup d'œil — et qu'on sait lequel on est en train
+   * de perdre.
+   */
   _build() {
     const d = this.def;
     const shape = new THREE.Shape(d.profile.map((p) => new THREE.Vector2(p[0], p[1])));
-    const geo = new THREE.ExtrudeGeometry(shape, { depth: 2.2, bevelEnabled: false, steps: 1 });
-    geo.translate(0, 0, -1.1);
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: d.depth || 2.2, bevelEnabled: false, steps: 1 });
+    geo.translate(0, 0, -(d.depth || 2.2) / 2);
     this.body = makeSolid(geo, d.color, { fill: d.fill, thresholdAngle: 24 });
     this.group.add(this.body);
 
+    const zf = (d.depth || 2.2) / 2 + 0.05;
+    const add = (g) => this.group.add(g);
+    const box = (w, h, dp, color, fill) => makeSolid(new THREE.BoxGeometry(w, h, dp), color, { fill });
+
+    // Superstructure à étages (paquebot) : une ville qui flotte
+    if (d.decks) {
+      for (let i = 0; i < d.decks; i++) {
+        const w = 9 - i * 2.4, h = 0.8;
+        const deck = box(w, h, 1.6 - i * 0.3, d.color, d.fill);
+        deck.position.set(-1 + i * 0.6, 2.6 + i * 0.95, 0);
+        add(deck);
+      }
+      const mast = box(0.2, 2.2, 0.2, d.color, d.fill);
+      mast.position.set(-1 + d.decks * 0.6, 2.6 + d.decks * 0.95 + 0.9, 0);
+      add(mast);
+    }
+
+    // Réservoirs cylindriques (citerne) : silhouette bombée, très reconnaissable
+    if (d.tanks) {
+      for (let i = 0; i < d.tanks; i++) {
+        const cyl = new THREE.CylinderGeometry(2.6, 2.6, 8.4, 12, 1, true);
+        cyl.rotateZ(Math.PI / 2);
+        const t = makeSolid(cyl, d.color, { fill: d.fill, thresholdAngle: 40 });
+        t.position.set(-1, (i - (d.tanks - 1) / 2) * 5.2, 0);
+        add(t);
+      }
+    }
+
+    // Conteneurs empilés (cargo) : anguleux, dépareillés
+    if (d.crates) {
+      const tint = [0x9fd6b0, 0xffd08a, 0xff9fb5, 0x9fc4ff];
+      for (let i = 0; i < d.crates; i++) {
+        const c = box(2.4, 1.7, 1.7, tint[i % tint.length], 0x101a14);
+        c.position.set(-7.5 + (i % 4) * 3.1, 2.4 + Math.floor(i / 4) * 1.9, 0);
+        add(c);
+      }
+    }
+
+    // Croix lumineuse (navire-hôpital) : identifiable même de loin
+    if (d.cross) {
+      for (const [w, h] of [[3.4, 1.0], [1.0, 3.4]]) {
+        const bar = new THREE.Mesh(
+          new THREE.PlaneGeometry(w, h),
+          new THREE.MeshBasicMaterial({ color: 0xff4d6a })
+        );
+        bar.position.set(1, 0, zf);
+        add(bar);
+      }
+    }
+
+    // Nacelles latérales (transport de passagers)
+    if (d.pods) {
+      for (const sy of [1, -1]) {
+        const pod = new THREE.CylinderGeometry(1.1, 1.1, 7, 10, 1, true);
+        pod.rotateZ(Math.PI / 2);
+        const p = makeSolid(pod, d.color, { fill: d.fill, thresholdAngle: 40 });
+        p.position.set(-2, sy * 3.2, 0);
+        add(p);
+      }
+    }
+
+    // Tuyères (remorqueur : il n'est presque que ça)
+    const nz = d.nozzles || 2;
+    for (let i = 0; i < nz; i++) {
+      const cone = new THREE.ConeGeometry(0.75, 1.5, 8, 1, true);
+      cone.rotateZ(Math.PI / 2);
+      const c = makeSolid(cone, d.color, { fill: d.fill, thresholdAngle: 40 });
+      c.position.set(d.profile[Math.floor(d.profile.length / 2)][0] - 1.2,
+        (i - (nz - 1) / 2) * 1.9, 0);
+      add(c);
+      const glow = new THREE.Mesh(
+        new THREE.CircleGeometry(0.55, 10),
+        new THREE.MeshBasicMaterial({ color: 0xffc06a, transparent: true, opacity: 0.85 })
+      );
+      glow.position.set(c.position.x - 0.9, c.position.y, 0);
+      add(glow);
+    }
+
     // Hublots : ce sont des gens à bord, il faut que ça se voie
-    const win = new THREE.BufferGeometry().setFromPoints(
-      Array.from({ length: 7 }, (_, i) => new THREE.Vector3(-5 + i * 1.8, 0.9, 1.2))
-    );
-    this.group.add(new THREE.Points(win, new THREE.PointsMaterial({ color: 0xffe9b0, size: 0.5 })));
+    const n = d.windows || 6;
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      const t = i / Math.max(1, n - 1);
+      pts.push(new THREE.Vector3(-8 + t * 16, 0.9, zf));
+    }
+    this.group.add(new THREE.Points(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.PointsMaterial({ color: 0xffe9b0, size: 0.55 })
+    ));
   }
 
   get position() { return this.group.position; }

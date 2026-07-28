@@ -65,6 +65,36 @@ cd BSG && python3 -m http.server 8000   # http://localhost:8000
 - **Assauts continus** : le compteur ne s'arrête jamais, même si le précédent n'est pas nettoyé.
   La difficulté monte par la PRESSION (`ftlTime`, `assaultEvery`), pas par les PV.
 
+### Le cycle « 33 » (répit scénarisé, puis contact)
+Repris de l'épisode : les Cylons reviennent toutes les **33 minutes**. Le décompte est affiché
+en temps FICTION (33:00 → 00:00), comprimé par `TUNE.dradisCompress` (16,5×) pour tenir dans une
+partie : ~2 min de répit réel. Le calcul FTL étant plus long que le répit, **les Cylons arrivent
+avant qu'on puisse sauter** — on se bat donc en attendant la fin du calcul, exactement comme
+dans la série.
+
+Pendant le répit, **le DRADIS est vide** (plus aucun spawn d'ouverture) et le journal de
+passerelle égrène des rapports à chaque palier (`Range.DRADIS_LOG`). Sans ces lignes, l'attente
+n'est pas de la tension mais du temps mort. À zéro : contact, et les assauts s'enchaînent selon
+`assaultEvery`.
+
+### Deux portées de radar, à ne pas confondre
+`radarRangeMul` (1,5) sert à la **conduite de tir** ; `dradisRangeMul` (11) à l'**affichage** du
+DRADIS, soit ~220 unités. Il fallait les séparer : on escorte une flotte étalée dans un couloir
+de 860, il faut voir qui se fait mordre à l'autre bout — mais un DRADIS qui porte loin ne doit
+pas rendre l'équipage précis partout (cf. `crewNoRadarMul`). Le DRADIS montre aussi les
+**civils** (bleu, ambre s'ils sont sous 50 % de coque) et la porte de saut.
+
+### Bandeau central
+Les deux informations qui commandent tout sont au centre haut : le **décompte du prochain
+contact** et la **charge FTL** sur une grande barre horizontale. Le reste du HUD est périphérique.
+
+### Flotte : six gabarits distincts, 50 000 âmes
+Tous les transports partaient du même profil extrudé avec les mêmes hublots : à l'écran ils se
+ressemblaient. Chaque type a maintenant sa propre construction — superstructure à étages du
+paquebot, réservoirs cylindriques de la citerne, conteneurs empilés du cargo, croix lumineuse de
+l'hôpital, nacelles du transport, tuyères du remorqueur. On doit savoir lequel on est en train de
+perdre.
+
 ### Décor : des VOLUMES, pas des disques
 Les rochers étaient des `ExtrudeGeometry` — des prismes dont on voyait la face plate. Désormais
 `Terrain._rockGeo` déforme un icosaèdre par un **bruit continu de la direction** (et non

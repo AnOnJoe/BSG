@@ -51,9 +51,15 @@ plutôt vers la proue.
 
 ## La fuite
 
-Les Colonies sont tombées. Tu escortes ce qui reste : **cinq transports civils, 34 600 âmes**,
-qui ne peuvent ni tirer ni manœuvrer. Les Cylons vous retrouvent à chaque saut, on ne sait pas
+Les Colonies sont tombées. Tu escortes ce qui reste : **six transports civils, 50 000 âmes**,
+qui ne peuvent ni tirer ni manœuvrer — un paquebot, un transport de passagers, un navire-hôpital,
+un cargo, une citerne et un remorqueur, tous reconnaissables au premier regard. Les Cylons vous retrouvent à chaque saut, on ne sait pas
 comment. Le seul recours est de **sauter encore**.
+
+**Les Cylons reviennent toutes les 33 minutes.** Le décompte est au centre de l'écran, à côté de
+la charge du saut. Ces minutes-là sont vides de combat mais pas de tension : le journal de
+passerelle égrène les rapports, le DRADIS reste désespérément vide, et le calcul n'aboutira pas
+avant qu'ils arrivent. Il faudra se battre en attendant.
 
 Un secteur n'est pas une arène à nettoyer, c'est un **saut à préparer** : tu entres par la
 gauche, la porte de saut est loin à droite, et le **moteur FTL calcule** pendant que la flotte

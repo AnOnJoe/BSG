@@ -44,6 +44,7 @@ export class Hud {
     this._buildVital();
     this._buildEnemy();
     this._buildFtl();
+    this._buildRunBar();
     this._buildCapital();
     this._buildStationBar();
     this._buildCockpits(weaponControl);
@@ -157,8 +158,27 @@ export class Hud {
       });
     }
     const nextIn = Math.ceil(info.nextAssault);
-    this.ftlWarn.textContent = nextIn <= 8 ? `⚠ CONTACT DANS ${nextIn}s` : '';
-    this.ftlWarn.className = `ftl-warn ${nextIn <= 8 ? 'on' : ''}`;
+    this.ftlWarn.textContent = (info.contact && nextIn <= 8) ? `⚠ VAGUE DANS ${nextIn}s` : '';
+    this.ftlWarn.className = `ftl-warn ${(info.contact && nextIn <= 8) ? 'on' : ''}`;
+
+    // --- bandeau central ---
+    if (this.rbTime) {
+      const m = Math.floor(info.dradis);
+      const sec = Math.floor((info.dradis - m) * 60);
+      this.rbTime.textContent = info.contact
+        ? 'EN CONTACT'
+        : `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+      this.rbLabel.textContent = info.contact ? 'BATAILLE ENGAGÉE' : 'PROCHAIN CONTACT';
+      const urgent = !info.contact && info.dradis <= 5;
+      this.rbClock.className = `rb-clock${info.contact ? ' contact' : urgent ? ' urgent' : ''}`;
+
+      this.rbFill.style.width = `${ftl.charge}%`;
+      this.rbFill.className = `rb-ftl-fill ${ftl.ready ? 'ready' : ftl.modeId}`;
+      this.rbPct.textContent = `${Math.floor(ftl.charge)}%`;
+      this.rbEta.textContent = ftl.ready
+        ? (info.laggardToGate > 0 ? `PRÊT · J pour partir sans le traînard` : 'SAUT IMMINENT')
+        : (eta === Infinity ? 'calcul à l\'arrêt' : `~${Math.ceil(eta)}s`);
+    }
   }
 
   _buildCapital() {
@@ -184,6 +204,48 @@ export class Hud {
       return { id: s.id, tile, hold: tile.querySelector('.st-hold'), fill: tile.querySelector('.st-fill') };
     });
     this.container.appendChild(this.stationBar);
+  }
+
+  /**
+   * BANDEAU CENTRAL — les deux informations qui commandent tout : le décompte
+   * des « 33 minutes » avant le prochain contact, et la charge du saut sur une
+   * grande barre horizontale. Le reste du HUD est périphérique ; ça, non.
+   */
+  _buildRunBar() {
+    this.runBar = document.createElement('div');
+    this.runBar.id = 'run-bar';
+    this.runBar.innerHTML = `
+      <div class="rb-clock">
+        <span class="rb-label">PROCHAIN CONTACT</span>
+        <span class="rb-time">33:00</span>
+      </div>
+      <div class="rb-ftl">
+        <div class="rb-ftl-head"><span>CHARGE FTL</span><span class="rb-ftl-eta"></span></div>
+        <div class="rb-ftl-track"><div class="rb-ftl-fill"></div><span class="rb-ftl-pct">0%</span></div>
+      </div>`;
+    this.container.appendChild(this.runBar);
+    this.rbTime = this.runBar.querySelector('.rb-time');
+    this.rbLabel = this.runBar.querySelector('.rb-label');
+    this.rbClock = this.runBar.querySelector('.rb-clock');
+    this.rbFill = this.runBar.querySelector('.rb-ftl-fill');
+    this.rbPct = this.runBar.querySelector('.rb-ftl-pct');
+    this.rbEta = this.runBar.querySelector('.rb-ftl-eta');
+
+    // Journal de passerelle : ce qui « scénarise » l'attente
+    this.logEl = document.createElement('div');
+    this.logEl.id = 'bridge-log';
+    this.container.appendChild(this.logEl);
+    this._log = [];
+  }
+
+  /** Ajoute une ligne au journal de passerelle (les 4 dernières restent). */
+  pushLog(txt) {
+    if (!this.logEl) return;
+    this._log.push(txt);
+    if (this._log.length > 4) this._log.shift();
+    this.logEl.innerHTML = this._log
+      .map((t, i) => `<div class="lg-line${i === this._log.length - 1 ? ' fresh' : ''}">${t}</div>`)
+      .join('');
   }
 
   _buildOverlays() {
@@ -708,6 +770,21 @@ export class Hud {
         ctx.fillStyle = color;
         ctx.beginPath(); ctx.arc(cx + dx, cy + dy, size, 0, 6.2832); ctx.fill();
       };
+      // La porte de saut : le but, il faut savoir où il est
+      if (data.gate && Math.hypot(data.gate.x - data.player.x, data.gate.y - data.player.y) <= data.range) {
+        const gx = cx + (data.gate.x - data.player.x) * scale;
+        ctx.strokeStyle = 'rgba(143,223,255,0.9)';
+        ctx.beginPath(); ctx.moveTo(gx, cy - R * 0.55); ctx.lineTo(gx, cy + R * 0.55); ctx.stroke();
+      }
+      // Les CIVILS : on escorte, il faut voir qui se fait mordre à l'autre bout
+      for (const c of (data.civils || [])) {
+        if (Math.hypot(c.x - data.player.x, c.y - data.player.y) > data.range) continue;
+        const dx = (c.x - data.player.x) * scale, dy = -(c.y - data.player.y) * scale;
+        ctx.fillStyle = c.hurt ? '#ffb04a' : '#8fe6ff';
+        ctx.beginPath();
+        ctx.rect(cx + dx - 2.6, cy + dy - 1.6, 5.2, 3.2);
+        ctx.fill();
+      }
       for (const e of data.enemies) {
         if (Math.hypot(e.x - data.player.x, e.y - data.player.y) <= data.range) plot(e.x, e.y, '#ff6a5a', 2.6);
       }
