@@ -98,7 +98,7 @@ export class WeaponControl {
    * Et un garde-fou : au-delà de `crewHoldFactor` fois la taille angulaire de la
    * cible, l'équipage RENONCE plutôt que de vider ta réserve d'énergie pour rien.
    */
-  _fireControl(m, target, wx, wy, dt, radarRange, modeSpread) {
+  _fireControl(m, target, wx, wy, dt, radarRange, modeSpread, isHidden) {
     let fc = m._fc;
     if (!fc) fc = m._fc = { target: null, perceived: new THREE.Vector3(), bias: 0, biasT: 0, lock: 0 };
 
@@ -140,13 +140,20 @@ export class WeaponControl {
     const subtend = Math.atan2(target.radius || 1, dist);
     const budget = subtend * TUNE.crewHoldFactor;
 
+    // MASQUÉE par le décor : l'équipage ne tire pas dans un rocher. C'est ce qui
+    // donne sa valeur au couvert — pour le joueur comme pour l'ennemi.
+    const hidden = isHidden ? isHidden(wx, wy, target.position.x, target.position.y) : false;
+
     jitterPoint(_aim, wx, wy, fc.perceived, fc.bias);
 
     return {
       point: _aim,
-      canFire: fc.lock <= 0 && totalErr <= budget,
-      // 1 = l'erreur est bien plus petite que la cible, 0 = solution perdue
-      quality: Math.max(0, Math.min(1, 1 - totalErr / budget)),
+      hidden,
+      canFire: fc.lock <= 0 && totalErr <= budget && !hidden,
+      // 1 = l'erreur est bien plus petite que la cible, 0 = solution perdue.
+      // Masquée ⇒ 0 : il n'y a pas de « bonne solution » sur une cible qu'on ne
+      // voit pas, et le HUD annoncerait BONNE alors que rien ne peut partir.
+      quality: hidden ? 0 : Math.max(0, Math.min(1, 1 - totalErr / budget)),
     };
   }
 
@@ -159,6 +166,7 @@ export class WeaponControl {
     this.ship.energyCostMul = mode.cost;
     const pressed = !!ctx.firing && !this._prevFiring; // front montant du clic
     let best = -1;
+    let masked = false;
 
     for (const m of this.ordered) {
       if (m.kind !== 'weapon') continue;
@@ -175,7 +183,8 @@ export class WeaponControl {
         const wp = m.worldPos();
         const wx = wp.x, wy = wp.y;
         const t = ctx.nearestDroneTo ? ctx.nearestDroneTo(wp) : null;
-        if (t && Math.hypot(t.position.x - wx, t.position.y - wy) <= (m.stats.range || 0)) {
+        const reach = t && Math.hypot(t.position.x - wx, t.position.y - wy) <= (m.stats.range || 0);
+        if (reach && !(ctx.isHidden && ctx.isHidden(wx, wy, t.position.x, t.position.y))) {
           if (m._shotBias === undefined) m._shotBias = 0;
           aimAt = jitterPoint(_aim, wx, wy, t.position, m._shotBias);
           trigger = !!ctx.systemsOnline;
@@ -200,12 +209,13 @@ export class WeaponControl {
         if (m.defId === 'missile') {
           // L'ordre du capitaine part même si la solution est douteuse (le
           // missile est autoguidé, il corrigera en vol).
-          if (t) aimAt = this._fireControl(m, t, wx, wy, dt, radarRange, mode.spread).point;
+          if (t) aimAt = this._fireControl(m, t, wx, wy, dt, radarRange, mode.spread, ctx.isHidden).point;
           trigger = ctx.firingMissiles;
         } else if (ctx.autoFire && inReach) {
-          const sol = this._fireControl(m, t, wx, wy, dt, radarRange, mode.spread);
+          const sol = this._fireControl(m, t, wx, wy, dt, radarRange, mode.spread, ctx.isHidden);
           aimAt = sol.point;
           trigger = sol.canFire;
+          if (sol.hidden) masked = true;
           if (sol.quality > best) best = sol.quality;
         } else {
           m._fc = null; // plus de cible : le verrou est perdu
@@ -233,7 +243,7 @@ export class WeaponControl {
     }
 
     this._prevFiring = !!ctx.firing;
-    this._updateSolution(dt, manual, best);
+    this._updateSolution(dt, manual, best, masked);
   }
 
   /**
@@ -241,7 +251,7 @@ export class WeaponControl {
    * rythme des manœuvres de la cible, et un libellé qui clignoterait entre BONNE
    * et MAUVAISE serait illisible.
    */
-  _updateSolution(dt, manual, best) {
+  _updateSolution(dt, manual, best, masked) {
     if (manual) {
       this._q = 1;
       this.solution = { quality: 1, label: 'MANUELLE' };
@@ -250,7 +260,8 @@ export class WeaponControl {
     const target = Math.max(0, best);
     this._q = this._q === undefined ? target : this._q + (target - this._q) * Math.min(1, dt / 0.4);
     const q = this._q;
-    if (best < 0) this.solution = { quality: 0, label: 'PAS DE CIBLE' };
+    if (masked && best <= 0) this.solution = { quality: 0, label: 'CIBLE MASQUÉE' };
+    else if (best < 0) this.solution = { quality: 0, label: 'PAS DE CIBLE' };
     else if (q < 0.08) this.solution = { quality: q, label: 'SANS SOLUTION' };
     else if (q > 0.6) this.solution = { quality: q, label: 'BONNE' };
     else if (q > 0.3) this.solution = { quality: q, label: 'DÉGRADÉE' };

@@ -12,6 +12,7 @@ import { WAVE_THEMES, CAPITAL_THEME, pickTheme } from '../data/waves.js';
 import { viewport } from '../core/Viewport.js';
 import { EnemyShip, ENEMY_TYPES } from '../entities/EnemyShip.js';
 import { CapitalShip } from '../entities/CapitalShip.js';
+import { Terrain } from '../entities/Terrain.js';
 import { COMBAT_OFFSET } from '../core/Camera.js';
 import { Drone } from '../entities/Drone.js';
 import { Pickup } from '../entities/Pickup.js';
@@ -77,6 +78,10 @@ export class Range {
       this.enemies.push(e);
     }
 
+    // Décor du secteur : astéroïdes, épaves. Il COUPE les tirs, donc se placer
+    // devient une décision (cf. Terrain).
+    this.terrain = new Terrain(this.scene);
+
     // Cuirassé : l'adversaire d'échelle, présent aux vagues « boss »
     this.capital = new CapitalShip();
     this.scene.add(this.capital.group);
@@ -124,6 +129,7 @@ export class Range {
       this.boundary.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), neonLineMat(0x33ffff, 1)));
     }
     this.boundary.visible = false;
+    this.terrain.setVisible(false);
     this.scene.add(this.boundary);
   }
 
@@ -148,6 +154,7 @@ export class Range {
     this.shake.setBase();
     this.ship.hull.setSlotsVisible(false);
     this.boundary.visible = true;
+    this.terrain.setVisible(true);
     this.ship.group.add(this.flameRear);
     this.ship.group.add(this.flameFront);
     this.weapons.refresh();
@@ -176,6 +183,7 @@ export class Range {
     this._clearEntities();
     this.shake.reset();
     this.boundary.visible = false;
+    this.terrain.setVisible(false);
     this.ship.group.remove(this.flameRear);
     this.ship.group.remove(this.flameFront);
     this.audio.engine(0);
@@ -199,6 +207,7 @@ export class Range {
     this.autoHelm.reset();
     this.weapons.setFireMode('burst');
     this._setDroneOrder('attack'); // escadron déployé d'emblée : la baie est payée
+    this.terrain.build(this.terrainId || 'asteroids', ARENA, { x: 0, y: 0, r: 34 });
     this.helmOrder = 'engage';
     this.camZoom = 1;
     this._camZoomWant = 1;
@@ -468,6 +477,18 @@ export class Range {
 
   fireLaser(pos, dir, damage, range, color) {
     const hit = this._nearestHostileHit(pos, dir, range);
+    // Un rocher sur le trajet arrête le faisceau AVANT la cible : sans ça on
+    // tirerait à travers le décor et se mettre à couvert ne servirait à rien.
+    const rock = this.terrain.rayHit(pos.x, pos.y, dir.x, dir.y, hit ? pos.distanceTo(hit.point) : range);
+    if (rock) {
+      const end = pos.clone().addScaledVector(dir, rock.t);
+      const beam = new THREE.Line(new THREE.BufferGeometry().setFromPoints([pos.clone(), end]), neonLineMat(color, 1));
+      this.scene.add(beam);
+      this.beams.push({ mesh: beam, ttl: 0.06 });
+      this.fx.sparks(end, 0xbba98f, 4);
+      this.audio.hit();
+      return;
+    }
     const end = hit ? hit.point : pos.clone().addScaledVector(dir, range);
     const geo = new THREE.BufferGeometry().setFromPoints([pos.clone(), end]);
     const beam = new THREE.Line(geo, neonLineMat(color, 1));
@@ -576,6 +597,15 @@ export class Range {
       if (b.kind === 'missile') {
         b.trailT -= dt;
         if (b.trailT <= 0) { this.fx.trailDot(b.mesh.position, b.color); b.trailT = 0.05; }
+      }
+
+      // Impact sur le décor : le projectile meurt là, quelle que soit sa faction
+      const rock = this.terrain.blocksPoint(b.mesh.position.x, b.mesh.position.y);
+      if (rock) {
+        if (b.kind === 'missile') { this.fx.explosion(b.mesh.position, b.color, 0.8); this.audio.boom(0.5); }
+        else this.fx.sparks(b.mesh.position, 0xbba98f, 3);
+        this.scene.remove(b.mesh); b.mesh.geometry.dispose(); this.bolts.splice(i, 1);
+        continue;
       }
 
       let hitEntity = null;
@@ -802,6 +832,13 @@ export class Range {
         this.shake.add(0.06);
       }
     }
+    // Décor : le joueur est repoussé et racle sa coque ; les ennemis contournent.
+    if (this.terrain.push(a, this.ship.collisionRadius)) {
+      this.ship.takeDamage(10 * dt);
+      this.shake.add(0.05);
+    }
+    for (const e of this.aliveEnemies) this.terrain.push(e.group.position, e.collisionRadius);
+
     // Coque du cuirassé : plusieurs cercles le long de l'axe (46 unités de long,
     // une seule sphère collerait très mal). Elle ne bouge pas : c'est le joueur
     // qui est repoussé.
@@ -1060,12 +1097,18 @@ export class Range {
       detected: !!nearest,
       nearestHostileTo: (p) => this._nearestHostileTo(p), // conduite de tir autonome
       nearestDroneTo: (p) => this._nearestEnemyDroneTo(p), // défense rapprochée (CIWS)
+      // Ligne de vue coupée par le décor : ni l'équipage ni le CIWS ne tirent dedans
+      isHidden: (fx, fy, tx, ty) => this.terrain.isHidden(fx, fy, tx, ty),
       systemsOnline: !reconfiguring,     // circuits coupés pendant une bascule d'énergie
       flak: (p, c) => { this.fx.flash(p, c, 0.35); },
       // Portée radar : au-delà, l'équipage piste mal et sa dispersion explose
       radarRange: (() => {
         const r = this.ship.getActiveRadar();
-        return r ? r.range * TUNE.radarRangeMul : 0;
+        if (!r) return 0;
+        // Nuage de poussière : le pistage se dégrade, donc la dispersion de
+        // l'équipage explose (cf. crewNoRadarMul). Se cacher dedans a un prix.
+        const jam = this.terrain.jammedAt(this.ship.group.position.x, this.ship.group.position.y) ? 0.35 : 1;
+        return r.range * TUNE.radarRangeMul * jam;
       })(),
       fireLaser: (p, d, dm, r, c) => this.fireLaser(p, d, dm, r, c),
       spawnMissile: (p, d, s) => this.spawnMissile(p, d, s),
