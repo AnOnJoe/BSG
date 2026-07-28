@@ -4,10 +4,11 @@
  *  - touches 1..9 => toggle du module correspondant (via callback onNumberKey)
  */
 export class InputController {
-  constructor(onNumberKey, onEmp, onCycleStation) {
+  constructor(onNumberKey, onEmp, onCycleStation, onJump) {
     this.onNumberKey = onNumberKey;
     this.onEmp = onEmp;
     this.onCycleStation = onCycleStation;
+    this.onJump = onJump;
     this.up = this.down = this.left = this.right = false;
     this.missileFiring = false; // Espace maintenu => tir des missiles
     this.enabled = false;
@@ -43,6 +44,7 @@ export class InputController {
       case 'Space': this.missileFiring = isDown; e.preventDefault(); break;   // missiles
       case 'KeyE': if (isDown) this.onEmp?.(); break;                          // IEM
       case 'Tab': e.preventDefault(); if (isDown) this.onCycleStation?.(); break; // poste suivant
+      case 'KeyJ': if (isDown) this.onJump?.(); break;                          // ordre de saut
       default:
         if (isDown && /^Digit[1-9]$/.test(e.code)) this.onNumberKey?.(parseInt(e.code.slice(5), 10));
     }

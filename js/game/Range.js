@@ -14,6 +14,9 @@ import { viewport } from '../core/Viewport.js';
 import { EnemyShip, ENEMY_TYPES } from '../entities/EnemyShip.js';
 import { CapitalShip } from '../entities/CapitalShip.js';
 import { Terrain } from '../entities/Terrain.js';
+import { Convoy } from '../entities/Convoy.js';
+import { FtlDrive, FTL_MODES } from '../core/FtlDrive.js';
+import { FLEET, totalSouls } from '../data/convoyConfig.js';
 import { COMBAT_OFFSET } from '../core/Camera.js';
 import { Drone } from '../entities/Drone.js';
 import { Pickup } from '../entities/Pickup.js';
@@ -24,7 +27,12 @@ import { neonLineMat } from '../core/NeonMaterials.js';
 import { TUNE } from '../core/Tune.js';
 import { HallOfFame } from '../core/HallOfFame.js';
 
-const ARENA = { x: 190, y: 120 };
+// COULOIR et non arène : on entre par la gauche, le point de saut est à droite.
+// C'est ce qui donne une direction au niveau — sans quoi on tourne en rond.
+const ARENA = { x: 430, y: 108 };
+const ENTRY_X = -ARENA.x + 60;      // là où la flotte débouche
+const JUMP_X = ARENA.x - 70;        // la porte de saut
+const JUMP_RADIUS = 62;             // rayon emporté par le saut
 // Dimensionné pour le plus gros thème (NUÉE : 7 chasseurs). Le pool est
 // pré-alloué une fois pour toutes et réutilisé de vague en vague.
 const MAX_ENEMIES = 8;
@@ -53,7 +61,8 @@ export class Range {
     this.input = new InputController(
       (n) => this._onNumberKey(n),
       () => this._fireEmp(),
-      () => { if (!this.over && this.stations.cycle()) this.audio.pickup(); }
+      () => { if (!this.over && this.stations.cycle()) this.audio.pickup(); },
+      () => this._requestJump()
     );
     this.weapons = new WeaponControl(this.ship);
     // Anneau de passerelle (clic droit) : bascule de profil d'énergie
@@ -83,6 +92,13 @@ export class Range {
     // devient une décision (cf. Terrain).
     this.terrain = new Terrain(this.scene);
 
+    // La flotte civile qu'on escorte : le véritable enjeu de la partie
+    this.convoy = new Convoy(this.scene);
+    this.ftl = new FtlDrive();
+    this._buildJumpGate();
+    this.soulsAtStart = totalSouls(FLEET);
+    this.assaultTimer = 0;
+
     // Cuirassé : l'adversaire d'échelle, présent aux vagues « boss »
     this.capital = new CapitalShip();
     this.scene.add(this.capital.group);
@@ -102,6 +118,7 @@ export class Range {
     this.waveTheme = null;
     this.jumping = false;   // saut inter-secteurs en cours
     this.jumpTimer = 0;
+    this.assaultNo = 0;     // numéro d'assaut dans le secteur courant
     this._dramaT = 0;       // ralenti dramatique restant (s)
     this._dramaScale = 1;
     this.nextTheme = null;  // vague annoncée par le radar pendant la respiration
@@ -137,7 +154,29 @@ export class Range {
     }
     this.boundary.visible = false;
     this.terrain.setVisible(false);
+    this.convoy.setVisible(false);
+    this.jumpGate.visible = false;
     this.scene.add(this.boundary);
+  }
+
+  /** Porte de saut : le but du couloir, visible de loin. */
+  _buildJumpGate() {
+    this.jumpGate = new THREE.Group();
+    for (let i = 0; i < 3; i++) {
+      const r = JUMP_RADIUS - i * 16;
+      const pts = [];
+      for (let k = 0; k <= 48; k++) {
+        const a = (k / 48) * Math.PI * 2;
+        pts.push(new THREE.Vector3(Math.cos(a) * r * 0.35, Math.sin(a) * r, -2));
+      }
+      this.jumpGate.add(new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(pts),
+        neonLineMat(0x8fdfff, 0.5 - i * 0.12)
+      ));
+    }
+    this.jumpGate.position.x = JUMP_X;
+    this.jumpGate.visible = false;
+    this.scene.add(this.jumpGate);
   }
 
   _buildFlames() {
@@ -162,6 +201,8 @@ export class Range {
     this.ship.hull.setSlotsVisible(false);
     this.boundary.visible = true;
     this.terrain.setVisible(true);
+    this.convoy.setVisible(true);
+    this.jumpGate.visible = true;
     this.ship.group.add(this.flameRear);
     this.ship.group.add(this.flameFront);
     this.weapons.refresh();
@@ -191,6 +232,8 @@ export class Range {
     this.shake.reset();
     this.boundary.visible = false;
     this.terrain.setVisible(false);
+    this.convoy.setVisible(false);
+    this.jumpGate.visible = false;
     this.ship.group.remove(this.flameRear);
     this.ship.group.remove(this.flameFront);
     this.audio.engine(0);
@@ -204,12 +247,17 @@ export class Range {
     this.over = false;
     this.aim.firing = false;
     this.wave = 0;
+    this.assaultNo = 0;
     this.sectorIndex = 0;
+    this.convoy.build(FLEET, ENTRY_X, ARENA.y * 1.2);
+    this.convoy.lostSouls = 0;
+    this.ftl.reset();
     this.jumping = false;
     this.jumpTimer = 0;
     this.waveTheme = null;
     this.ship.group.visible = true;
-    this.ship.group.position.set(0, 0, 0);
+    // On escorte : on démarre AVEC la flotte, à l'entrée du couloir
+    this.ship.group.position.set(ENTRY_X + 26, 0, 0);
     this.ship.group.rotation.z = 0;
     this.shipVel.set(0, 0, 0);
     this.shipAngVel = 0;
@@ -218,7 +266,7 @@ export class Range {
     this.autoHelm.reset();
     this.weapons.setFireMode('burst');
     this._setDroneOrder('attack'); // escadron déployé d'emblée : la baie est payée
-    this.terrain.build(this.sector.terrain, ARENA, { x: 0, y: 0, r: 34 });
+    this.terrain.build(this.sector.terrain, ARENA, { x: ENTRY_X, y: 0, r: 60 });
     this.helmOrder = 'engage';
     this.camZoom = 1;
     this._camZoomWant = 1;
@@ -253,23 +301,18 @@ export class Range {
 
   /** Progression sur la TRAVERSÉE entière (0 → 1) : débloque les thèmes lourds. */
   _progress() {
-    const done = this.sectorIndex + (this.wave - 1) / Math.max(1, this.sector.waves);
-    return Math.min(1, done / Math.max(1, SECTOR_COUNT - 1));
+    return Math.min(1, (this.sectorIndex + Math.min(1, this.assaultNo / 4)) / Math.max(1, SECTOR_COUNT));
   }
 
-  /** Dernière vague du secteur : c'est là que le cuirassé garde la sortie. */
-  _isCapitalWave(n) { return this.sector.capital && n >= this.sector.waves; }
+  /** Plus de « vague boss » : le basestar arrive pendant un assaut (cf. _launchAssault). */
+  _isCapitalWave() { return false; }
 
   /**
    * Choisit à l'avance le thème de la prochaine vague pour que le radar puisse
    * l'annoncer. `_composeWave` réutilisera ce choix.
    */
   _announceNextWave() {
-    if (this.wave >= this.sector.waves) { this.nextTheme = null; return; } // fin de secteur : c'est un saut
-    const next = this.wave + 1;
-    this.nextTheme = (this.sector.capital && next >= this.sector.waves)
-      ? CAPITAL_THEME
-      : pickTheme(this._allowedThemes, this._progress(), this.waveTheme?.id);
+    this.nextTheme = pickTheme(this._allowedThemes, this._progress(), this.waveTheme?.id);
     this.audio.ping?.();
   }
 
@@ -286,6 +329,63 @@ export class Range {
     this.nextTheme = null;
     this.waveTheme = theme;
     return theme.comp.slice(0, MAX_ENEMIES);
+  }
+
+  /**
+   * Un assaut cylon. Ils apparaissent DEVANT et AUTOUR de la flotte (pas autour
+   * du joueur) : c'est elle qu'ils viennent chercher, et ça oblige à se
+   * déployer au lieu de rester collé au convoi.
+   */
+  _launchAssault() {
+    this.assaultNo++;
+    this.wave = this.assaultNo;          // conservé pour le HUD et le Hall of Fame
+    const types = this._composeWave(this.assaultNo);
+    const scale = 1 + this.sectorIndex * 0.35;
+    const baseHp = Math.round((42 + this.assaultNo * 6) * scale);
+    const baseDmg = +((3.4 + this.assaultNo * 0.5) * scale).toFixed(1);
+    const drones = Math.min(this.sectorIndex, 2);
+
+    // Point de référence : la tête de la flotte
+    const head = this.convoy.alive.reduce((a, t) => (t.position.x > a.position.x ? t : a), this.convoy.alive[0]);
+    const hx = head ? head.position.x : this.ship.group.position.x;
+    const hy = head ? head.position.y : 0;
+
+    let slot = 0;
+    for (const type of types) {
+      const e = this.enemies[slot++];
+      if (!e) break;
+      const t = ENEMY_TYPES[type];
+      // Ils arrivent surtout par l'avant et les flancs : la flotte va vers eux.
+      const ahead = Math.random() < 0.7;
+      const pos = new THREE.Vector3(
+        THREE.MathUtils.clamp(hx + (ahead ? 1 : -1) * (70 + Math.random() * 40), -ARENA.x + 8, ARENA.x - 8),
+        THREE.MathUtils.clamp(hy + (Math.random() * 2 - 1) * ARENA.y * 0.9, -ARENA.y + 6, ARENA.y - 6),
+        0
+      );
+      e.group.visible = true;
+      e.spawn(pos, {
+        type,
+        hp: Math.round(baseHp * t.hpMul),
+        damage: +(baseDmg * t.dmgMul).toFixed(1),
+        droneCount: type === 'carrier' ? drones + t.bonusDrones : (type === 'raider' ? drones : 0),
+      });
+    }
+
+    if (this.sector.capital && this.assaultNo === 2 && !this.capital.alive) {
+      const pos = new THREE.Vector3(
+        THREE.MathUtils.clamp(hx + 150, -ARENA.x + 30, ARENA.x - 30),
+        THREE.MathUtils.clamp(hy + (Math.random() * 2 - 1) * 40, -ARENA.y + 14, ARENA.y - 14), 0
+      );
+      this.capital.spawn(pos, 1 + this.sectorIndex * 0.3);
+      this.hud.showWaveBanner(0, `⚠ BASESTAR — ${this.capital.batteries.length} batteries`);
+      this.audio.lose();
+      this.shake.add(0.5);
+      this.app.renderer.pulse(1);
+    } else {
+      this.hud.showWaveBanner(0, `ASSAUT ${this.assaultNo} · ${this.waveTheme.name}`);
+      this.audio.ping?.();
+    }
+    this.nextTheme = null;
   }
 
   _spawnWave(n) {
@@ -342,7 +442,12 @@ export class Range {
     const st = this.stations.current;
     if (st === 'command') {
       const p = POWER_PRESETS[n - 1];
-      if (p) this._setPowerPreset(p.id);
+      if (p) { this._setPowerPreset(p.id); return; }
+      // Au-delà des profils : le calcul de saut. Le forcer va 2,4× plus vite mais
+      // ponctionne l'énergie des armes et des boucliers — c'est l'arbitrage
+      // central du jeu : gagner du temps contre la capacité à encaisser.
+      const m = FTL_MODES[n - 1 - POWER_PRESETS.length];
+      if (m && this.ftl.setMode(m.id)) this.audio.relay();
     } else if (st === 'gunnery') {
       const mode = FIRE_MODES[n - 1];
       if (mode) this.setOrder('gunnery', mode.id);
@@ -404,6 +509,28 @@ export class Range {
     }
     this.weapons.toggle(n);
     this.hud.refreshStates();
+  }
+
+  /**
+   * ORDRE DE SAUT (touche J). Quand le calcul est prêt, la flotte part — et
+   * n'emporte que ce qui est dans le rayon. Sauter tôt, c'est abandonner les
+   * traînards : c'est la décision de la série, et elle doit être explicitement
+   * prise par le joueur, pas subie.
+   */
+  _requestJump() {
+    if (this.over || this.jumping) return;
+    if (!this.stations.manned('command')) {
+      this.hud.showWaveBanner(0, 'SAUT — console du commandant');
+      return;
+    }
+    if (!this.ftl.ready) {
+      this.hud.showWaveBanner(0, `CALCUL INCOMPLET — ${Math.floor(this.ftl.charge)}%`);
+      return;
+    }
+    const laggard = this.convoy.laggard;
+    const behind = laggard && laggard.position.x < JUMP_X - JUMP_RADIUS;
+    if (behind) this.hud.showWaveBanner(0, `⚠ SAUT SANS ${laggard.name.toUpperCase()}`);
+    this._beginJump();
   }
 
   /** Rejoindre un poste (clic sur l'icône, ou Tab pour cycler). */
@@ -906,32 +1033,52 @@ export class Range {
    */
   _beginJump() {
     this.betweenWaves = false;
-    if (this.sectorIndex + 1 >= SECTOR_COUNT) { this._win(); return; }
+    this.ftl.jumping = true;
+    // Le saut n'emporte que ce qui est dans son rayon : les traînards restent.
+    // C'est la décision de la série — partir maintenant, ou attendre sous le feu.
+    const out = this.convoy.jump(JUMP_X, JUMP_RADIUS);
     this.jumping = true;
-    this.jumpTimer = 4.2;
+    this.jumpTimer = 4.6;
     this._clearEntities();
-    // Réparations du saut : franchir doit soigner, pas seulement enchaîner.
     this.ship.structure = Math.min(this.ship.structureMax, this.ship.structure + JUMP_REPAIR.structure);
     if (JUMP_REPAIR.ammo) for (const m of this.ship.modules) if (m.reload) m.reload();
     this.app.addCredits(JUMP_REPAIR.credits);
-    this.hud.showJump(this.sector, sectorAt(this.sectorIndex + 1), JUMP_REPAIR);
     this.audio.pickup();
-    this.app.renderer.pulse(0.8);
+    this.app.renderer.pulse(1);
+    this.shake.add(0.6);
+    this.drama(0.4, 1.2);
+
+    const last = this.sectorIndex + 1 >= SECTOR_COUNT;
+    this.hud.showJump(this.sector, last ? null : sectorAt(this.sectorIndex + 1), {
+      ...JUMP_REPAIR,
+      saved: out.saved.length,
+      left: out.left,
+      souls: this.convoy.souls,
+      lost: this.convoy.lostSouls,
+    });
   }
 
-  /** Arrivée dans le secteur suivant : nouveau décor, nouvelle opposition. */
+  /** Arrivée : nouveau couloir, la flotte ressort à l'entrée, le calcul repart. */
   _arriveSector() {
     this.jumping = false;
+    this.ftl.jumping = false;
+    if (this.sectorIndex + 1 >= SECTOR_COUNT) { this._win(); return; }
     this.sectorIndex++;
     this.wave = 0;
+    this.assaultNo = 0;
     this.waveTheme = null;
-    this.ship.group.position.set(0, 0, 0);
+    this.nextTheme = null;
+    this.ftl.reset();
+    // Le calcul du saut suivant est plus long : la pression monte sans qu'on
+    // ait besoin de gonfler les PV.
+    this.convoy.redeploy(ENTRY_X, ARENA.y * 1.2);
+    this.ship.group.position.set(ENTRY_X + 26, 0, 0);
     this.shipVel.set(0, 0, 0);
     this.shipAngVel = 0;
-    this.terrain.build(this.sector.terrain, ARENA, { x: 0, y: 0, r: 34 });
+    this.terrain.build(this.sector.terrain, ARENA, { x: ENTRY_X, y: 0, r: 60 });
+    this.assaultTimer = Math.min(10, this.sector.assaultEvery * 0.5);
     this.hud.hideJump();
     this.hud.showSector(this.sector, this.sectorIndex + 1, SECTOR_COUNT);
-    this._spawnWave(1);
   }
 
   /** Traversée achevée : la victoire que `_end(type)` n'a jamais reçue. */
@@ -943,7 +1090,9 @@ export class Range {
     this.audio.win();
     this.app.renderer.pulse(1);
     const hof = HallOfFame.add(SECTOR_COUNT, this.app.credits);
-    this.hud.showOutcome('victory', 'Refuge atteint — traversée achevée',
+    const souls = this.convoy.souls;
+    this.hud.showOutcome('victory',
+      `Refuge atteint — ${souls.toLocaleString('fr-FR')} survivants sur ${this.soulsAtStart.toLocaleString('fr-FR')}`,
       () => this._startGame(), () => this.app.toggleScreen(), hof);
   }
 
@@ -986,8 +1135,11 @@ export class Range {
     this.hud.flashDamage(0.9);
     this.shake.add(0.85);
     this.app.renderer.pulse(1.0);
-    const hof = HallOfFame.add(this.wave, this.app.credits);
-    this.hud.showOutcome('defeat', `Vague atteinte : ${this.wave}`, () => this._startGame(), () => this.app.toggleScreen(), hof);
+    const hof = HallOfFame.add(this.sectorIndex + 1, this.app.credits);
+    const sub = type === 'lost-fleet'
+      ? 'La flotte a été anéantie — il n\'y a plus personne à sauver'
+      : `Perdu au secteur ${this.sectorIndex + 1} — ${this.convoy.souls.toLocaleString('fr-FR')} survivants abandonnés`;
+    this.hud.showOutcome('defeat', sub, () => this._startGame(), () => this.app.toggleScreen(), hof);
   }
 
   _updateHud(dt = 0) {
@@ -999,7 +1151,10 @@ export class Range {
     this.hud.setCapital(this.capital);
     // Commandes du poste courant (1/2/3)
     const st = this.stations.current;
-    if (st === 'command') this.hud.setCommands(st, POWER_PRESETS, this.ship.power.presetId);
+    if (st === 'command') {
+      this.hud.setCommands(st, [...POWER_PRESETS, ...FTL_MODES],
+        this.ship.power.presetId, this.ftl.modeId);
+    }
     else if (st === 'gunnery') this.hud.setCommands(st, FIRE_MODES, this.weapons.modeId);
     else if (st === 'drones') this.hud.setCommands(st, DRONE_ORDERS, this.droneOrder);
     else this.hud.setCommands(st, HELM_ORDERS, this.helmOrder);
@@ -1027,11 +1182,18 @@ export class Range {
       drones: this.droneOrder,
     });
     this.hud.setCredits(this.app.credits);
-    this.hud.setWave(this.wave, this.aliveEnemies.length, {
+    this.hud.setFtl(this.ftl, this.convoy, {
+      soulsStart: this.soulsAtStart,
+      nextAssault: Math.max(0, this.assaultTimer),
+      // Distance qui reste au traînard : c'est lui qui commande le départ
+      laggardToGate: this.convoy.laggard
+        ? Math.max(0, (JUMP_X - JUMP_RADIUS) - this.convoy.laggard.position.x) : 0,
+    });
+    this.hud.setWave(this.assaultNo, this.aliveEnemies.length, {
       sector: this.sector, index: this.sectorIndex + 1, total: SECTOR_COUNT,
-      waves: this.sector.waves, theme: this.waveTheme, terrain: this.terrain.name,
-      incoming: this.betweenWaves && this.nextTheme ? this.nextTheme : null,
-      eta: this.betweenWaves ? Math.max(0, this.waveTimer) : 0,
+      theme: this.waveTheme, terrain: this.terrain.name,
+      incoming: this.nextTheme,
+      eta: Math.max(0, this.assaultTimer),
     });
     if (nearest) this.hud.setEnemy(true, nearest.hp, nearest.maxHp);
     else this.hud.setEnemy(false);
@@ -1288,26 +1450,31 @@ export class Range {
     // Défaite ?
     if (this.ship.isDefeated()) { this._end(); this._updateHud(dt); this.shake.applyShake(dt); return; }
 
-    // Vague suivante quand tous les ennemis sont éliminés
-    if (!this.betweenWaves && this.aliveEnemies.length === 0 && !this.capital.alive &&
-        this.enemies.every((e) => e.state !== 'exploding')) {
-      this.betweenWaves = true;
-      this.waveTimer = TUNE.waveBreak; // respiration : on souffle entre deux vagues
-      // Le radar annonce CE QUI ARRIVE : la respiration devient active — on sait
-      // qu'une nuée approche, donc on repasse l'énergie en armes et on déploie
-      // l'escadron avant le contact, au lieu d'attendre bêtement.
+    // --- ESCORTE : la flotte avance, le calcul de saut tourne, les Cylons
+    // reviennent. On ne « finit » pas une vague : on tient une échéance. ---
+    this.convoy.update(dt, JUMP_X);
+    this.ftl.update(dt, this.ship);
+
+    // La flotte anéantie, il n'y a plus rien à sauver.
+    if (!this.convoy.alive.length) { this._end('lost-fleet'); this._updateHud(dt); this.shake.applyShake(dt); return; }
+
+    // Assauts en continu : le compteur ne s'arrête jamais, même si le précédent
+    // n'est pas nettoyé. C'est la pression, et elle ne dépend pas de nos kills.
+    this.assaultTimer -= dt;
+    if (this.assaultTimer <= 0) {
+      this._launchAssault();
+      this.assaultTimer = this.sector.assaultEvery;
+    } else if (this.assaultTimer < 5 && !this.nextTheme) {
       this._announceNextWave();
-      // Prime PLAFONNÉE : à 40 × vague elle croissait quadratiquement alors que
-      // la menace ne monte que linéairement — le build finissait maxé et le
-      // hangar n'avait plus aucune décision à offrir.
-      this.app.addCredits(40 * Math.min(this.wave, 6));
     }
-    if (this.betweenWaves) {
-      this.waveTimer -= dt;
-      if (this.waveTimer <= 0) {
-        if (this.wave >= this.sector.waves) this._beginJump();
-        else this._spawnWave(this.wave + 1);
-      }
+
+    // Prêt à sauter : il faut aussi que la flotte soit arrivée à la porte.
+    // Saut automatique dès que TOUTE la flotte est à la porte. Si un traînard
+    // manque, on attend — et c'est au commandant de décider de partir sans lui
+    // (touche J), sous le feu qui continue.
+    if (this.ftl.ready && !this.ftl.jumping) {
+      const laggard = this.convoy.laggard;
+      if (laggard && laggard.position.x >= JUMP_X - JUMP_RADIUS) this._beginJump();
     }
 
 

@@ -43,6 +43,7 @@ export class Hud {
 
     this._buildVital();
     this._buildEnemy();
+    this._buildFtl();
     this._buildCapital();
     this._buildStationBar();
     this._buildCockpits(weaponControl);
@@ -93,6 +94,71 @@ export class Hud {
     this.incoming = this.enemyPanel.querySelector('.incoming');
     this.enemyFill = this.enemyPanel.querySelector('.hp-fill');
     this.enemyNum = this.enemyPanel.querySelector('.hp-num');
+  }
+
+  /**
+   * Le panneau de la FUITE : charge du saut, état de la flotte, survivants.
+   * C'est l'information vitale du jeu — plus que sa propre coque.
+   */
+  _buildFtl() {
+    this.ftlPanel = document.createElement('div');
+    this.ftlPanel.id = 'ftl-panel';
+    this.ftlPanel.innerHTML = `
+      <div class="ftl-head">MOTEUR DE SAUT <span class="ftl-mode"></span></div>
+      <div class="ftl-bar"><div class="ftl-fill"></div><span class="ftl-pct"></span></div>
+      <div class="ftl-eta"></div>
+      <div class="ftl-sep"></div>
+      <div class="ftl-head">FLOTTE <span class="ftl-souls"></span></div>
+      <div class="fleet-rows"></div>
+      <div class="ftl-warn"></div>`;
+    this.container.appendChild(this.ftlPanel);
+    this.ftlMode = this.ftlPanel.querySelector('.ftl-mode');
+    this.ftlFill = this.ftlPanel.querySelector('.ftl-fill');
+    this.ftlPct = this.ftlPanel.querySelector('.ftl-pct');
+    this.ftlEta = this.ftlPanel.querySelector('.ftl-eta');
+    this.ftlSouls = this.ftlPanel.querySelector('.ftl-souls');
+    this.fleetRows = this.ftlPanel.querySelector('.fleet-rows');
+    this.ftlWarn = this.ftlPanel.querySelector('.ftl-warn');
+    this._fleetKey = '';
+  }
+
+  /** Charge du saut + santé de chaque transport. */
+  setFtl(ftl, convoy, info) {
+    if (!this.ftlPanel) return;
+    this.ftlFill.style.width = `${ftl.charge}%`;
+    this.ftlPct.textContent = `${Math.floor(ftl.charge)}%`;
+    this.ftlMode.textContent = ftl.starved ? 'FORCÉ — ÉNERGIE INSUFFISANTE' : ftl.mode.name;
+    this.ftlMode.className = `ftl-mode ${ftl.starved ? 'starved' : ftl.modeId}`;
+    this.ftlFill.className = `ftl-fill ${ftl.ready ? 'ready' : ftl.modeId}`;
+    const eta = ftl.eta();
+    this.ftlEta = this.ftlEta || this.ftlPanel.querySelector('.ftl-eta');
+    this.ftlEta.textContent = ftl.ready
+      ? (info.laggardToGate > 0
+        ? `PRÊT — J pour partir sans le traînard (${Math.round(info.laggardToGate)})`
+        : 'SAUT IMMINENT')
+      : (eta === Infinity ? 'calcul à l\'arrêt' : `~${Math.ceil(eta)}s`);
+
+    const souls = convoy.souls;
+    this.ftlSouls.textContent = `${souls.toLocaleString('fr-FR')} âmes`;
+    this.ftlSouls.className = `ftl-souls ${souls < info.soulsStart ? 'bled' : ''}`;
+
+    const key = convoy.transports.map((t) => `${t.id}:${t.alive ? Math.ceil(t.hp) : 'x'}:${t.jumped ? 'j' : ''}`).join(',');
+    if (key !== this._fleetKey) {
+      this._fleetKey = key;
+      this.fleetRows.innerHTML = convoy.transports.map((t) => {
+        const cls = !t.alive ? 'lost' : t.jumped ? 'jumped' : '';
+        return `<div class="fleet-row ${cls}"><span class="fl-name">${t.name}</span>` +
+          `<span class="fl-bar"><span class="fl-fill" style="width:${Math.max(0, (t.hp / t.maxHp) * 100)}%"></span></span></div>`;
+      }).join('');
+    } else {
+      const fills = this.fleetRows.querySelectorAll('.fl-fill');
+      convoy.transports.forEach((t, i) => {
+        if (fills[i]) fills[i].style.width = `${Math.max(0, (t.hp / t.maxHp) * 100)}%`;
+      });
+    }
+    const nextIn = Math.ceil(info.nextAssault);
+    this.ftlWarn.textContent = nextIn <= 8 ? `⚠ CONTACT DANS ${nextIn}s` : '';
+    this.ftlWarn.className = `ftl-warn ${nextIn <= 8 ? 'on' : ''}`;
   }
 
   _buildCapital() {
@@ -149,7 +215,7 @@ export class Hud {
     this.hint = document.createElement('div');
     this.hint.className = 'hint';
     this.hint.textContent =
-      'Tab / clic : changer de poste · chiffres : commandes du poste · Clic gauche : tir · Espace : missiles · ↑↓/←→ : barre';
+      'Tab : poste · chiffres : commandes · J : ordre de saut · Clic : tir · Espace : missiles · ↑↓/←→ : barre';
     this.container.appendChild(this.hint);
   }
 
@@ -420,7 +486,7 @@ export class Hud {
   }
 
   /** Commandes 1/2/3 du poste courant, rendues dans son cockpit. */
-  setCommands(stationId, items, activeId) {
+  setCommands(stationId, items, activeId, activeId2) {
     const ck = this.cockpits?.[stationId];
     if (!ck) return;
     const key = `${stationId}|${items.map((i) => i.id).join(',')}`;
@@ -432,7 +498,11 @@ export class Hud {
       this._cmdEls = Array.from(ck.cmds.querySelectorAll('.cmd'));
       this._cmdIds = items.map((i) => i.id);
     }
-    if (this._cmdEls) this._cmdEls.forEach((el, i) => el.classList.toggle('on', this._cmdIds[i] === activeId));
+    if (this._cmdEls) {
+      this._cmdEls.forEach((el, i) => el.classList.toggle(
+        'on', this._cmdIds[i] === activeId || this._cmdIds[i] === activeId2
+      ));
+    }
   }
 
   /** Instruments du poste de pilote. */
@@ -658,12 +728,17 @@ export class Hud {
       this.container.appendChild(this.jumpEl);
     }
     this.jumpEl.className = '';
+    const left = (repair.left || []);
     this.jumpEl.innerHTML =
-      `<div class="jp-tag">SECTEUR FRANCHI</div>` +
+      `<div class="jp-tag">SAUT EFFECTUÉ</div>` +
       `<div class="jp-from">${from.name}</div>` +
-      `<div class="jp-arrow">↓ saut en cours ↓</div>` +
-      `<div class="jp-to">${to.name}</div>` +
-      `<div class="jp-sub">${to.subtitle}</div>` +
+      `<div class="jp-arrow">↓</div>` +
+      `<div class="jp-to">${to ? to.name : 'LE REFUGE'}</div>` +
+      `<div class="jp-sub">${to ? to.subtitle : ''}</div>` +
+      `<div class="jp-fleet">${repair.saved} transport(s) emporté(s) · ${repair.souls.toLocaleString('fr-FR')} âmes</div>` +
+      (left.length
+        ? `<div class="jp-left">✖ resté${left.length > 1 ? 's' : ''} en arrière : ${left.map((t) => t.name).join(', ')}</div>`
+        : '') +
       `<div class="jp-repair">+${repair.structure} coque · munitions rechargées · +${repair.credits} ◈</div>`;
   }
 

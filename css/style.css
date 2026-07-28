@@ -1162,3 +1162,59 @@ body.expanded #capital-panel { top: 156px; }
   animation: inc-pulse 1s ease-in-out infinite;
 }
 @keyframes inc-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+/* ---- La fuite : moteur de saut et flotte civile ---- */
+#ftl-panel {
+  position: fixed;
+  left: 8px;
+  top: calc(var(--bay-t) + 116px);
+  width: calc(var(--bay-l) - 24px);
+  z-index: 16;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  backdrop-filter: blur(4px);
+}
+body.expanded #ftl-panel { left: 12px; top: 176px; width: 196px; }
+.ftl-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 9px; letter-spacing: 2px; color: var(--dim);
+}
+.ftl-mode { font-size: 9px; letter-spacing: 1px; color: var(--neon-cyan); }
+.ftl-mode.forced { color: var(--neon-magenta); text-shadow: 0 0 8px var(--neon-magenta); }
+.ftl-mode.idle { color: var(--dim); }
+.ftl-mode.starved { color: var(--neon-amber); }
+.ftl-bar {
+  position: relative;
+  height: 12px; margin: 5px 0 3px;
+  border: 1px solid var(--panel-border); border-radius: 3px;
+  background: rgba(0,0,0,0.45); overflow: hidden;
+}
+.ftl-fill { height: 100%; width: 0; background: var(--neon-cyan); box-shadow: 0 0 10px var(--neon-cyan); transition: width 0.15s linear; }
+.ftl-fill.forced { background: var(--neon-magenta); box-shadow: 0 0 10px var(--neon-magenta); }
+.ftl-fill.idle { background: var(--dim); box-shadow: none; }
+.ftl-fill.ready { background: var(--neon-green); box-shadow: 0 0 14px var(--neon-green); }
+.ftl-pct {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; color: var(--text); text-shadow: 0 0 4px #000;
+}
+.ftl-eta { font-size: 9px; letter-spacing: 1px; color: var(--text); opacity: 0.8; }
+.ftl-sep { height: 1px; background: var(--panel-border); margin: 9px 0 7px; }
+.ftl-souls { font-size: 10px; color: var(--neon-green); }
+.ftl-souls.bled { color: var(--neon-amber); }
+.fleet-rows { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.fleet-row { display: flex; align-items: center; gap: 5px; font-size: 8px; letter-spacing: 0.5px; color: #cfe4ef; }
+.fl-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fl-bar { width: 42px; height: 3px; background: rgba(0,0,0,0.5); border-radius: 2px; overflow: hidden; flex: none; }
+.fl-fill { display: block; height: 100%; background: var(--neon-green); }
+.fleet-row.lost { color: rgba(150,120,118,0.5); text-decoration: line-through; }
+.fleet-row.lost .fl-bar { display: none; }
+.fleet-row.jumped { color: var(--dim); }
+.fleet-row.jumped .fl-fill { background: var(--dim); }
+.ftl-warn { min-height: 12px; margin-top: 6px; font-size: 9px; letter-spacing: 1px; color: transparent; }
+.ftl-warn.on { color: var(--neon-magenta); text-shadow: 0 0 8px var(--neon-magenta); animation: inc-pulse 0.8s ease-in-out infinite; }
+
+.jp-fleet { margin-top: 12px; font-size: 12px; letter-spacing: 1px; color: var(--neon-green); }
+.jp-left { margin-top: 4px; font-size: 11px; letter-spacing: 1px; color: var(--neon-magenta); }
