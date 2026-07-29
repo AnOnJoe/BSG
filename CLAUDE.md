@@ -495,8 +495,13 @@ intentions basse fréquence).
 
 ## Dépôt & journaux de session
 - BSG est un **sous-dépôt git autonome** (`BSG/.git`), volontairement séparé du dépôt parent
-  `~/ClaudeCode` qui est lié au contexte professionnel. **Aucun remote** : tout est local, ce
-  n'est donc pas encore une sauvegarde.
+  `~/ClaudeCode` qui est lié au contexte professionnel. C'est du perso : il n'a qu'un remote,
+  `origin` = **github.com/AnOnJoe/BSG** (public), et pas la double destination GitLab du parent.
+- **Jouable en ligne : https://anonjoe.github.io/BSG/** — GitHub Pages sert `main` à la racine.
+  Aucune étape de build : un `git push` suffit à publier (compter ~1 min de reconstruction).
+  Le site étant statique et Three.js venant du CDN, il n'y a rien de plus à faire.
+  ⚠ Corollaire : **tout ce qui est commité est public**, journaux de session compris. Relire
+  avant de pousser (un chemin `/Users/<nom>/…` a déjà dû être retiré du journal pour ça).
 - `CC-Session-Logs/` — journaux de session (`/compress`). À lire via `/resume` avant de reprendre :
   ils contiennent les décisions de design et leur *pourquoi*, ce que le code seul ne dit pas.
 

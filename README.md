@@ -8,7 +8,14 @@ commandant l'équipage depuis les postes de la passerelle.
 Rendu **Three.js** (chargé depuis un CDN via import map) + post-processing bloom.
 Aucun build ni dépendance : c'est un **site statique**.
 
-## Lancer
+## ▶ Jouer
+
+**https://anonjoe.github.io/BSG/** — rien à installer. Clavier + souris.
+
+Le jeu attend un écran large : la vue tactique est encadrée par le décor de la passerelle,
+et **V** la passe en plein écran.
+
+## Lancer en local
 
 Un serveur statique local suffit (nécessaire pour les modules ES) :
 
