@@ -2,6 +2,14 @@ import * as THREE from 'three';
 import { TRANSPORT_TYPES, FLEET } from '../data/convoyConfig.js';
 import { FLEET_ORDERS } from '../data/orders.js';
 import { TUNE } from '../core/Tune.js';
+
+/**
+ * Stations en RALLIEMENT, en X relatif à la baleine. Dimensionnées sur le CHAMP
+ * VISIBLE (~81 × 56 unités, donc ±41 en X) et non sur l'arène : deux devant, quatre
+ * autour et derrière. Une escorte encadre ce qu'elle protège — et surtout, on doit
+ * VOIR ce qu'on escorte, sinon la consigne ne veut rien dire.
+ */
+const FOLLOW_X = [-26, -8, 12, -18, 2, -30];
 import { makeSolid, neonLineMat } from '../core/NeonMaterials.js';
 
 /**
@@ -375,14 +383,15 @@ export class Convoy {
       // l'impression d'un seul objet rigide.
       const wantY = centerY + slot * span + tr.off * 0.35 + Math.sin(tr.drift) * 2.6;
       let wantX;
-      if (holding && order.follow && gather) {
-        // Consigne TENIR + RALLIEMENT : la flotte se pose autour de la baleine et
-        // ne pousse plus vers la sortie. C'est l'usage principal de TENIR —
-        // regrouper tout le monde dans la bulle avant d'amorcer le saut.
-        wantX = gather.x - 20 - (i % 3) * 16 + tr.off * 0.5;
-      } else if (order.follow && gather) {
-        // RALLIEMENT : ils tiennent leur station DERRIÈRE la baleine et la suivent.
-        wantX = gather.x - 20 - (i % 3) * 16 + tr.off * 0.5;
+      if (order.follow && gather) {
+        // RALLIEMENT : ⚠ ils se rangent AUTOUR de la baleine, pas en file derrière.
+        // Mesuré avant correction : 1 transport visible sur 6 (champ visible 81×56
+        // unités, transports à 34-71). On escortait une flotte qu'on ne voyait pas.
+        // Les stations sont donc dimensionnées sur l'ÉCRAN et non sur l'arène, et
+        // réparties de part et d'autre — une escorte encadre ce qu'elle protège.
+        // (Le cas TENIR est identique : la station suit la baleine, qui ne bouge
+        // plus. Pas besoin d'une branche séparée.)
+        wantX = gather.x + FOLLOW_X[i % FOLLOW_X.length] + tr.off * 0.3;
       } else {
         // Sinon ils poussent vers la sortie du secteur, chacun à son allure.
         wantX = Math.min(limitX, t.position.x + 60);
@@ -447,6 +456,19 @@ export class Convoy {
         const push = (min - d) / min;
         ux += (sx / d) * push * 3.2;
         uy += (sy / d) * push * 3.2;
+      }
+      // …et de la BALEINE. La répulsion mutuelle ne la concernait pas : un transport
+      // finissait à 1 unité d'elle, donc encastré dedans à l'écran. Une escorte se
+      // tient à distance de ce qu'elle escorte.
+      if (gather) {
+        const sx = t.position.x - gather.x, sy = t.position.y - gather.y;
+        const d = Math.hypot(sx, sy);
+        const min = t.radius + 9;
+        if (d < min && d > 0.01) {
+          const push = (min - d) / min;
+          ux += (sx / d) * push * 3.2;
+          uy += (sy / d) * push * 3.2;
+        }
       }
       { const n = Math.hypot(ux, uy); if (n > 0.01) { ux /= n; uy /= n; } }
 

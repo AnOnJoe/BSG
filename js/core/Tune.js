@@ -12,8 +12,9 @@ export const TUNE = {
   helmStandoff: 24,     // distance de combat que tient le barreur IA
   helmEscortDist: 16,   // distance à laquelle il escorte un civil (plus serré)
   helmReactionTau: 0.8, // retard de réaction du barreur IA (s) : il barre mollement
-  helmFleetLead: 45,    // avance (unités) au-delà de laquelle le barreur attend la flotte
-                        // (bien sous le rayon de la bulle, sinon elle se vide)
+  helmFleetLead: 26,    // avance (unités) au-delà de laquelle le barreur attend la flotte.
+                        // Doit rester sous la DEMI-LARGEUR VISIBLE (~41) : au-delà, la
+                        // flotte sort de l'écran et on escorte ce qu'on ne voit pas.
   // --- Conduite de tir de l'ÉQUIPAGE (il n'est pas une machine : il rate) ---
   crewReactionTau: 0.35, // retard de suivi de la cible (s) : rate ce qui manœuvre
   crewAcquireTime: 0.5,  // temps de verrouillage avant le premier tir (s)
@@ -82,7 +83,10 @@ export const TUNE = {
   dradisRangeMul: 11,   // portée d'AFFICHAGE du DRADIS (couvre le couloir)
   empRangeMul: 1,      // rayon d'effet de l'IEM (× le rayon du module)
   // ===== FUITE & SAUT =====
-  gatherRadius: 78,    // rayon de la bulle de rassemblement (qui part, qui reste)
+  // Rayon de la bulle de rassemblement (qui part, qui reste). ⚠ À 78 il dépassait
+  // largement le champ visible (demi-largeur ~41) : on ne voyait JAMAIS son bord,
+  // alors que c'est l'objet de décision central du jeu. Ramené sous la demi-largeur.
+  gatherRadius: 40,
   ftlForcedRate: 2.4,  // vitesse du calcul en mode FORCÉ (×)
   ftlForcedDrain: 14,  // énergie ponctionnée par le mode FORCÉ (/s)
   // ===== FLOTTE CIVILE (elle est l'économie de la partie) =====

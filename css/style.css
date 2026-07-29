@@ -1856,3 +1856,83 @@ body.expanded #cockpit-shell .shell-glare { opacity: 0; }
   color: var(--neon-magenta); border-color: var(--neon-magenta);
   background: rgba(255,51,136,0.1);
 }
+
+/* Plus de chantier : l'état doit sauter aux yeux EN HAUT du panneau. Le dire
+   seulement dans les lignes refusées ne suffisait pas — le regard va au stock de
+   matériel, qui est plein, et on croit à un blocage inexpliqué. */
+.dk-alert {
+  margin-bottom: 8px;
+  font-size: 10px; line-height: 1.45; color: var(--neon-amber);
+  border: 1px solid rgba(255,170,51,0.45); border-radius: 5px;
+  background: rgba(255,170,51,0.08);
+  padding: 6px 8px;
+}
+
+/* Plus de chantier : l'état doit sauter aux yeux EN HAUT du panneau. Le dire
+   seulement dans les lignes refusées ne suffit pas — le regard va au stock de
+   matériel, qui est plein, et on croit à un blocage inexpliqué. */
+.dk-alert {
+  margin-bottom: 8px;
+  font-size: 10px; line-height: 1.45; color: var(--neon-amber);
+  border: 1px solid rgba(255,170,51,0.45); border-radius: 5px;
+  background: rgba(255,170,51,0.08);
+  padding: 6px 8px;
+}
+
+/* ORDRE DE SAUT — l'affordance qui manquait. La décision la plus importante du jeu
+   n'avait aucun bouton : seulement un rappel de touche minuscule en bas d'écran.
+   Il est collé à la jauge de charge, et il DIT son état (y compris pourquoi il ne
+   part pas) : un bouton inerte sans explication est le pire cas ici. */
+.rb-jump {
+  /* ⚠ `#run-bar` est en `pointer-events: none` pour ne pas bloquer la visée au
+     clic : le bandeau central couvre le haut de l'écran tactique. Le bouton doit
+     donc RÉTABLIR `auto` explicitement, sinon il s'affiche parfaitement, change
+     d'état correctement… et ne reçoit jamais le clic. Symptôme trompeur : rien ne
+     plante, `_requestJump()` marche très bien quand on l'appelle à la main. */
+  pointer-events: auto;
+  display: flex; align-items: center; gap: 7px;
+  font-family: var(--font); font-size: 11px; letter-spacing: 2px;
+  color: var(--dim); background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(75,106,122,0.5); border-radius: 5px;
+  padding: 6px 10px; margin-left: 12px; cursor: pointer; white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.rj-key {
+  font-size: 9px; letter-spacing: 0; color: var(--bg);
+  background: var(--dim); border-radius: 3px; padding: 1px 5px;
+}
+.rj-state { font-size: 9px; letter-spacing: 0.5px; opacity: 0.85; }
+/* Le calcul n'est pas fini : présent mais sourd. */
+.rb-jump.wait { cursor: default; }
+/* Prêt : il faut que ça se voie de l'autre bout de l'écran. */
+.rb-jump.ready {
+  color: var(--neon-green); border-color: var(--neon-green);
+  background: rgba(102,255,153,0.12);
+  box-shadow: 0 0 14px rgba(102,255,153,0.3);
+  animation: rj-pulse 1.6s ease-in-out infinite;
+}
+.rb-jump.ready .rj-key { background: var(--neon-green); }
+@keyframes rj-pulse { 0%, 100% { box-shadow: 0 0 14px rgba(102,255,153,0.3); }
+  50% { box-shadow: 0 0 22px rgba(102,255,153,0.55); } }
+/* Prêt mais personne dans la bulle : partir tuerait la flotte. */
+.rb-jump.nope {
+  color: var(--neon-magenta); border-color: rgba(255,51,136,0.6);
+  background: rgba(255,51,136,0.1);
+}
+.rb-jump.nope .rj-key { background: var(--neon-magenta); }
+/* Amorçage en cours : tout le monde est immobile, on ne peut plus l'annuler. */
+.rb-jump.spool {
+  color: var(--neon-amber); border-color: var(--neon-amber);
+  background: rgba(255,170,51,0.14); cursor: default;
+}
+.rb-jump.spool .rj-key { background: var(--neon-amber); }
+
+/* Distance portée par une flèche de bord (civils hors champ). Le libellé
+   contre-tourne : orienté avec la flèche il serait illisible. */
+.enemy-indicator .ei-d {
+  position: absolute; left: 50%; top: 50%;
+  font-size: 9px; letter-spacing: 0; white-space: nowrap;
+  transform-origin: center;
+  margin-left: 10px;
+  text-shadow: 0 0 4px rgba(0,0,0,0.9);
+}

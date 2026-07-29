@@ -88,6 +88,9 @@ export class Hangar {
               ⚒ <b>${works}</b> chantier${works > 1 ? 's' : ''}</span>
           </span>
         </div>
+        ${works > 0 ? '' : '<div class="dk-alert">⚒ PLUS DE CHANTIER CE SAUT-CI — '
+          + 'l\'équipe de pont a fait ce qu\'elle pouvait. Le matériel reste en soute, on montera '
+          + 'au prochain saut. Aménager un emplacement, en revanche, reste possible.</div>'}
         <div class="dk-sections">${this._bySection().map((g) => this._sectionHtml(g)).join('')}</div>
         <div class="dk-hint"></div>
       </div>`;
@@ -122,11 +125,16 @@ export class Hangar {
     if (!fitted) {
       // Emplacement NON AMÉNAGÉ : une coque nue. On dit ce qu'il coûterait, sinon
       // c'est un carré grisé sans explication.
-      const can = app.salvage >= cost && app.works > 0;
+      // ⚠ Aménager ne consomme PAS de chantier. Signalé en jeu : « j'ai aménagé un
+      // emplacement arme sans rien mettre puis un utilitaire et je ne peux rien
+      // sélectionner » — un chantier par aménagement mangeait toute l'escale, et on
+      // repartait avec des emplacements aménagés mais VIDES. Le chantier est ce que
+      // l'équipe FABRIQUE ; tirer des câbles se paie en matériel.
+      const can = app.salvage >= cost;
       return `<div class="dk-slot bare${can ? ' can' : ''}" data-slot="${slot.id}">
         <div class="dk-name">${slot.name}</div>
         <div class="dk-sub">${SLOT_TYPE[slot.type] || slot.type} · non aménagé</div>
-        <div class="dk-cost">⛭ ${cost} · ⚒ 1</div>
+        <div class="dk-cost">⛭ ${cost}</div>
       </div>`;
     }
     if (!mod) {
@@ -180,13 +188,13 @@ export class Hangar {
     if (!app.isFitted(slotId)) {
       // AMÉNAGER d'abord : on ne monte rien sur une coque nue.
       const cost = SLOT_FITOUT[slot.type] ?? 200;
-      const why = app.works <= 0 ? 'plus de chantier ce saut-ci'
-        : app.salvage < cost ? 'matériel insuffisant' : null;
+      const why = app.salvage < cost ? 'matériel insuffisant' : null;
       const note = document.createElement('div');
       note.className = 'menu-note';
-      note.textContent = 'Coque nue : il faut tirer les câbles et renforcer le bâti avant d\'y monter quoi que ce soit.';
+      note.textContent = 'Coque nue : tirer les câbles et renforcer le bâti. Coûte du matériel, '
+        + 'pas un chantier — l\'équipe de pont garde sa capacité pour ce qu\'elle fabrique.';
       menu.appendChild(note);
-      menu.appendChild(this._menuRow('Aménager l\'emplacement', cost, true, why,
+      menu.appendChild(this._menuRow('Aménager l\'emplacement', cost, false, why,
         () => this._fitOut(slotId, cost)));
     } else {
       for (const moduleId of SLOT_ACCEPTS[slot.type]) {
@@ -253,8 +261,9 @@ export class Hangar {
     return true;
   }
 
+  /** Aménager : du matériel, aucun chantier (voir `_slotHtml`). */
   _fitOut(slotId, cost) {
-    if (!this._pay(cost)) return;
+    if (!this.app.spend(cost)) return;
     this.app.fitOut(slotId);
     this._afterChange();
   }

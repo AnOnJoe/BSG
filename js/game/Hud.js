@@ -30,7 +30,7 @@ export class Hud {
     this.container = container;
   }
 
-  build(weaponControl, ship, onToggle, onStation, onOrder, onSignalFix, onDesignate, onSection) {
+  build(weaponControl, ship, onToggle, onStation, onOrder, onSignalFix, onDesignate, onSection, onJump) {
     this.container.innerHTML = '';
     this._indicators = [];
     this.ship = ship;
@@ -41,6 +41,7 @@ export class Hud {
     this.onSignalFix = onSignalFix;
     this.onDesignate = onDesignate;
     this.onSection = onSection;
+    this.onJump = onJump;
     this._cmdKey = '';
     this._capKey = '';
     this._modKey = '';
@@ -199,6 +200,21 @@ export class Hud {
 
       this.rbFill.style.width = `${ftl.charge}%`;
       this.rbFill.className = `rb-ftl-fill ${ftl.ready ? 'ready' : ftl.modeId}`;
+      // Le bouton de saut DIT son état, y compris pourquoi il ne part pas : un
+      // bouton inerte sans explication est le pire cas pour la décision centrale.
+      if (this.rbJump) {
+        const spool = info.spool > 0;
+        const inside = info.inBubble ? info.inBubble.inside.length : 0;
+        const outside = info.inBubble ? info.inBubble.outside.length : 0;
+        let cls = 'wait', txt;
+        if (spool) { cls = 'spool'; txt = `AMORÇAGE ${info.spool.toFixed(1)} s`; }
+        else if (!ftl.ready) { txt = `calcul ${Math.floor(ftl.charge)} %`; }
+        else if (!inside) { cls = 'nope'; txt = 'aucun transport dans la bulle'; }
+        else { cls = 'ready'; txt = outside ? `${inside} partent · ${outside} restent` : `${inside} partent`; }
+        this.rjState.textContent = txt;
+        this.rbJump.className = `rb-jump ${cls}`;
+        this.rbJump.disabled = spool;
+      }
       this.rbPct.textContent = `${Math.floor(ftl.charge)}%`;
       this.rbEta.textContent = ftl.ready
         ? (info.laggardToGate > 0 ? `PRÊT · J pour partir sans le traînard` : 'SAUT IMMINENT')
@@ -247,7 +263,17 @@ export class Hud {
       <div class="rb-ftl">
         <div class="rb-ftl-head"><span>CHARGE FTL</span><span class="rb-ftl-eta"></span></div>
         <div class="rb-ftl-track"><div class="rb-ftl-fill"></div><span class="rb-ftl-pct">0%</span></div>
-      </div>`;
+      </div>
+      <!-- ORDRE DE SAUT. Signalé en jeu : « je ne vois pas le bouton de FTL ni de
+           touche, je me rappelais juste que c'était J ». Il n'y avait effectivement
+           AUCUN bouton — seulement un rappel de touche minuscule en bas d'écran. La
+           décision la plus importante du jeu n'avait pas d'affordance. Il est ici,
+           collé à la jauge de charge : c'est là que va le regard. -->
+      <button class="rb-jump" title="Amorcer le saut (J)">
+        <span class="rj-lab">SAUT</span>
+        <span class="rj-key">J</span>
+        <span class="rj-state"></span>
+      </button>`;
     this.container.appendChild(this.runBar);
     this.rbTime = this.runBar.querySelector('.rb-time');
     this.rbLabel = this.runBar.querySelector('.rb-label');
@@ -255,6 +281,9 @@ export class Hud {
     this.rbFill = this.runBar.querySelector('.rb-ftl-fill');
     this.rbPct = this.runBar.querySelector('.rb-ftl-pct');
     this.rbEta = this.runBar.querySelector('.rb-ftl-eta');
+    this.rbJump = this.runBar.querySelector('.rb-jump');
+    this.rjState = this.runBar.querySelector('.rj-state');
+    this.rbJump.addEventListener('click', () => this.onJump?.());
 
     // Journal de passerelle : ce qui « scénarise » l'attente
     this.logEl = document.createElement('div');
@@ -843,14 +872,24 @@ export class Hud {
         this.container.appendChild(el);
         this._indicators[i] = el;
       }
-      const { angle, color } = list[i];
+      const { angle, color, label } = list[i];
       const css = hexToCss(color);
       el.style.display = 'block';
       el.style.left = (cx + Math.cos(angle) * rx) + 'px';
       el.style.top = (cy + Math.sin(angle) * ry) + 'px';
-      el.style.transform = `translate(-50%,-50%) rotate(${angle}rad)`;
       el.style.borderLeftColor = css;
       el.style.filter = `drop-shadow(0 0 5px ${css})`;
+      // La DISTANCE des civils hors champ : c'est l'information qui manque pour
+      // décider d'amorcer. Le libellé ne tourne pas avec la flèche, sinon il est
+      // illisible — seule la pointe s'oriente.
+      let tag = el.firstElementChild;
+      if (label) {
+        if (!tag) { tag = document.createElement('span'); tag.className = 'ei-d'; el.appendChild(tag); }
+        tag.textContent = label;
+        tag.style.color = css;
+        tag.style.transform = `rotate(${-angle}rad)`;
+      } else if (tag) { tag.remove(); }
+      el.style.transform = `translate(-50%,-50%) rotate(${angle}rad)`;
     }
     for (let i = list.length; i < this._indicators.length; i++) this._indicators[i].style.display = 'none';
   }

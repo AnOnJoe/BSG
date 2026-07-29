@@ -53,7 +53,9 @@ export const HELM_ORDERS = [
  * Le lien avec le saut est le nerf de l'affaire : on ne saute qu'en étant serré.
  */
 export const FLEET_ORDERS = [
-  { id: 'tighten', name: 'RALLIEMENT', speedMul: 0.95, spread: 0.16, wear: 0, follow: true },
+  // `spread` 0,16 donnait ±17 par créneau, plus les décalages personnels : la
+  // flotte sortait de la hauteur visible (±28). Réduit pour qu'elle tienne à l'écran.
+  { id: 'tighten', name: 'RALLIEMENT', speedMul: 0.95, spread: 0.1, wear: 0, follow: true },
   { id: 'disperse', name: 'DISPERSER', speedMul: 1.0,
     get spread() { return 1.05 * TUNE.fleetSpreadMul; }, wear: 0 },
   // FORCER est le sommet du triangle qui se paie : allure contre usure. Les deux

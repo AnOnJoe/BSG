@@ -290,7 +290,8 @@ export class Range {
       (kind, id) => this.setOrder(kind, id),
       () => this._takeSignalFix(),
       (t) => this._designateTransport(t),
-      (sec) => this._designateSection(sec)
+      (sec) => this._designateSection(sec),
+      () => this._requestJump()
     );
     this.aim.enable();
     this.input.enable();
@@ -1884,16 +1885,31 @@ export class Range {
     this._updateIndicators();
   }
 
+  /**
+   * Flèches en bord d'écran. ⚠ Elles ne pointaient que les ENNEMIS. Mesuré : le
+   * champ visible fait 81 × 56 unités et les transports sont à 26-70 de la baleine,
+   * donc **un seul sur six est à l'écran** — on escortait une flotte qu'on ne voyait
+   * pas, et rien ne disait où elle était. Les civils ont donc leurs marqueurs, avec
+   * leur DISTANCE : c'est l'information qui manquait pour décider d'amorcer un saut.
+   */
   _updateIndicators() {
     const list = [];
-    for (const e of this.aliveEnemies) {
-      const v = e.position.project(this.camera);
-      const onScreen = v.z < 1 && v.x >= -1 && v.x <= 1 && v.y >= -1 && v.y <= 1;
-      if (!onScreen) {
-        let dx = v.x, dy = v.y;
-        if (v.z > 1) { dx = -dx; dy = -dy; } // cible derrière la caméra
-        list.push({ angle: Math.atan2(-dy, dx), color: e.color });
-      }
+    const P = this.ship.group.position;
+    const mark = (pos, color, label) => {
+      // `.project()` mute le vecteur : on clone (piège déjà rencontré ici).
+      const v = pos.clone().project(this.camera);
+      if (v.z < 1 && v.x >= -1 && v.x <= 1 && v.y >= -1 && v.y <= 1) return;
+      let dx = v.x, dy = v.y;
+      if (v.z > 1) { dx = -dx; dy = -dy; } // cible derrière la caméra
+      list.push({ angle: Math.atan2(-dy, dx), color, label });
+    };
+    for (const e of this.aliveEnemies) mark(e.position, e.color, null);
+    for (const t of this.convoy.alive) {
+      const d = Math.round(Math.hypot(t.position.x - P.x, t.position.y - P.y));
+      const hurt = t.hp / t.maxHp < 0.5;
+      // Ambre quand il est blessé, bleu sinon : on doit repérer d'un coup d'œil
+      // celui qui se fait mordre à l'autre bout du couloir.
+      mark(t.position, hurt ? 0xffaa33 : 0x8fc4ff, `${d}`);
     }
     this.hud.setIndicators(list);
   }

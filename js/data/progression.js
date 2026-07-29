@@ -66,7 +66,13 @@ export const PLAN_SOURCE = {
  * `withWorkshop` ; sans lui, `withoutWorkshop`. L'écart est le prix réel de cette
  * coque de 900 âmes qu'on est tenté d'abandonner.
  */
-export const WORKS = { withWorkshop: 2, withoutWorkshop: 1 };
+/**
+ * ⚠ Le plancher est à 2, et c'est une remarque de partie test : « il faudrait au
+ * moins 2 chantiers ou alors ce n'est pas une variable intéressante ». Juste — à un
+ * seul chantier il n'y a aucun arbitrage, on fait la seule chose possible. Il en
+ * faut assez pour que « qu'est-ce qui passe en premier ? » soit une vraie question.
+ */
+export const WORKS = { withWorkshop: 3, withoutWorkshop: 2 };
 
 /** Matériel en soute au tout premier départ : de quoi un seul travail, pas trois. */
 export const START_SALVAGE = 320;
