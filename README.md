@@ -29,6 +29,7 @@ python3 -m http.server 8000
 | **Souris** | viser — *au poste d'artilleur* |
 | **Clic gauche** | tir des lasers — *au poste d'artilleur* |
 | **Barre Espace** | tir des **missiles** (ordre du capitaine, depuis n'importe quel poste) |
+| **J** | **amorcer le saut** : ce qui est dans la bulle part, le reste est abandonné |
 | **Clic droit** (maintenu) | **anneau de passerelle** : répartir l'énergie — *console du commandant* |
 | **E** | **IEM** (impulsion) — *console du commandant* |
 | **Clic sur un module** | l'activer / le couper — *console du commandant* |
@@ -94,13 +95,13 @@ faudra les rallier avant de partir), **FORCER** (on sort vite, les moteurs s'ab�
 descendu sous 40 % de coque perd sa propulsion : **il décroche**. Ton retardataire, c'est celui
 qu'ils ont mordu.
 
-Un secteur n'est pas une arène à nettoyer, c'est un **saut à préparer** : tu entres par la
-gauche, la porte de saut est loin à droite, et le **moteur FTL calcule** pendant que la flotte
-avance. Les assauts ne s'arrêtent jamais — tu ne peux pas « finir » une vague, seulement tenir
-jusqu'à l'échéance.
+Un secteur n'est pas une arène à nettoyer, c'est un **saut à préparer** : un **couloir** de 860
+unités où tu entres par la gauche, où la flotte pousse vers la sortie pour échapper à la
+perturbation, et où le **moteur FTL calcule** pendant tout le trajet. Les assauts ne s'arrêtent
+jamais — tu ne peux pas « finir » une vague, seulement tenir jusqu'à l'échéance.
 
 Le commandant peut **forcer le calcul** pour partir plus tôt, mais l'énergie qu'il y met est
-prise sur les armes et les boucliers. Et le saut **n'emporte que ce qui est arrivé à la porte** :
+prise sur les armes et les boucliers. Et le saut **n'emporte que ce qui est dans la bulle** :
 si un transport traîne, il faut choisir — l'attendre sous le feu, ou ordonner le départ (**J**)
 et le laisser. Les âmes perdues le sont pour de bon, jusqu'à la fin de la partie.
 
@@ -125,8 +126,8 @@ et déployer l'escadron avant le contact plutôt que d'attendre.
 
 ## Combat (vagues vs CPU)
 
-- **Vaste arène** (±190 × ±120) aux **limites visibles** ; la **caméra suit** ta
-  baleine puis se **bloque aux bords** (tu te décentres vers le bord).
+- **Couloir** (±430 × ±108) aux **limites visibles**, parcouru de gauche à droite ; la
+  **caméra suit** ta baleine puis se **bloque aux bords** (tu te décentres vers le bord).
 - Les ennemis apparaissent **hors-champ** et foncent : **flèches en bord d'écran**
   + **mini-radar** (coin bas-droite) pour les repérer.
 - **CUIRASSÉ** gardant la sortie de certains secteurs : un bâtiment **quatre fois plus long que ta baleine**, qui
@@ -267,28 +268,50 @@ spirale, **vignette** CRT + scanlines), **bloom** néon, **secousse d'écran**, 
 et **champs de débris**, flashs de tir ronds, et **audio synthétisé** (WebAudio, sans
 fichier : laser, missile, IEM, impacts, moteur, victoire/défaite).
 
+Le **saut FTL** étire les étoiles en traînées puis blanchit l'écran. Et l'épique étant un
+contraste et non une intensité constante, certains instants passent au **ralenti** : la
+destruction d'un cuirassé, et sa propre mort.
+
 ## Architecture (data-driven)
 
 - `js/data/` — `hullConfig.js` (forme + slots de la coque), `moduleConfig.js` (modules,
-  stats par niveau, coûts).
-- `js/entities/` — `Hull.js`, `EnemyShip.js`, `Drone.js`, `Pickup.js`, et `modules/`
-  (LaserCannon, MissileLauncher, InterceptorBay, Emp, Reactor, Shield, Armor, Radar).
-- `js/game/` — `Ship.js` (agrégat + défense/énergie), `Hangar.js`, `Range.js` (combat),
-  `Hud.js`, `TunePanel.js`.
-- `js/core/` — `Renderer.js` (bloom), `Camera.js`, `AimController.js`, `InputController.js`,
-  `WeaponControl.js`, `Fx.js`, `ScreenShake.js`, `Audio.js`, `Tune.js`, `HallOfFame.js`,
-  `SaveManager.js`, `NeonMaterials.js`.
+  stats par niveau, coûts), `capitalConfig.js` (les dix pièces du cuirassé), `campaign.js`
+  (les cinq secteurs), `waves.js` (vagues à thème), `convoyConfig.js` (les six transports),
+  `terrainConfig.js` (décor par secteur), `orders.js` (consignes des postes et de la flotte),
+  `scenes.js` (dialogues du CIC).
+- `js/entities/` — `Hull.js`, `EnemyShip.js`, `CapitalShip.js`, `Drone.js`, `Convoy.js`
+  (la flotte civile), `Terrain.js` (obstacles qui coupent les tirs), `Pickup.js`, et `modules/`
+  (LaserCannon, MissileLauncher, InterceptorBay, Ciws, Emp, Reactor, Shield, Armor, Radar).
+- `js/game/` — `Ship.js` (agrégat + défense/énergie), `Hangar.js`, `Bridge.js` (phase CIC),
+  `Range.js` (combat), `Hud.js`, `TunePanel.js`.
+- `js/core/` — `Renderer.js` (bloom), `Camera.js`, `Viewport.js` (**toute** conversion
+  écran ↔ monde), `AimController.js`, `InputController.js`, `WeaponControl.js` (conduite de tir
+  de l'équipage), `AutoHelm.js` (barreur IA), `Stations.js` (les postes), `PowerBus.js` +
+  `CommandRing.js` (énergie répartie), `FtlDrive.js` (moteur de saut), `Fx.js`,
+  `ScreenShake.js`, `Audio.js`, `Tune.js`, `HallOfFame.js`, `SaveManager.js`,
+  `NeonMaterials.js`.
 
 L'archi est **data-driven** : ajouter un module = une entrée dans `moduleConfig` + une
 petite classe ; ajouter une autre coque = un fichier de config du même format.
 
 ## Prochaines pistes
 
-**Coop à plusieurs postes** — chacun tient un poste du même vaisseau (capitaine, artillerie,
-ingénieur). L'architecture est déjà en place (`Stations.js`) : il s'agit de poser un opérateur
-distant là où il y a une IA. Avant ça, chaque poste doit gagner de la substance : **sections de
-coque** qui cassent localement (ingénieur), **ordres d'escadron** (capitaine), **désignation de
-cibles** (artillerie).
+**Jouer une traversée complète.** Rien n'a encore été joué de bout en bout : les vérifications
+automatisées valident les mécanismes, pas l'équilibrage. Durée réelle d'un secteur, tentation de
+DISPERSER, temps de démontage du cuirassé — tout ça reste à mesurer manette en main.
 
-Ensuite : courbe de difficulté (les vagues doivent changer de nature, pas seulement de PV) et
-condition de victoire, autres formes de vaisseau mère, boutique plus riche, menu de départ.
+**Poste d'ingénieur** — le seul des métiers annoncés qui n'existe pas. Les **sections de coque**
+qui cassent localement ne sont faites que côté ennemi (le cuirassé et ses dix pièces) ; il s'agit
+de transposer la même mécanique au joueur.
+
+**Le mystère narratif** — « on ne sait pas comment ils nous trouvent ». En jeu : un transport
+compromis à identifier, puis à détruire soi-même. C'est le ressort le plus fort de la saison, et
+il n'est pas exploité. Dans la même veine : varier les scènes de CIC selon le secteur, aujourd'hui
+identiques aux cinq sauts.
+
+**Cible prioritaire pour l'artillerie** — les drones ont leur désignation, pas les tourelles
+(`radar.maxTargets` reste inutilisé).
+
+Ensuite : **coop à plusieurs postes** (chacun tient un poste du même vaisseau ; l'architecture est
+en place dans `Stations.js`, il s'agit de poser un opérateur distant là où il y a une IA), autres
+formes de vaisseau mère, boutique plus riche, menu de départ, sons d'ambiance.

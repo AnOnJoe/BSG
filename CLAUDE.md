@@ -493,21 +493,47 @@ intentions basse fréquence).
 - **Cache navigateur** (voir plus haut) : re-tester en hard-refresh avant de conclure
   à un bug.
 
-## État & prochaines pistes
-Fait : hangar+upgrades+crédits, combat par vagues, 4 types d'ennemis + encerclement,
-intercepteurs autonomes (2 camps), IEM, bonus, radar/mini-radar, bouclier-bulle,
-Hall of Fame, boss key, panneau de réglages, ambiance (nébuleuses/galaxie/vignette/
-débris/audio), **énergie répartie + anneau de passerelle** (lot ① de la bascule vers
-la sim de capitaine).
+## Dépôt & journaux de session
+- BSG est un **sous-dépôt git autonome** (`BSG/.git`), volontairement séparé du dépôt parent
+  `~/ClaudeCode` qui est lié au contexte professionnel. **Aucun remote** : tout est local, ce
+  n'est donc pas encore une sauvegarde.
+- `CC-Session-Logs/` — journaux de session (`/compress`). À lire via `/resume` avant de reprendre :
+  ils contiennent les décisions de design et leur *pourquoi*, ce que le code seul ne dit pas.
 
-Suite prévue de cette bascule :
-- **②** sections de coque (proue/dos/ventre/poupe) : dégâts localisés selon l'angle
-  d'impact, section à 0 ⇒ modules de cette section HS jusqu'à réparation. Les slots de
-  `hullConfig.js` reçoivent un champ `section`.
-- **③** ordres d'escadron dans l'anneau (attaquer / escorter-intercepter / réparer).
-- **④** ciblage manuel + focus : `radar.maxTargets` n'est utilisé nulle part aujourd'hui,
-  et tout passe par `_nearestEnemy()`.
-- **Courbe de difficulté** (problème connu) : `MAX_ENEMIES = 4` et `_composeWave` renvoie
-  la même composition dès la vague 3 ⇒ au-delà, seuls les PV montent. La prime de vague
-  `40 * wave` est quadratique alors que la menace est linéaire (le build finit maxé).
-  `_end(type)` ignore son paramètre : il n'y a pas de victoire.
+## État
+**La boucle est celle de Battlestar Galactica saison 1** : escorter six transports civils
+(50 000 âmes) à travers cinq secteurs, en tenant chaque fois jusqu'à ce que le calcul de saut
+aboutisse. On ne nettoie plus des vagues.
+
+Fait : hangar + upgrades + crédits · **4 postes exclusifs** (commandant / pilote / artilleur /
+drones) avec équipage IA médiocre et lisible · **énergie répartie** en 3 bus + anneau de
+passerelle · conduite de tir humaine (retard, dispersion, renoncement) · modes de tir · ordres
+d'escadron **et de flotte** · désignation de cible · **cuirassé** démontable pièce par pièce ·
+canon anti-drone · **terrain** qui coupe les tirs · **cadrage cockpit** + plein écran ·
+**traversée de 5 secteurs** avec victoire · vagues à thème · **phase passerelle (CIC)** avec
+dialogues et choix à conséquences · **saut sur place** (bulle de rassemblement + amorçage
+vulnérable) · mise en scène (annonce radar, ralenti, saut FTL).
+
+## Prochaines pistes
+Par ordre d'utilité décroissante :
+
+1. **Jouer une traversée complète.** Rien n'a jamais été joué en entier : les tests headless
+   vérifient les mécanismes, pas l'équilibrage. Durée réelle d'un secteur, `ftlMinClarity` assez
+   incitatif pour risquer DISPERSER, temps de démontage du cuirassé.
+2. **Configurer un remote git** (perso). Demande une authentification interactive.
+3. **Poste d'INGÉNIEUR** — le seul des quatre métiers annoncés qui n'existe pas. Le lot ② (sections
+   de coque, dégâts localisés, modules HS jusqu'à réparation) n'est fait que **côté ennemi** : le
+   cuirassé a ses dix pièces, mais `hullConfig.js` n'a toujours pas de champ `section`. Toute la
+   mécanique est écrite, il s'agit de la transposer au joueur.
+4. **`radar.maxTargets` reste inutilisé** : le lot ④ n'est fait qu'à moitié — pas de désignation de
+   cible prioritaire persistante pour l'artillerie, alors que les drones l'ont.
+5. **Varier les scènes par secteur** : `data/scenes.js` sert les mêmes neuf scènes aux cinq sauts.
+6. **Le mystère narratif** — « on ne sait pas comment ils nous trouvent ». Traduction jeu : un
+   transport compromis à identifier puis détruire soi-même. C'est le ressort le plus fort de la
+   saison, et il n'est pas exploité.
+7. **Calibrage du libellé « solution de tir »** : annonce encore BONNE à ~40 % de touches sur cible
+   qui zigzague (seuils dans `WeaponControl._updateSolution`).
+8. **Décor du cockpit** volontairement sobre (liserés, équerres) : pas de matière (rivets, reflets,
+   hublots latéraux).
+9. Plus loin : **coop multi-postes** (l'architecture est prête, cf. `Stations.js`), autres coques,
+   boutique plus riche, menu de départ, sons d'ambiance.
