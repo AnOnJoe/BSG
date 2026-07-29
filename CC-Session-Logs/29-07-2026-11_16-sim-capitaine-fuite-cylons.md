@@ -80,7 +80,7 @@
 - `CLAUDE.md` / `README.md` : documentation à jour à chaque palier.
 
 ## Setup & Config
-- **Sous-dépôt git dédié** : `git init -b main` dans `/Users/joachim.henry/ClaudeCode/BSG`, `.gitignore` propre (`.DS_Store`, `node_modules/`, `*.json.bak`).
+- **Sous-dépôt git dédié** : `git init -b main` dans `~/ClaudeCode/BSG`, `.gitignore` propre (`.DS_Store`, `node_modules/`, `*.json.bak`).
 - **Dépôt parent `~/ClaudeCode` intact** : branche `main`, `BSG/` y reste non suivi. Une première tentative de commit dans le parent a été **entièrement annulée** sur demande.
 - **Aucun remote** : le dépôt est purement local, ce n'est donc pas encore une sauvegarde.
 - **Vérification headless** : `puppeteer-core` réinstallé dans le scratchpad de session (absent au départ), Chrome présent. Scripts dans le scratchpad (`check-*.mjs`).
