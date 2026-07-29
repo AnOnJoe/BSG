@@ -625,9 +625,35 @@ au lieu de viser au pixel, la latence devient indolore (un hôte simule, les aut
 intentions basse fréquence).
 
 ## Conventions & idiomes
-- **Équilibrage → `js/core/Tune.js`** (objet `TUNE` + `TUNE_SPECS`). Toute valeur
-  réglable en jeu passe par là (lue en direct, persistée localStorage, éditable via
-  panneau **T**). Ajouter un réglage = 1 entrée dans `TUNE` + 1 dans `TUNE_SPECS`.
+- **Équilibrage → `js/core/Tune.js`** (objet `TUNE` + `TUNE_SPECS` + `TUNE_DEFAULTS`).
+  **RÈGLE : toute valeur qui peut poser un problème d'équilibrage ou de gameplay doit
+  être là.** S'il faut toucher au code pour tester un chiffre, c'est qu'il manque une
+  entrée. **69 réglages, couverture 69/69** (un test le vérifie).
+  Ajouter un réglage = 1 entrée dans `TUNE` + 1 dans `TUNE_SPECS`, cette dernière au
+  format `[clé, label, min, max, pas, groupe, aide]` — le **groupe** et l'**aide** ne
+  sont pas optionnels en pratique : sans eux le panneau redevient illisible.
+  Les valeurs doivent être lues **en direct** au point d'usage (getters sur les
+  objets de données quand il le faut : `FTL_MODES`, `FIRE_MODES`, `FLEET_ORDERS`,
+  `JUMP_REPAIR`). Deux exceptions assumées et **dites dans l'aide** : les PV des
+  transports et des sections s'appliquent au montage, pour qu'un curseur bougé en
+  pleine bataille ne soigne ni ne perce rien d'un coup.
+  ⚠ La bulle de saut est construite à **rayon 1 puis mise à l'échelle** — sans ça il
+  faudrait reconstruire la géométrie à chaque cran du curseur.
+
+### Le panneau T doit rester UTILISABLE
+69 jauges à plat, ce n'est pas « complet », c'est **inutilisable** : on ne règle rien et
+le panneau perd sa raison d'être. Quatre choses le rendent praticable (`game/TunePanel.js`) :
+- **groupes repliables**, les trois premiers ouverts (Fuite & saut, Flotte civile,
+  Dénouement — les mécaniques les plus jeunes, donc les moins calibrées) ;
+- **aide en clair sous chaque libellé**, jamais en infobulle : cachée, elle n'aide pas.
+  Elle dit ce que le réglage change **et ce qu'il coûte** — un chiffre isolé ne se règle
+  pas sans savoir contre quoi il s'échange ;
+- **filtre** qui cherche aussi dans l'aide, donc on retrouve un réglage par son EFFET
+  sans connaître son nom. Mesuré : « traînard » → 2, « rafale » → 3, « pont hangar » → 2 ;
+- **marquage des valeurs modifiées** (liseré ambre, compteur global, pastille par groupe
+  visible même replié, retour au défaut d'un clic). Sans ça, après vingt minutes de
+  tâtonnement on ne sait plus ce qu'on a touché, et un mauvais réglage oublié **se prend
+  pour un bug**. Le JSON n'exporte que le **diff**.
 - **Visuel néon** via `NeonMaterials.js` : `makeEdges` (arêtes), `makeSolid` (volume
   plein opaque + arêtes), `makeCircle`, `PALETTE`, `darken`.
 - **Data-driven** : ajouter un module = entrée dans `MODULE_CONFIG` + `SLOT_ACCEPTS`

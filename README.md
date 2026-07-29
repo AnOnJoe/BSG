@@ -311,11 +311,19 @@ fil de fer) qui foncent sur l'ennemi et tirent seuls. Les ennemis en déploient 
 
 ## Panneau de réglages (touche T)
 
-Jauges pour équilibrer **en direct**, **persistées** en JSON (localStorage) ; bouton
-**Copier JSON** pour figer un preset, **Réinitialiser** pour les défauts. Réglages :
-régén énergie, coût laser, accélération/traînée/virage du vaisseau, vitesse & cadence
-des ennemis, rayon bouclier, délai & durée des bonus, réparation, **pivot de rotation**,
-**portée radar**, **portée IEM**. Défauts dans `js/core/Tune.js`.
+**69 réglages**, tout ce qui peut déséquilibrer le jeu — et tout s'applique **en direct**,
+sans recharger. Chaque jauge porte **son explication en clair** : ce qu'elle change et ce
+qu'elle coûte, parce qu'un chiffre seul ne se règle pas sans savoir contre quoi il
+s'échange.
+
+Rangés par domaine et repliables : *Fuite & saut · Flotte civile · Dénouement · Ingénieur ·
+Artillerie · Équipage IA · Ennemis · Vaisseau · Postes · Vue*. Un **filtre** cherche aussi
+dans les explications, donc tu retrouves un réglage par son effet sans connaître son nom —
+tape « traînard », « rafale » ou « pont hangar ».
+
+Ce que tu modifies est **marqué en ambre**, compté par groupe, et revient au défaut d'un
+clic sur ↺. **Copier JSON** n'exporte que ce que tu as changé. Persisté en localStorage,
+donc tes réglages survivent au rechargement.
 
 ## Ambiance & effets
 
