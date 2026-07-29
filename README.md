@@ -56,10 +56,18 @@ qui ne peuvent ni tirer ni manœuvrer — un paquebot, un transport de passagers
 un cargo, une citerne et un remorqueur, tous reconnaissables au premier regard. Les Cylons vous retrouvent à chaque saut, on ne sait pas
 comment. Le seul recours est de **sauter encore**.
 
-**Les Cylons reviennent toutes les 33 minutes.** Le décompte est au centre de l'écran, à côté de
-la charge du saut. Ces minutes-là sont vides de combat mais pas de tension : le journal de
-passerelle égrène les rapports, le DRADIS reste désespérément vide, et le calcul n'aboutira pas
-avant qu'ils arrivent. Il faudra se battre en attendant.
+**Les Cylons reviennent toutes les 33 minutes.** Ces minutes-là, tu les passes **dans le CIC** :
+tu écoutes ton équipage, et tu décides. Le mécanicien veut détacher une équipe pour réparer le
+cargo ? Le navire-hôpital réclame du courant pour ses blocs opératoires ? Chaque réponse **se paie
+dans le combat qui suit** — une coque réparée contre un module hors service, du courant donné
+contre de l'énergie en moins, des condensateurs préchargés contre une réserve entamée.
+
+`Espace` fait avancer, `1-3` choisit, et **`N` passe directement à l'action** si tu veux en finir
+avec les préliminaires.
+
+Puis le décompte tombe, et la bataille commence : la flotte s'ébranle vers le point de saut
+pendant que le calcul FTL tourne. Il aboutira **avant** que le dernier traînard soit à la porte —
+c'est là que tout se joue.
 
 Un secteur n'est pas une arène à nettoyer, c'est un **saut à préparer** : tu entres par la
 gauche, la porte de saut est loin à droite, et le **moteur FTL calcule** pendant que la flotte

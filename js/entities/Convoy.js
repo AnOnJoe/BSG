@@ -135,6 +135,28 @@ class Transport {
   get position() { return this.group.position; }
   isAlive() { return this.alive; }
 
+  /** Halo « en retard » : ambre, et rouge pulsant quand le saut n'attend plus que lui. */
+  setLaggard(on, urgent) {
+    if (on && !this.halo) {
+      const r = this.radius * 1.9;
+      const pts = [];
+      for (let i = 0; i <= 40; i++) {
+        const a = (i / 40) * Math.PI * 2;
+        pts.push(new THREE.Vector3(Math.cos(a) * r * 1.5, Math.sin(a) * r, 0));
+      }
+      this.halo = new THREE.LineLoop(
+        new THREE.BufferGeometry().setFromPoints(pts),
+        neonLineMat(0xffaa33, 0.85)
+      );
+      this.group.add(this.halo);
+    }
+    if (this.halo) {
+      this.halo.visible = !!on;
+      this.halo.material.color.setHex(urgent ? 0xff4466 : 0xffaa33);
+      this.halo.material.opacity = urgent ? 0.6 + Math.abs(Math.sin(Date.now() / 160)) * 0.4 : 0.7;
+    }
+  }
+
   takeDamage(d) {
     if (!this.alive) return;
     this.hp -= d;
@@ -212,6 +234,13 @@ export class Convoy {
     return list.reduce((a, b) => (b.position.x < a.position.x ? b : a));
   }
 
+  /** N'allume le halo que sur le retardataire, l'éteint sur les autres. */
+  markLaggard(target, urgent) {
+    for (const t of this.transports) {
+      if (t.alive) t.setLaggard(t === target, !!urgent);
+    }
+  }
+
   /** Le plus proche d'un point (les Cylons prennent le plus accessible). */
   nearestTo(x, y) {
     let best = null, bd = Infinity;
@@ -226,10 +255,26 @@ export class Convoy {
    * Avance vers le point de saut, tout le monde à la vitesse du plus lent, et
    * s'arrête à la porte : la flotte attend là que le calcul aboutisse.
    */
-  update(dt, jumpX) {
+  update(dt, jumpX, terrain) {
     const v = this.speed;
     for (const t of this.alive) {
-      if (t.position.x < jumpX) t.position.x += v * dt;
+      if (t.position.x >= jumpX) continue;
+      t.position.x += v * dt;
+
+      // ÉVITEMENT. Les transports traversaient les astéroïdes : `Terrain.push`
+      // n'était appliqué qu'au joueur et aux ennemis. Ils regardent maintenant
+      // devant eux et se décalent latéralement — un pathfinding minimal, mais
+      // suffisant pour un convoi qui ne fait qu'aller tout droit.
+      if (!terrain) continue;
+      const look = t.radius + 26;
+      const hit = terrain.rayHit(t.position.x, t.position.y, 1, 0, look);
+      if (hit) {
+        // On contourne du côté où l'obstacle laisse le plus de place
+        const side = t.position.y >= hit.obstacle.y ? 1 : -1;
+        t.position.y += side * v * 1.15 * dt;
+      }
+      // Et on ne reste jamais encastré, quoi qu'il arrive
+      terrain.push(t.position, t.radius);
     }
   }
 

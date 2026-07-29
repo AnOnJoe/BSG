@@ -5,6 +5,7 @@ import { SaveManager } from './core/SaveManager.js';
 import { Ship } from './game/Ship.js';
 import { Hangar } from './game/Hangar.js';
 import { Range } from './game/Range.js';
+import { Bridge } from './game/Bridge.js';
 import { Audio } from './core/Audio.js';
 import { TunePanel } from './game/TunePanel.js';
 import { loadTune, TUNE } from './core/Tune.js';
@@ -39,11 +40,14 @@ class App {
     // Écrans
     this.hangar = new Hangar(this);
     this.range = new Range(this);
+    this.bridge = new Bridge(this);      // les « 33 minutes », dans le CIC
+    this.pendingEffects = [];            // décisions de passerelle à honorer
     this.screen = 'hangar';
 
     // UI commune
     this.hangarUI = document.getElementById('hangar-ui');
     this.rangeUI = document.getElementById('range-ui');
+    this.bridgeUI = document.getElementById('bridge-ui');
     this.screenName = document.getElementById('screen-name');
     this.btnSwitch = document.getElementById('btn-switch');
     this.btnSwitch.addEventListener('click', () => this.toggleScreen());
@@ -210,47 +214,57 @@ class App {
     this.needsRender = true;
   }
 
+  /**
+   * Bouton COMBAT/HANGAR. Le hangar mène désormais à la PASSERELLE (les 33
+   * minutes) et non directement au combat : c'est là qu'on prend ses décisions
+   * avant l'assaut. `startCombat()` fait le second saut, passerelle → action.
+   */
   toggleScreen() {
-    if (this.screen === 'hangar') {
-      this.audio.resume(); // geste utilisateur => (ré)active l'audio
-      this.hangar.exit();
-      this.hangarUI.classList.add('hidden');
-      this.ship.fxLayer.visible = true;
-      setCombatView(this.camera);
-      this.range.enter();
-      this.rangeUI.classList.remove('hidden');
-      this.screen = 'range';
-      this.screenName.textContent = 'CHAMP DE TIR';
-      this.btnSwitch.textContent = '← HANGAR';
-    } else {
-      this.range.exit();
-      this.rangeUI.classList.add('hidden');
+    if (this.screen === 'hangar') this._show('bridge');
+    else this._show('hangar');
+  }
+
+  /** Fin de la phase passerelle : on passe à l'action. */
+  startCombat() { this._show('range'); }
+
+  /** Retour au CIC entre deux sauts. */
+  toBridge() { this._show('bridge'); }
+
+  _show(next) {
+    if (next === this.screen) return;
+    // sortie de l'écran courant
+    if (this.screen === 'hangar') { this.hangar.exit(); this.hangarUI.classList.add('hidden'); }
+    else if (this.screen === 'range') { this.range.exit(); this.rangeUI.classList.add('hidden'); }
+    else if (this.screen === 'bridge') { this.bridge.exit(); this.bridgeUI.classList.add('hidden'); }
+
+    this.screen = next;
+    if (next === 'hangar') {
       this.ship.fxLayer.visible = false;
       setHangarView(this.camera);
       this.hangar.enter();
       this.hangarUI.classList.remove('hidden');
-      this.screen = 'hangar';
       this.screenName.textContent = 'HANGAR';
-      this.btnSwitch.textContent = 'COMBAT →';
+      this.btnSwitch.textContent = 'DÉCOLLER →';
       this.needsRender = true;
+    } else if (next === 'bridge') {
+      // Le CIC couvre l'écran : on ne rend pas la 3D derrière
+      this.audio.resume();
+      this.bridge.enter();
+      this.bridgeUI.classList.remove('hidden');
+      this.screenName.textContent = 'PASSERELLE';
+      this.btnSwitch.textContent = '← HANGAR';
+    } else {
+      this.audio.resume();
+      this.ship.fxLayer.visible = true;
+      setCombatView(this.camera);
+      this.range.enter();
+      this.rangeUI.classList.remove('hidden');
+      this.screenName.textContent = 'CHAMP DE TIR';
+      this.btnSwitch.textContent = '← HANGAR';
     }
-  }
-
-  /**
-   * Bascule l'écran tactique en plein écran (et retour). Le décor du cockpit
-   * s'efface, la vue reprend toute la fenêtre.
-   */
-  toggleExpand() {
-    this.expanded = !this.expanded;
-    document.body.classList.toggle('expanded', this.expanded);
     this._resize();
   }
 
-  /**
-   * Le canvas ne fait plus la taille de la fenêtre : on part de SA taille réelle.
-   * `viewport.refresh()` doit suivre, sinon la visée se décale silencieusement du
-   * rendu (on ne plante pas, on rate simplement ses tirs).
-   */
   _resize() {
     const w = Math.max(1, this.canvas.clientWidth);
     const h = Math.max(1, this.canvas.clientHeight);
@@ -263,6 +277,7 @@ class App {
   _loop() {
     if (this.workMode) { requestAnimationFrame(this._loop); return; } // jeu gelé
     const dt = Math.min(this.clock.getDelta(), 0.05);
+    if (this.screen === 'bridge') { requestAnimationFrame(this._loop); return; }
     if (this.screen === 'range') {
       // timeScale < 1 quand l'anneau de passerelle est ouvert (le DOM de
       // l'anneau, lui, reste réactif : il ne dépend pas de dt).

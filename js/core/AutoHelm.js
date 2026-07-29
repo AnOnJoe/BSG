@@ -50,7 +50,14 @@ export class AutoHelm {
     const order = ctx.order || 'engage';
     // RÉCUPÉRER : la caisse devient l'objectif, on ignore l'ennemi.
     const goal = order === 'salvage' && ctx.pickup ? ctx.pickup : null;
-    const target = goal || ctx.target;
+    // ESCORTE PAR DÉFAUT : sans ennemi en vue, il rejoignait... rien, et la
+    // baleine restait immobile pendant tout le répit. Un barreur d'escorte se
+    // porte sur le transport en retard : c'est son travail, et c'est là qu'on
+    // aura besoin de lui.
+    const escortTo = ctx.escort || null;
+    const target = goal || ctx.target || escortTo;
+    // On colle de plus près un civil qu'un ennemi (on le couvre, on ne l'affronte pas)
+    const standoff = (!goal && !ctx.target && escortTo) ? TUNE.helmEscortDist : TUNE.helmStandoff;
 
     // Écarter des bords : priorité absolue, sinon il s'y colle bêtement.
     const margin = 22;
@@ -96,7 +103,7 @@ export class AutoHelm {
         desired += Math.PI;
         closing = 1;
       } else {
-        const err = dist - TUNE.helmStandoff;
+        const err = dist - standoff;
         // Zone morte : il ne fait pas l'accordéon autour de sa distance de consigne
         closing = Math.abs(err) < 4 ? 0 : (err > 0 ? 1 : -1);
       }

@@ -135,19 +135,20 @@ export class Hud {
     this.ftlEta = this.ftlEta || this.ftlPanel.querySelector('.ftl-eta');
     this.ftlEta.textContent = ftl.ready
       ? (info.laggardToGate > 0
-        ? `PRÊT — J pour partir sans le traînard (${Math.round(info.laggardToGate)})`
-        : 'SAUT IMMINENT')
+        ? `PRÊT — on attend ${info.laggardName || 'un retardataire'} (${Math.round(info.laggardToGate)})`
+        : 'SAUT IMMINENT — J')
       : (eta === Infinity ? 'calcul à l\'arrêt' : `~${Math.ceil(eta)}s`);
 
     const souls = convoy.souls;
     this.ftlSouls.textContent = `${souls.toLocaleString('fr-FR')} âmes`;
     this.ftlSouls.className = `ftl-souls ${souls < info.soulsStart ? 'bled' : ''}`;
 
-    const key = convoy.transports.map((t) => `${t.id}:${t.alive ? Math.ceil(t.hp) : 'x'}:${t.jumped ? 'j' : ''}`).join(',');
+    const key = convoy.transports.map((t) => `${t.id}:${t.alive ? Math.ceil(t.hp) : 'x'}:${t.jumped ? 'j' : ''}:${t.name === info.laggardName ? 'L' : ''}`).join(',');
     if (key !== this._fleetKey) {
       this._fleetKey = key;
       this.fleetRows.innerHTML = convoy.transports.map((t) => {
-        const cls = !t.alive ? 'lost' : t.jumped ? 'jumped' : '';
+        const cls = !t.alive ? 'lost' : t.jumped ? 'jumped'
+          : (t.name === info.laggardName ? 'laggard' : '');
         return `<div class="fleet-row ${cls}"><span class="fl-name">${t.name}</span>` +
           `<span class="fl-bar"><span class="fl-fill" style="width:${Math.max(0, (t.hp / t.maxHp) * 100)}%"></span></span></div>`;
       }).join('');
@@ -784,6 +785,11 @@ export class Hud {
         ctx.beginPath();
         ctx.rect(cx + dx - 2.6, cy + dy - 1.6, 5.2, 3.2);
         ctx.fill();
+        // Le retardataire est cerclé : c'est lui qui retient tout le monde
+        if (c.laggard) {
+          ctx.strokeStyle = '#ffaa33';
+          ctx.beginPath(); ctx.arc(cx + dx, cy + dy, 5.5, 0, 6.2832); ctx.stroke();
+        }
       }
       for (const e of data.enemies) {
         if (Math.hypot(e.x - data.player.x, e.y - data.player.y) <= data.range) plot(e.x, e.y, '#ff6a5a', 2.6);

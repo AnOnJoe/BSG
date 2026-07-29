@@ -65,7 +65,53 @@ cd BSG && python3 -m http.server 8000   # http://localhost:8000
 - **Assauts continus** : le compteur ne s'arrête jamais, même si le précédent n'est pas nettoyé.
   La difficulté monte par la PRESSION (`ftlTime`, `assaultEvery`), pas par les PV.
 
-### Le cycle « 33 » (répit scénarisé, puis contact)
+### PHASE PASSERELLE — les 33 minutes se jouent dans le CIC
+`game/Bridge.js` + `data/scenes.js`. Le répit se passait sur l'écran tactique : rien à voir, rien
+à faire, une baleine immobile et un compteur qui descend. Il se joue maintenant **à l'intérieur**,
+en DOM (c'est de l'interface, pas du monde 3D), avec un décor de CIC en fil de fer néon :
+consoles latérales, écran DRADIS qui porte le décompte, silhouettes d'équipage dont celle qui
+parle s'allume.
+
+- Le décompte descend **par scène** (`scene.at`), pas en temps réel : on lit à son rythme, la
+  tension vient du contenu et du compteur, pas d'un chrono qui punirait un joueur lent.
+- **Les choix se paient** : `effect` est appliqué à l'entrée du combat par
+  `Range._applyPendingEffects()` (via `App.pendingEffects`) — PV/vitesse d'un transport nommé,
+  modules coupés, énergie, crédits, avance de calcul FTL. Chaque effet est **annoncé au journal**
+  au début de l'action ; subir un malus sans savoir d'où il vient serait incompréhensible.
+- Contrôles : `Espace`/clic = suivant · `1..3` = choisir · **`N` = passer à l'action** (le skip
+  doit rester possible à tout instant, c'était la réponse au « trop long »).
+- Boucle à trois écrans : `Hangar → Passerelle → Combat → Passerelle → …` (`App._show`). Après un
+  saut, `Range._arriveSector()` rend la main au CIC (`pendingSector`).
+
+⚠ Le combat démarre donc **juste avant le contact** : `TUNE.contactDelay` (12 s de sursis pour se
+placer) a remplacé les 120 s de répit en vol, et `Range.DRADIS_LOG` n'est plus égrené là (le
+journal a été joué au CIC).
+
+### Calibrage du cycle (il était cassé)
+Mesuré avant correction : FTL prêt à **87 s**, contact à **120 s**, flotte à la porte à **278 s**.
+Donc le saut était prêt avant le contact, et l'ordonner détruisait **toute la flotte** (aucun
+transport dans le rayon ⇒ `Convoy.jump()` les tue tous ⇒ `lost-fleet`). Corrigé :
+- vitesses des transports relevées (minimum **4,0**) ⇒ traversée en **167 s** ;
+- `FtlDrive` lit enfin **`sector.ftlTime`** (110→165 s) — il était défini dans `campaign.js` mais
+  jamais lu, un `TUNE` global l'écrasait ;
+- le FTL est prêt **avant** l'arrivée, avec un écart qui se resserre : **+57 s** au premier
+  secteur, **+2 s** à la Porte. C'est là qu'est le dilemme, et la pression monte d'elle-même ;
+- **garde-fou** : `_requestJump()` refuse un ordre qui n'emporterait aucun transport, en disant la
+  distance restante. Un ordre qui tue toute la flotte d'un coup n'est pas un dilemme, c'est un piège.
+
+### Ne pas laisser le barreur planté
+`AutoHelm` sortait en `thrust = 0` sans cible ni bord proche : la baleine restait immobile tout le
+répit. En consigne ENGAGER sans ennemi, il **escorte** le retardataire (`ctx.escort`), à
+`helmEscortDist` (plus serré qu'une distance de combat).
+
+### Le convoi contourne le décor
+`terrain.push` n'était appliqué qu'au joueur et aux ennemis : les transports traversaient les
+astéroïdes. `Convoy.update` reçoit le terrain, regarde devant lui (`Terrain.rayHit`) et se décale
+latéralement, plus un `push` de sécurité. Vérifié : 0 encastrement sur 60 relevés dans `belt`.
+Les astéroïdes DENSES sont réservés à `belt` — ailleurs, débris et épaves, pour ne pas répéter le
+même motif à chaque secteur.
+
+### Le cycle « 33 » (mécanique, côté combat)
 Repris de l'épisode : les Cylons reviennent toutes les **33 minutes**. Le décompte est affiché
 en temps FICTION (33:00 → 00:00), comprimé par `TUNE.dradisCompress` (16,5×) pour tenir dans une
 partie : ~2 min de répit réel. Le calcul FTL étant plus long que le répit, **les Cylons arrivent

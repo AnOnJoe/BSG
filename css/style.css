@@ -1240,7 +1240,7 @@ body.expanded #ftl-panel { left: 12px; top: 176px; width: 196px; }
   position: absolute;
   height: 2px;
   width: 0;
-  background: linear-gradient(90deg, rgba(210,240,255,0) 0%, rgba(230,248,255,0.95) 60%, #fff 100%);
+  background: linear-gradient(90deg, #fff 0%, rgba(230,248,255,0.95) 40%, rgba(210,240,255,0) 100%);
   box-shadow: 0 0 6px rgba(180,225,255,0.8);
   transform: translateX(0);
   opacity: 0;
@@ -1249,7 +1249,9 @@ body.expanded #ftl-panel { left: 12px; top: 176px; width: 196px; }
 @keyframes jfx-line {
   0%   { width: 0; opacity: 0; transform: translateX(0); }
   25%  { width: calc(var(--len) * 0.5); opacity: 0.9; }
-  100% { width: calc(var(--len) * 4); opacity: 0; transform: translateX(160%); }
+  /* On file vers la droite, donc les traînées défilent vers l'ARRIÈRE : le signe
+     était inversé et l'effet semblait aller dans le mauvais sens. */
+  100% { width: calc(var(--len) * 4); opacity: 0; transform: translateX(-160%); }
 }
 .jfx-flash { position: absolute; inset: 0; background: #eaf6ff; opacity: 0; }
 #jump-fx.run .jfx-flash { animation: jfx-flash 0.55s ease-out 0.75s forwards; }
@@ -1319,3 +1321,100 @@ body.expanded #ftl-panel { left: 12px; top: 176px; width: 196px; }
 }
 .lg-line { font-size: 10px; letter-spacing: 1px; color: rgba(191,233,255,0.28); margin-top: 2px; }
 .lg-line.fresh { color: var(--text); text-shadow: 0 0 8px rgba(143,223,255,0.6); }
+.fleet-row.laggard { color: var(--neon-amber); }
+.fleet-row.laggard .fl-fill { background: var(--neon-amber); }
+
+/* ============================================================
+   PASSERELLE (CIC) — les « 33 minutes », jouées à l'intérieur.
+   Tout en fil de fer néon, pour rester dans le style du jeu.
+   ============================================================ */
+#cic {
+  position: fixed;
+  inset: 0;
+  z-index: 21;
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(20, 46, 66, 0.55), transparent 62%),
+    linear-gradient(180deg, #050a12 0%, #070d16 60%, #04070d 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.cic-frame { width: min(1120px, 94vw); display: flex; flex-direction: column; gap: 12px; }
+.cic-top {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 10px; letter-spacing: 4px; color: var(--dim);
+  border-bottom: 1px solid var(--panel-border); padding-bottom: 6px;
+}
+.cic-ship { color: var(--neon-cyan); }
+
+.cic-stage { display: grid; grid-template-columns: 1fr 1.5fr 1fr; gap: 18px; align-items: end; }
+.cic-console { opacity: 0.5; }
+.cic-console svg { width: 100%; height: 132px; stroke: var(--neon-cyan); }
+.cic-console .cs-leds rect { fill: var(--neon-cyan); }
+.cic-console.right svg { transform: scaleX(-1); }
+
+/* Écran DRADIS central : c'est lui qui porte le décompte */
+.cic-dradis {
+  position: relative;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: rgba(2, 14, 10, 0.72);
+  padding: 14px 10px 12px;
+  text-align: center;
+  overflow: hidden;
+}
+.dr-sweep {
+  position: absolute; inset: 0;
+  background: conic-gradient(from 0deg, rgba(60,255,140,0.16), transparent 28%);
+  animation: dr-spin 3.4s linear infinite;
+}
+@keyframes dr-spin { to { transform: rotate(360deg); } }
+.dr-label { position: relative; font-size: 8px; letter-spacing: 3px; color: var(--dim); }
+.dr-time {
+  position: relative;
+  font-size: 46px; font-weight: 800; letter-spacing: 5px; line-height: 1.05;
+  color: var(--neon-cyan); text-shadow: 0 0 22px var(--neon-cyan);
+  font-variant-numeric: tabular-nums;
+}
+.dr-time.urgent { color: var(--neon-amber); text-shadow: 0 0 24px var(--neon-amber); animation: inc-pulse 0.8s ease-in-out infinite; }
+.dr-sub { position: relative; font-size: 9px; letter-spacing: 2px; color: var(--neon-green); }
+.dr-sub.alert { color: var(--neon-magenta); text-shadow: 0 0 10px var(--neon-magenta); }
+
+/* L'équipage : celui qui parle s'allume */
+.cic-crew { display: flex; justify-content: space-around; margin-top: 10px; }
+.crew-member { text-align: center; opacity: 0.32; transition: opacity 0.18s; }
+.crew-member svg { width: 34px; height: 48px; stroke: var(--text); fill: none; }
+.cm-name { font-size: 8px; letter-spacing: 1.5px; color: var(--dim); }
+.cm-role { font-size: 7px; letter-spacing: 0.5px; color: var(--dim); opacity: 0.7; }
+.crew-member.speaking { opacity: 1; }
+.crew-member.speaking svg { stroke: var(--neon-cyan); filter: drop-shadow(0 0 6px var(--neon-cyan)); }
+.crew-member.speaking .cm-name { color: var(--neon-cyan); }
+
+/* Dialogue */
+.cic-dialogue {
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 14px 18px 12px;
+  backdrop-filter: blur(4px);
+}
+.dlg-who { display: flex; gap: 10px; align-items: baseline; margin-bottom: 6px; }
+.dlg-name { font-size: 13px; letter-spacing: 3px; color: var(--neon-cyan); }
+.dlg-role { font-size: 9px; letter-spacing: 1px; color: var(--dim); }
+.dlg-text { font-size: 15px; line-height: 1.55; color: var(--text); min-height: 48px; }
+.dlg-choices { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.dlg-choice {
+  display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: baseline;
+  border: 1px solid rgba(75,106,122,0.45);
+  border-radius: 5px; padding: 8px 10px;
+  cursor: pointer; transition: border-color 0.12s, background 0.12s;
+}
+.dlg-choice:hover { border-color: var(--neon-green); background: rgba(102,255,153,0.06); }
+.ch-key { font-size: 10px; color: var(--bg); background: var(--dim); border-radius: 3px; text-align: center; }
+.dlg-choice:hover .ch-key { background: var(--neon-green); }
+.ch-text { font-size: 13px; color: var(--text); }
+.ch-note { font-size: 9px; letter-spacing: 0.5px; color: var(--neon-amber); text-align: right; }
+.dlg-keys { display: flex; gap: 16px; margin-top: 12px; font-size: 9px; letter-spacing: 1px; color: var(--dim); }
+.dlg-keys b { color: var(--text); }
+.dlg-keys .skip b { color: var(--neon-amber); }

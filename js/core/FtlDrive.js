@@ -23,7 +23,13 @@ export class FtlDrive {
     this.reset();
   }
 
-  reset() {
+  /**
+   * @param seconds durée nominale du calcul pour CE secteur (`sector.ftlTime`).
+   * Elle était définie dans data/campaign.js mais jamais lue : le rythme venait
+   * d'un TUNE global, donc la difficulté par secteur ne s'appliquait pas.
+   */
+  reset(seconds) {
+    this.seconds = seconds || 110;
     this.charge = 0;        // 0 → 100
     this.modeId = 'normal';
     this.ready = false;
@@ -39,9 +45,12 @@ export class FtlDrive {
     return true;
   }
 
+  /** %/s de base : 100 % sur la durée nominale du secteur. */
+  get baseRate() { return 100 / Math.max(1, this.seconds); }
+
   /** Secondes restantes au rythme courant (pour le HUD). */
   eta() {
-    const r = this.mode.rate * TUNE.ftlChargeRate;
+    const r = this.mode.rate * this.baseRate * TUNE.ftlChargeRate;
     if (r <= 0) return Infinity;
     return Math.max(0, (100 - this.charge) / r);
   }
@@ -65,7 +74,7 @@ export class FtlDrive {
       if (ship.energy >= need) ship.energy -= need;
       else { rate = FTL_MODES[1].rate; this.starved = true; }
     }
-    this.charge = Math.min(100, this.charge + rate * TUNE.ftlChargeRate * dt);
+    this.charge = Math.min(100, this.charge + rate * this.baseRate * TUNE.ftlChargeRate * dt);
     this.ready = this.charge >= 100;
   }
 }

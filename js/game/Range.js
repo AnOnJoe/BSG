@@ -271,7 +271,7 @@ export class Range {
     this.sectorIndex = 0;
     this.convoy.build(FLEET, ENTRY_X, ARENA.y * 1.2);
     this.convoy.lostSouls = 0;
-    this.ftl.reset();
+    this.ftl.reset(this.sector.ftlTime);
     this._resetDradis();
     this.jumping = false;
     this.jumpTimer = 0;
@@ -295,6 +295,7 @@ export class Range {
     this._clearEntities();
     this.hud.hideOutcome();
     this.hud.refreshStates();
+    this._applyPendingEffects();
     // AUCUN ennemi au départ : le répit des « 33 minutes » commence DRADIS vide,
     // c'est tout son sens. Le premier assaut vient du décompte (_updateDradis),
     // pas d'un spawn d'ouverture hérité de l'ancienne boucle par vagues.
@@ -551,18 +552,72 @@ export class Range {
       this.hud.showWaveBanner(0, `CALCUL INCOMPLET — ${Math.floor(this.ftl.charge)}%`);
       return;
     }
-    const laggard = this.convoy.laggard;
-    const behind = laggard && laggard.position.x < JUMP_X - JUMP_RADIUS;
-    if (behind) this.hud.showWaveBanner(0, `⚠ SAUT SANS ${laggard.name.toUpperCase()}`);
+    // GARDE-FOU. Sauter alors qu'AUCUN transport n'est à portée les détruisait
+    // tous d'un coup — donc partie perdue en un appui, sans avertissement. Ce
+    // n'est pas un dilemme, c'est un piège : on refuse et on dit pourquoi.
+    const inRange = this.convoy.alive.filter((t) => t.position.x >= JUMP_X - JUMP_RADIUS);
+    if (!inRange.length) {
+      const l = this.convoy.laggard;
+      const d = l ? Math.round((JUMP_X - JUMP_RADIUS) - l.position.x) : 0;
+      this.hud.showWaveBanner(0, `SAUT REFUSÉ — la flotte est encore à ${d} de la porte`);
+      this.hud.pushLog(`Saut refusé : aucun transport à portée du point de saut (${d} restants).`);
+      return;
+    }
+    const left = this.convoy.alive.length - inRange.length;
+    if (left > 0) {
+      this.hud.showWaveBanner(0, `⚠ SAUT EN ABANDONNANT ${left} TRANSPORT${left > 1 ? 'S' : ''}`);
+    }
     this._beginJump();
+  }
+
+  /**
+   * Applique les décisions prises au CIC. Chacune est ANNONCÉE au journal :
+   * subir un malus sans savoir d'où il vient serait juste incompréhensible.
+   */
+  _applyPendingEffects() {
+    const list = this.app.pendingEffects || [];
+    this.modulesOffline = 0;
+    for (const { label, effect } of list) {
+      if (effect.transportHp) {
+        const [type, amount] = effect.transportHp;
+        for (const t of this.convoy.transports) {
+          if (t.def.id === type) { t.maxHp += amount; t.hp = Math.min(t.maxHp, t.hp + amount); }
+        }
+      }
+      if (effect.transportSpeed) {
+        const [type, amount] = effect.transportSpeed;
+        for (const t of this.convoy.transports) {
+          if (t.def.id === type) t.def = { ...t.def, speed: Math.max(1.5, t.def.speed + amount) };
+        }
+      }
+      if (effect.modulesOffline) this.modulesOffline += effect.modulesOffline;
+      if (effect.energy) this.ship.energy = Math.max(0, this.ship.energy + effect.energy);
+      if (effect.credits) this.app.addCredits(effect.credits);
+      if (effect.ftlBonus) this.ftl.charge = Math.min(95, this.ftl.charge + effect.ftlBonus);
+      this.hud.pushLog(label);
+    }
+    // Modules coupés : on éteint les premières armes, et on le dit
+    if (this.modulesOffline > 0) {
+      let cut = 0;
+      for (const m of this.ship.orderedModules()) {
+        if (cut >= this.modulesOffline) break;
+        if (m.kind === 'weapon' && m.active) { m.setActive(false); cut++; }
+      }
+      if (cut) this.hud.pushLog(`${cut} module(s) hors service : l'équipe est détachée sur un civil.`);
+      this.hud.refreshStates();
+    }
+    this.app.pendingEffects = [];
   }
 
   /** Remet le décompte des 33 minutes (converti en secondes réelles). */
   _resetDradis() {
-    this.dradisT = (33 * 60) / TUNE.dradisCompress;
+    // Les « 33 minutes » se jouent maintenant dans le CIC (cf. game/Bridge.js) :
+    // quand on arrive ici, le contact est imminent. Court sursis pour se placer,
+    // puis les Cylons débarquent.
+    this.dradisT = TUNE.contactDelay;
     this.contact = false;
-    this._logIdx = 0;
-    this.assaultTimer = Infinity;   // aucun assaut pendant le répit
+    this._logIdx = Range.DRADIS_LOG.length; // le journal a été joué au CIC
+    this.assaultTimer = Infinity;
     this.nextTheme = null;
   }
 
@@ -1147,11 +1202,13 @@ export class Range {
     this.ftl.jumping = false;
     if (this.sectorIndex + 1 >= SECTOR_COUNT) { this._win(); return; }
     this.sectorIndex++;
+    // Nouveau saut = nouvelles 33 minutes : on repasse par la passerelle.
+    this.pendingSector = true;
     this.wave = 0;
     this.assaultNo = 0;
     this.waveTheme = null;
     this.nextTheme = null;
-    this.ftl.reset();
+    this.ftl.reset(this.sector.ftlTime);
     // Le calcul du saut suivant est plus long : la pression monte sans qu'on
     // ait besoin de gonfler les PV.
     this.convoy.redeploy(ENTRY_X, ARENA.y * 1.2);
@@ -1162,6 +1219,8 @@ export class Range {
     this._resetDradis();
     this.hud.hideJump();
     this.hud.showSector(this.sector, this.sectorIndex + 1, SECTOR_COUNT);
+    // On rend la main au CIC : les décisions du prochain saut se prennent là-bas.
+    if (this.pendingSector) { this.pendingSector = false; this.app.toBridge(); }
   }
 
   /** Traversée achevée : la victoire que `_end(type)` n'a jamais reçue. */
@@ -1265,8 +1324,14 @@ export class Range {
       drones: this.droneOrder,
     });
     this.hud.setCredits(this.app.credits);
+    // Halo sur le retardataire : « certains ne sont pas prêts » doit se voir dans
+    // le monde, pas seulement se déduire d'un chiffre.
+    const lag = this.convoy.laggard;
+    this.convoy.markLaggard(lag, this.ftl.ready);
+
     this.hud.setFtl(this.ftl, this.convoy, {
       soulsStart: this.soulsAtStart,
+      laggardName: lag ? lag.name : null,
       dradis: this.dradisMinutes,
       contact: this.contact,
       nextAssault: Math.max(0, this.assaultTimer),
@@ -1304,6 +1369,7 @@ export class Range {
       // qui se fait mordre à l'autre bout du couloir.
       civils: this.convoy.alive.map((t) => ({
         x: t.position.x, y: t.position.y, hurt: t.hp / t.maxHp < 0.5,
+        laggard: t === this.convoy.laggard,
       })),
       gate: { x: JUMP_X, y: 0 },
     });
@@ -1398,6 +1464,8 @@ export class Range {
         rot: this.ship.group.rotation.z,
         target: atPost ? this._nearestEnemy() : null,
         pickup: atPost ? this._nearestPickup() : null,
+        // Sans ennemi, il escorte le retardataire au lieu de rester planté
+        escort: atPost ? this.convoy.laggard : null,
         order: this.helmOrder,
         bounds: ARENA,
       });
@@ -1559,7 +1627,7 @@ export class Range {
 
     // --- ESCORTE : la flotte avance, le calcul de saut tourne, les Cylons
     // reviennent. On ne « finit » pas une vague : on tient une échéance. ---
-    this.convoy.update(dt, JUMP_X);
+    this.convoy.update(dt, JUMP_X, this.terrain);
     this.ftl.update(dt, this.ship);
 
     // La flotte anéantie, il n'y a plus rien à sauver.

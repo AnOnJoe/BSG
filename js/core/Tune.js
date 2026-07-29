@@ -10,6 +10,7 @@ export const TUNE = {
   manualAimBonus: 1.15, // dégâts (×) quand le joueur tient la tourelle lui-même
   stationSwitchTime: 1.5, // temps d'installation à un nouveau poste (s)
   helmStandoff: 24,     // distance de combat que tient le barreur IA
+  helmEscortDist: 16,   // distance à laquelle il escorte un civil (plus serré)
   helmReactionTau: 0.8, // retard de réaction du barreur IA (s) : il barre mollement
   // --- Conduite de tir de l'ÉQUIPAGE (il n'est pas une machine : il rate) ---
   crewReactionTau: 0.35, // retard de suivi de la cible (s) : rate ce qui manœuvre
@@ -34,11 +35,14 @@ export const TUNE = {
   enemyFireMul: 1.6,   // cadence de tir ennemi (× l'intervalle : >1 = tire moins souvent)
   spawnDist: 78,       // distance d'apparition des ennemis (approche longue et lisible)
   waveBreak: 8,        // respiration entre deux vagues (s) — hérité, peu utilisé
-  ftlChargeRate: 1.15, // vitesse du calcul de saut (%/s au rythme normal)
+  ftlChargeRate: 1.0,  // multiplicateur global du calcul de saut (le rythme de
+                       // base vient de sector.ftlTime, pas d'ici)
   // « 33 » : dans la série les Cylons reviennent toutes les 33 minutes. On affiche
   // ce décompte en temps FICTION, comprimé par ce facteur pour tenir dans une
   // partie (33 min / 16.5 ≈ 2 min de répit réel avant le premier contact).
   dradisCompress: 16.5,
+  contactDelay: 12,    // sursis à l'arrivée dans le couloir avant le contact (s)
+                       // — les 33 minutes sont jouées au CIC, pas ici
   cylonPlayerAggro: 26, // en dessous de cette distance, un Cylon traite la baleine
                         // avant les civils ; au-delà il va droit sur la flotte
   capitalCamZoom: 1.55, // recul de caméra (×) quand un cuirassé est en vue
@@ -90,6 +94,7 @@ export const TUNE_SPECS = [
   ['manualAimBonus', 'Bonus tir manuel (×)', 1, 2.5, 0.05],
   ['stationSwitchTime', 'Changement de poste (s)', 0, 4, 0.1],
   ['helmStandoff', 'Barreur IA : distance tenue', 10, 40, 1],
+  ['helmEscortDist', 'Barreur IA : distance d\'escorte', 6, 40, 1],
   ['helmReactionTau', 'Barreur IA : mollesse (s)', 0.1, 2, 0.1],
   ['crewReactionTau', 'Équipage : retard suivi (s)', 0.05, 1.5, 0.05],
   ['crewAcquireTime', 'Équipage : verrouillage (s)', 0, 2, 0.1],
@@ -110,8 +115,9 @@ export const TUNE_SPECS = [
   ['enemyFireMul', 'Intervalle tir ennemi (×)', 0.4, 3, 0.1],
   ['spawnDist', 'Distance d\'apparition', 40, 130, 2],
   ['waveBreak', 'Respiration entre vagues (s)', 1, 20, 0.5],
-  ['ftlChargeRate', 'Calcul de saut (%/s)', 0.3, 4, 0.05],
+  ['ftlChargeRate', 'Calcul de saut (×)', 0.3, 3, 0.05],
   ['dradisCompress', 'Compression des 33 min (×)', 4, 40, 0.5],
+  ['contactDelay', 'Sursis avant contact (s)', 2, 40, 1],
   ['cylonPlayerAggro', 'Cylons : distance d\'agressivité', 8, 60, 2],
   ['capitalCamZoom', 'Recul caméra cuirassé (×)', 1, 2.5, 0.05],
   ['viewZoom', 'Recul caméra général (×)', 0.8, 2.2, 0.05],
