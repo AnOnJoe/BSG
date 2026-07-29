@@ -271,7 +271,7 @@ export class Range {
     this.sectorIndex = 0;
     this.convoy.build(FLEET, ENTRY_X, ARENA.y * 1.2);
     this.convoy.lostSouls = 0;
-    this.ftl.reset(this.sector.ftlTime);
+    this.ftl.reset(this.sector.ftlTime, this.sector.ftlPreCharge);
     this._resetDradis();
     this.jumping = false;
     this.jumpTimer = 0;
@@ -1208,7 +1208,7 @@ export class Range {
     this.assaultNo = 0;
     this.waveTheme = null;
     this.nextTheme = null;
-    this.ftl.reset(this.sector.ftlTime);
+    this.ftl.reset(this.sector.ftlTime, this.sector.ftlPreCharge);
     // Le calcul du saut suivant est plus long : la pression monte sans qu'on
     // ait besoin de gonfler les PV.
     this.convoy.redeploy(ENTRY_X, ARENA.y * 1.2);
@@ -1466,6 +1466,7 @@ export class Range {
         pickup: atPost ? this._nearestPickup() : null,
         // Sans ennemi, il escorte le retardataire au lieu de rester planté
         escort: atPost ? this.convoy.laggard : null,
+        terrain: this.terrain,   // pour esquiver le décor au lieu de le percuter
         order: this.helmOrder,
         bounds: ARENA,
       });

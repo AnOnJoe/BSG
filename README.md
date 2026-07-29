@@ -56,7 +56,12 @@ qui ne peuvent ni tirer ni manœuvrer — un paquebot, un transport de passagers
 un cargo, une citerne et un remorqueur, tous reconnaissables au premier regard. Les Cylons vous retrouvent à chaque saut, on ne sait pas
 comment. Le seul recours est de **sauter encore**.
 
-**Les Cylons reviennent toutes les 33 minutes.** Ces minutes-là, tu les passes **dans le CIC** :
+**Les Cylons reviennent toutes les 33 minutes** — c'est le temps qu'ils mettent à vous retrouver,
+et rien d'autre. Pendant ce répit, ton équipage **calcule déjà les coordonnées du prochain saut** :
+deux horloges courent en parallèle, et celle du calcul est en retard. À leur arrivée il vous
+manquera toujours quelques pourcents — qu'il faudra tenir sous le feu.
+
+Ces minutes-là, tu les passes **dans le CIC** :
 tu écoutes ton équipage, et tu décides. Le mécanicien veut détacher une équipe pour réparer le
 cargo ? Le navire-hôpital réclame du courant pour ses blocs opératoires ? Chaque réponse **se paie
 dans le combat qui suit** — une coque réparée contre un module hors service, du courant donné

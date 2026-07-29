@@ -13,11 +13,15 @@ export const SECTORS = [
     id: 'ragnar', name: 'NÉBULEUSE DE RAGNAR',
     subtitle: 'Premier saut · ils nous ont déjà retrouvés',
     terrain: 'asteroids',
-    // Traversée du couloir : ~167 s (668 unités à 4,0/s, la vitesse du plus lent).
-    // Le calcul doit aboutir AVANT, pour qu'on passe la fin à couvrir le traînard
-    // en sachant qu'on pourrait partir — c'est là qu'est le dilemme. L'écart se
-    // resserre de secteur en secteur : 57 s ici, 2 s à la Porte.
-    ftlTime: 110,       // secondes de calcul au rythme normal
+    // DEUX HORLOGES distinctes :
+    //  - les 33 minutes = délai avant l'arrivée des Cylons (jouées au CIC) ;
+    //  - le calcul de saut tourne PENDANT ce répit et arrive INCOMPLET au
+    //    contact (`ftlPreCharge`), puis il reste `ftlTime` secondes à tenir.
+    // Traversée du couloir : ~167 s (668 unités à 4,0/s, le plus lent commande).
+    // Le calcul aboutit avant l'arrivée du traînard, et l'écart se resserre de
+    // secteur en secteur : 57 s ici, 2 s à la Porte.
+    ftlPreCharge: 74,   // % de calcul acquis pendant les 33 minutes
+    ftlTime: 110,       // secondes de calcul RESTANT après le contact
     assaultEvery: 26,   // intervalle entre deux assauts (s)
     themes: ['patrol', 'harass'],
     capital: false,
@@ -26,6 +30,7 @@ export const SECTORS = [
     id: 'ceinture', name: 'LA CEINTURE',
     subtitle: 'Roches serrées · radar aveugle',
     terrain: 'belt',
+    ftlPreCharge: 70,
     ftlTime: 125,
     assaultEvery: 23,
     themes: ['harass', 'swarm', 'patrol'],
@@ -35,6 +40,7 @@ export const SECTORS = [
     id: 'cimetiere', name: 'CIMETIÈRE DE COQUES',
     subtitle: 'Les restes d\'une autre flotte',
     terrain: 'wreck',
+    ftlPreCharge: 64,
     ftlTime: 140,
     assaultEvery: 20,
     themes: ['carriers', 'swarm', 'armored'],
@@ -44,6 +50,7 @@ export const SECTORS = [
     id: 'blocus', name: 'LE BLOCUS',
     subtitle: 'Vide dégagé · rien pour se cacher',
     terrain: 'void',
+    ftlPreCharge: 58,
     ftlTime: 150,
     assaultEvery: 18,
     themes: ['armored', 'battle', 'carriers'],
@@ -53,6 +60,7 @@ export const SECTORS = [
     id: 'porte', name: 'LA PORTE',
     subtitle: 'Dernier saut avant le refuge',
     terrain: 'hulks',
+    ftlPreCharge: 50,
     ftlTime: 165,
     assaultEvery: 16,
     themes: ['battle', 'siege', 'swarm'],

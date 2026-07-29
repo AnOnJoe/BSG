@@ -55,9 +55,16 @@ export class Bridge {
             <div class="cic-center">
               <div class="cic-dradis">
                 <div class="dr-sweep"></div>
-                <div class="dr-label">PROCHAIN CONTACT</div>
+                <div class="dr-label">AVANT LE PROCHAIN CONTACT</div>
                 <div class="dr-time">33:00</div>
                 <div class="dr-sub">DRADIS — aucun contact</div>
+              </div>
+              <!-- SECONDE horloge, et c'est tout le sujet : le calcul tourne
+                   pendant le répit mais n'aboutira pas avant qu'ils arrivent. -->
+              <div class="cic-calc">
+                <div class="cc-head"><span>CALCUL DE SAUT</span><span class="cc-pct">0 %</span></div>
+                <div class="cc-track"><div class="cc-fill"></div><div class="cc-mark"></div></div>
+                <div class="cc-note"></div>
               </div>
               <div class="cic-crew"></div>
             </div>
@@ -80,6 +87,9 @@ export class Bridge {
       time: this.ui.querySelector('.dr-time'),
       sub: this.ui.querySelector('.dr-sub'),
       crew: this.ui.querySelector('.cic-crew'),
+      calcPct: this.ui.querySelector('.cc-pct'),
+      calcFill: this.ui.querySelector('.cc-fill'),
+      calcNote: this.ui.querySelector('.cc-note'),
       name: this.ui.querySelector('.dlg-name'),
       role: this.ui.querySelector('.dlg-role'),
       text: this.ui.querySelector('.dlg-text'),
@@ -131,6 +141,17 @@ export class Bridge {
     this.el.time.className = `dr-time${s.at <= 4 ? ' urgent' : ''}`;
     this.el.sub.textContent = s.last ? 'DRADIS — CONTACTS MULTIPLES' : 'DRADIS — aucun contact';
     this.el.sub.className = `dr-sub${s.last ? ' alert' : ''}`;
+
+    // Le calcul avance avec le temps écoulé : 0 % au saut précédent (33:00),
+    // `ftlPreCharge` à l'instant du contact. Le joueur VOIT donc que les deux
+    // horloges courent en parallèle et que celle du calcul est en retard.
+    const pre = sector.ftlPreCharge ?? 70;
+    const done = pre * Math.max(0, Math.min(1, (33 - s.at) / 32));
+    this.el.calcPct.textContent = `${Math.round(done)} %`;
+    this.el.calcFill.style.width = `${done}%`;
+    this.el.calcNote.textContent = s.last
+      ? `Il manque ${Math.round(100 - pre)} % — il faudra les tenir sous le feu.`
+      : `Coordonnées en cours · ${Math.round(pre)} % seront acquis à leur arrivée`;
 
     this.el.name.textContent = s.speaker;
     this.el.role.textContent = s.role;

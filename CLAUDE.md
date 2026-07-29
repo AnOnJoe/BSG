@@ -65,6 +65,23 @@ cd BSG && python3 -m http.server 8000   # http://localhost:8000
 - **Assauts continus** : le compteur ne s'arrête jamais, même si le précédent n'est pas nettoyé.
   La difficulté monte par la PRESSION (`ftlTime`, `assaultEvery`), pas par les PV.
 
+### DEUX HORLOGES, à ne jamais confondre
+C'était une incohérence de conception, relevée par l'utilisateur :
+- **les 33 minutes** = le délai avant que les Cylons ne retrouvent la flotte. **Rien d'autre.**
+- **le calcul de saut** est une horloge INDÉPENDANTE, et il tourne **dès le saut précédent** —
+  l'équipage calcule pendant tout le répit, il ne l'attend pas. Le faire démarrer à l'arrivée des
+  Cylons n'avait aucun sens.
+
+Il n'aboutit jamais à temps, et c'est tout le sujet de l'épisode : ils débarquent alors qu'il
+manque encore quelques pourcents. Traduction dans les données (`data/campaign.js`) :
+`ftlPreCharge` = % acquis pendant le répit (74 % → 50 % selon le secteur, donc de plus en plus
+serré), puis `ftlTime` = secondes de calcul **restant après le contact**. Mesuré au premier
+secteur : on arrive au combat à **84 %** avec **66 s à tenir sous le feu**.
+
+Le CIC **montre** les deux jauges côte à côte (`Bridge._render`) : le décompte du contact et le
+calcul qui progresse scène par scène, avec un repère des 100 % pour voir ce qui manquera. Sans cet
+affichage, l'incohérence resterait invisible au joueur.
+
 ### PHASE PASSERELLE — les 33 minutes se jouent dans le CIC
 `game/Bridge.js` + `data/scenes.js`. Le répit se passait sur l'écran tactique : rien à voir, rien
 à faire, une baleine immobile et un compteur qui descend. Il se joue maintenant **à l'intérieur**,
@@ -98,6 +115,13 @@ transport dans le rayon ⇒ `Convoy.jump()` les tue tous ⇒ `lost-fleet`). Corr
   secteur, **+2 s** à la Porte. C'est là qu'est le dilemme, et la pression monte d'elle-même ;
 - **garde-fou** : `_requestJump()` refuse un ordre qui n'emporterait aucun transport, en disant la
   distance restante. Un ordre qui tue toute la flotte d'un coup n'est pas un dilemme, c'est un piège.
+
+### Le barreur esquive le décor
+Il ignorait le terrain et barrait droit dans les rochers. `AutoHelm` reçoit `ctx.terrain`, sonde
+devant lui (`Terrain.rayHit`, portée fonction de sa poussée) et infléchit son cap du côté qui
+dégage — le contournement **prime sur l'objectif**, on y revient après. Il ralentit aussi tant
+qu'il n'a pas dégagé, puisque racler une coque coûte de la structure. Vérifié face à un mur de
+rochers : **0 relevé dans la roche sur 70, 0 PV perdu**.
 
 ### Ne pas laisser le barreur planté
 `AutoHelm` sortait en `thrust = 0` sans cible ni bord proche : la baleine restait immobile tout le

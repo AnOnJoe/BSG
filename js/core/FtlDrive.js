@@ -24,13 +24,23 @@ export class FtlDrive {
   }
 
   /**
-   * @param seconds durée nominale du calcul pour CE secteur (`sector.ftlTime`).
-   * Elle était définie dans data/campaign.js mais jamais lue : le rythme venait
-   * d'un TUNE global, donc la difficulté par secteur ne s'appliquait pas.
+   * DEUX HORLOGES, et il faut bien les distinguer :
+   *  - les **33 minutes** sont le délai avant que les Cylons ne retrouvent la
+   *    flotte. Rien d'autre.
+   *  - le **calcul de saut** est indépendant, et il tourne DÈS le saut précédent
+   *    — l'équipage calcule pendant tout le répit, il ne l'attend pas.
+   *
+   * D'où `preCharge` : le calcul acquis pendant les 33 minutes (visible au CIC).
+   * Il n'aboutit jamais à temps, et c'est tout le sujet : les Cylons débarquent
+   * alors qu'il manque encore quelques pourcents.
+   *
+   * @param seconds   secondes de calcul restant APRÈS le contact
+   * @param preCharge % déjà acquis pendant le répit
    */
-  reset(seconds) {
+  reset(seconds, preCharge = 0) {
     this.seconds = seconds || 110;
-    this.charge = 0;        // 0 → 100
+    this.preCharge = Math.max(0, Math.min(95, preCharge));
+    this.charge = this.preCharge;
     this.modeId = 'normal';
     this.ready = false;
     this.jumping = false;
@@ -45,8 +55,8 @@ export class FtlDrive {
     return true;
   }
 
-  /** %/s de base : 100 % sur la durée nominale du secteur. */
-  get baseRate() { return 100 / Math.max(1, this.seconds); }
+  /** %/s de base : le RESTE à faire, étalé sur la durée d'après-contact. */
+  get baseRate() { return (100 - this.preCharge) / Math.max(1, this.seconds); }
 
   /** Secondes restantes au rythme courant (pour le HUD). */
   eta() {

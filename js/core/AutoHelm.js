@@ -67,12 +67,17 @@ export class AutoHelm {
     if (pos.y > bounds.y - margin) wantY = -1;
     else if (pos.y < -bounds.y + margin) wantY = 1;
 
-    if (!target && !wantX && !wantY) {
+    const blocked = ctx.terrain
+      ? ctx.terrain.rayHit(pos.x, pos.y, Math.cos(rot), Math.sin(rot), 26)
+      : null;
+    if (!target && !wantX && !wantY && !blocked) {
       // Rien à faire : on laisse le vaisseau sur son erre.
       this.thrust = 0;
       this.turn = 0;
       return;
     }
+    // Sans objectif mais face à un obstacle, on se dégage quand même.
+    if (!target && !wantX && !wantY) { wantX = -Math.sign(Math.cos(rot)) || -1; }
 
     let desired; // cap souhaité (rad)
     let closing = 0; // +1 approcher / -1 s'écarter
@@ -106,6 +111,23 @@ export class AutoHelm {
         const err = dist - standoff;
         // Zone morte : il ne fait pas l'accordéon autour de sa distance de consigne
         closing = Math.abs(err) < 4 ? 0 : (err > 0 ? 1 : -1);
+      }
+    }
+
+    // ESQUIVE. Le barreur ignorait le décor et allait droit dans les rochers.
+    // Il sonde devant lui et, s'il voit un obstacle, il infléchit son cap du côté
+    // qui dégage — le contournement prime sur l'objectif, on y reviendra après.
+    if (ctx.terrain) {
+      const look = 30 + Math.abs(this.thrust) * 22;
+      const hit = ctx.terrain.rayHit(pos.x, pos.y, Math.cos(rot), Math.sin(rot), look);
+      if (hit) {
+        // De quel côté passe-t-on ? Celui où l'on est déjà par rapport au centre.
+        const cross = Math.cos(rot) * (hit.obstacle.y - pos.y) - Math.sin(rot) * (hit.obstacle.x - pos.x);
+        const away = cross > 0 ? -1 : 1;
+        desired = rot + away * 1.15;
+        // On ralentit tant qu'on n'a pas dégagé : foncer dans la roche coûte de
+        // la coque (cf. Range._resolveCollisions).
+        closing = Math.min(closing, 0.45);
       }
     }
 
