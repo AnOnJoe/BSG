@@ -79,7 +79,8 @@ export class Range {
       (n) => this._onNumberKey(n),
       () => this._fireEmp(),
       () => { if (!this.over && this.stations.cycle()) this.audio.pickup(); },
-      () => this._requestJump()
+      () => this._requestJump(),
+      () => this._designatePriority()
     );
     this.weapons = new WeaponControl(this.ship);
     // Une traversée est-elle en cours ? Décide si `enter()` recommence ou reprend.
@@ -479,6 +480,42 @@ export class Range {
       this.audio.pickup?.();
       this.hud.refreshStates();
     }
+  }
+
+  /**
+   * CIBLE PRIORITAIRE de l'artillerie (touche X). Consigne PERSISTANTE : l'équipage
+   * continue de l'engager quand le joueur quitte le poste, sans jamais la remettre
+   * en question — même quand ce n'est plus une bonne idée. C'est le contrat du jeu.
+   *
+   * C'est l'EXÉCUTION du poste d'artilleur, donc réservé à ce poste : le commandant
+   * pose le mode de tir à distance, mais choisir où concentrer le feu demande d'y
+   * être. Sans cette exclusivité, le poste perdrait sa dernière raison d'exister
+   * en dehors de la visée manuelle.
+   */
+  _designatePriority() {
+    if (this.over) return false;
+    if (!this.stations.manned('gunnery')) {
+      this.hud.showWaveBanner(this.wave, 'CIBLE PRIORITAIRE — poste d\'artilleur');
+      return false;
+    }
+    const t = this._nearestHostileTo(this.aim.point);
+    // Rien sous le curseur : le dire, plutôt que d'annoncer une levée de consigne
+    // qui n'a pas eu lieu (le joueur croirait avoir annulé quelque chose).
+    if (!t && !this.weapons.priority) {
+      this.hud.showWaveBanner(this.wave, 'AUCUN CONTACT À DÉSIGNER');
+      return false;
+    }
+    const now = this.weapons.designate(t);
+    this.hud.pushLog(now
+      ? `Cible prioritaire : ${this._targetName(now)}. Toutes les pistes disponibles dessus.`
+      : 'Cible prioritaire levée — les tourelles reprennent le plus proche.');
+    this.audio.relay?.();
+    return true;
+  }
+
+  /** Nom lisible d'une cible (ennemi, drone, ou pièce nommée du cuirassé). */
+  _targetName(t) {
+    return t?.def?.name || t?.name || t?.label || 'contact';
   }
 
   /** Section désignée par l'ingénieur AU POSTE (le commandant n'a que la priorité). */
@@ -1765,6 +1802,10 @@ export class Range {
     });
     // Dénouement : suspects, relevés payés, tir autorisé (masqué hors du finale).
     this.hud.setSignal(this.signal, this.convoy.transports, TUNE.signalFixCost);
+    // Cible prioritaire de l'artillerie + pistes tenues par le radar
+    this.hud.setPriority(
+      this.weapons.priority ? this._targetName(this.weapons.priority) : null,
+      this.ship.getActiveRadar()?.maxTargets || 1);
     // Sections de coque + qui répare quoi (poste d'ingénieur)
     const engAtPost = this.stations.manned('engineer');
     this.hud.setSections(this.ship, this.engineer, engAtPost,
@@ -1965,6 +2006,7 @@ export class Range {
       target: nearest,
       detected: !!nearest,
       nearestHostileTo: (p) => this._nearestHostileTo(p), // conduite de tir autonome
+      hostiles: () => this._hostilesForPlayer(),         // pistes candidates du radar
       nearestDroneTo: (p) => this._nearestEnemyDroneTo(p), // défense rapprochée (CIWS)
       // Ligne de vue coupée par le décor : ni l'équipage ni le CIWS ne tirent dedans
       isHidden: (fx, fy, tx, ty) => this.terrain.isHidden(fx, fy, tx, ty),
@@ -1979,6 +2021,10 @@ export class Range {
         const jam = this.terrain.jammedAt(this.ship.group.position.x, this.ship.group.position.y) ? 0.35 : 1;
         return r.range * TUNE.radarRangeMul * jam;
       })(),
+      // Nombre de pistes que le radar tient simultanément (`radar.maxTargets`,
+      // enfin lu). Il commande le budget de verrous de la conduite de tir.
+      maxTargets: this.ship.getActiveRadar()?.maxTargets || 1,
+      shipPos: this.ship.group.position,
       fireLaser: (p, d, dm, r, c) => this.fireLaser(p, d, dm, r, c),
       spawnMissile: (p, d, s) => this.spawnMissile(p, d, s),
       spawnBolt: (p, d, dm, f, c, o) => this.spawnBolt(p, d, dm, f, c, o), // traçantes du CIWS

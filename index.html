@@ -26,6 +26,13 @@
       <div class="shell-bar shell-bottom"></div>
       <span class="shell-corner tl"></span><span class="shell-corner tr"></span>
       <span class="shell-corner bl"></span><span class="shell-corner br"></span>
+      <!-- Matière du cockpit : l'écran est ENCASTRÉ dans la coque, et le verre
+           accroche la lumière. Purement décoratif (#cockpit-shell est en
+           pointer-events: none, vérifié : elementFromPoint renvoie le canvas).
+           ⚠ Pas de hublots latéraux : les marges portent déjà les panneaux du HUD,
+           des ouvertures y ressemblaient à des points parasites, pas à une coque. -->
+      <span class="shell-bezel"></span>
+      <span class="shell-glare"></span>
     </div>
     <canvas id="scene"></canvas>
     <div id="fx-overlay"></div>
@@ -35,8 +42,8 @@
   <!-- Barre supérieure commune -->
   <header id="topbar">
     <span class="title">B S G</span>
-    <span id="screen-name" class="screen-name">HANGAR</span>
-    <button id="btn-switch" class="btn-primary">COMBAT →</button>
+    <span id="screen-name" class="screen-name"></span>
+    <button id="btn-switch" class="btn-primary hidden">COMBAT →</button>
   </header>
 
   <!-- Conteneurs d'UI injectés par le JS -->
@@ -104,7 +111,7 @@
     </div>
   </div>
 
-  <div id="loading">Chargement du chantier…</div>
+  <div id="loading">Mise sous tension du CIC…</div>
 
   <script type="module" src="js/main.js"></script>
 </body>

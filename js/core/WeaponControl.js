@@ -51,6 +51,10 @@ export class WeaponControl {
   constructor(ship) {
     this.ship = ship;
     this.modeId = 'burst';
+    // CIBLE PRIORITAIRE de l'artillerie : consigne PERSISTANTE, comme le mode de
+    // tir. L'équipage continue de l'engager quand le joueur quitte le poste, sans
+    // jamais la remettre en question — c'est le contrat du jeu.
+    this.priority = null;
     // Fatigue de l'équipage : 1 = reposé. `Range` la relève à `crewFatigueMul`
     // quand le navire-hôpital est perdu — la flotte est l'économie de la partie,
     // et l'infirmerie est ce qui garde les servants de tourelle opérationnels.
@@ -165,6 +169,33 @@ export class WeaponControl {
     };
   }
 
+  /**
+   * Désigne (ou libère) la cible prioritaire. Renvoie la cible retenue.
+   * C'est l'EXÉCUTION du poste d'artilleur : le commandant pose le mode de tir à
+   * distance, mais choisir sur quoi on concentre le feu demande d'y être.
+   */
+  designate(target) {
+    this.priority = this.priority === target ? null : target || null;
+    return this.priority;
+  }
+
+  /** La cible prioritaire est-elle encore valable ? (morte / hors-jeu ⇒ non) */
+  _validPriority(ctx) {
+    const p = this.priority;
+    if (!p) return null;
+    const dead = p.state === 'dead' || p.alive === false
+      || (typeof p.isAlive === 'function' && !p.isAlive());
+    if (dead) { this.priority = null; return null; }
+    // Hors de portée du RADAR, la conduite de tir ne la tient plus : les tourelles
+    // reprennent le plus proche plutôt que de fixer un écho qu'elles ne suivent pas.
+    const rr = ctx.radarRange || 0;
+    if (rr > 0 && ctx.shipPos) {
+      const d = Math.hypot(p.position.x - ctx.shipPos.x, p.position.y - ctx.shipPos.y);
+      if (d > rr) return null;
+    }
+    return p;
+  }
+
   update(dt, ctx) {
     const manual = !!ctx.manualAim;   // le joueur tient le poste d'artilleur
     const mode = this.mode;
@@ -175,6 +206,40 @@ export class WeaponControl {
     const pressed = !!ctx.firing && !this._prevFiring; // front montant du clic
     let best = -1;
     let masked = false;
+
+    // PISTES DU RADAR — c'est enfin l'emploi de `radar.maxTargets`, défini dans
+    // moduleConfig depuis le début mais jamais lu.
+    //
+    // ⚠ Première tentative ratée, et instructive : j'avais fait de `maxTargets` un
+    // budget de verrous que chaque tourelle consommait. Ça ne changeait
+    // ABSOLUMENT RIEN, parce que toutes les tourelles interrogent
+    // `nearestHostileTo` depuis leur propre position et convergent donc sur le même
+    // ennemi : le budget n'était jamais atteint. Mesuré : [13,13,13] à 1 comme à
+    // 3 pistes.
+    //
+    // Le radar tient donc une LISTE de pistes (la prioritaire d'abord, puis les
+    // plus proches) et les tourelles s'y RÉPARTISSENT. La montée en niveau achète
+    // alors une vraie souplesse tactique :
+    //  - Nv1, une seule piste : tout le feu sur une cible. Redoutable contre un
+    //    gros bâtiment, débordé par une nuée.
+    //  - Nv3 : les canons se partagent trois menaces, mais chacune tombe plus
+    //    lentement.
+    const locks = Math.max(1, ctx.maxTargets || 1);
+    const prio = this._validPriority(ctx);
+    const tracked = [];
+    if (prio) tracked.push(prio);
+    if (tracked.length < locks && ctx.hostiles) {
+      const sp = ctx.shipPos || { x: 0, y: 0 };
+      const list = ctx.hostiles()
+        .filter((h) => h !== prio)
+        .map((h) => ({ h, d: (h.position.x - sp.x) ** 2 + (h.position.y - sp.y) ** 2 }))
+        .sort((a, b) => a.d - b.d);
+      for (const { h } of list) {
+        if (tracked.length >= locks) break;
+        tracked.push(h);
+      }
+    }
+    let wIndex = -1;
 
     for (const m of this.ordered) {
       if (m.kind !== 'weapon') continue;
@@ -211,8 +276,20 @@ export class WeaponControl {
       } else {
         const wp = m.worldPos();
         const wx = wp.x, wy = wp.y; // wp est un scratch : on copie avant tout aim()
-        const t = ctx.nearestHostileTo ? ctx.nearestHostileTo(wp) : null;
-        const inReach = t && Math.hypot(t.position.x - wx, t.position.y - wy) <= (m.stats.range || 0);
+        // La cible PRIORITAIRE passe devant le plus proche. Une tourelle ne prend
+        // une autre piste que s'il reste un verrou radar disponible.
+        // Chaque tourelle prend une piste, à tour de rôle. Si celle qui lui revient
+        // est hors de SA portée, elle se rabat sur une piste qu'elle peut atteindre
+        // plutôt que de rester inutilement muette.
+        const reach = m.stats.range || 0;
+        const canHit = (x) => x && Math.hypot(x.position.x - wx, x.position.y - wy) <= reach;
+        let t = null;
+        if (tracked.length) {
+          wIndex++;
+          t = tracked[wIndex % tracked.length];
+          if (!canHit(t)) t = tracked.find(canHit) || t;
+        }
+        const inReach = canHit(t);
 
         if (m.defId === 'missile') {
           // L'ordre du capitaine part même si la solution est douteuse (le
@@ -268,11 +345,24 @@ export class WeaponControl {
     const target = Math.max(0, best);
     this._q = this._q === undefined ? target : this._q + (target - this._q) * Math.min(1, dt / 0.4);
     const q = this._q;
+    // SEUILS DÉRIVÉS DE LA GÉOMÉTRIE, et non posés à la main. Un tir touche quand
+    // l'erreur de visée reste sous la taille ANGULAIRE de la cible, c'est-à-dire
+    // quand `quality >= 1 − 1/crewHoldFactor` (0,667 au réglage courant), puisque
+    // `quality = 1 − erreur/(taille × crewHoldFactor)`.
+    //
+    // Le seuil de « BONNE » était à 0,60 : il annonçait donc une bonne solution
+    // dans une zone où l'on ne touche pas. Mesuré sur 8 500 tirs, 4 profils de
+    // cible × 4 distances :
+    //   0,0–0,4 → 7-10 %  ·  0,4–0,5 → 17 %  ·  0,5–0,6 → 24 %
+    //   0,6–0,7 → 56 %    ·  au-delà de 0,7 → 100 %
+    // « BONNE » couvrait donc les 24 % et les 56 %. Les seuils suivent maintenant
+    // le seuil géométrique, ce qui les garde justes si `crewHoldFactor` est réglé.
+    const hitQ = 1 - 1 / Math.max(1.0001, TUNE.crewHoldFactor);
     if (masked && best <= 0) this.solution = { quality: 0, label: 'CIBLE MASQUÉE' };
     else if (best < 0) this.solution = { quality: 0, label: 'PAS DE CIBLE' };
     else if (q < 0.08) this.solution = { quality: q, label: 'SANS SOLUTION' };
-    else if (q > 0.6) this.solution = { quality: q, label: 'BONNE' };
-    else if (q > 0.3) this.solution = { quality: q, label: 'DÉGRADÉE' };
+    else if (q >= hitQ) this.solution = { quality: q, label: 'BONNE' };
+    else if (q >= hitQ * 0.67) this.solution = { quality: q, label: 'DÉGRADÉE' };
     else this.solution = { quality: q, label: 'MAUVAISE' };
   }
 }

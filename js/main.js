@@ -212,16 +212,36 @@ class App {
     this.workModeEl.classList.toggle('hidden', !this.workMode);
     if (this.workMode) {
       this.audio.engine(0);
+      this.audio.ambienceOff();
       if (this.audio.ctx) this.audio.ctx.suspend();
     } else {
       this.clock.getDelta(); // jette le temps écoulé pendant la pause (pas de saut)
       if (this.screen === 'range' && this.audio.ctx) this.audio.ctx.resume();
+      if (this.screen === 'range') this.audio.ambience('combat');
+      else if (this.screen === 'bridge') this.audio.ambience('cic');
     }
   }
 
   /** Demande un rendu (utilisé par le hangar, en mode à la demande). */
   requestRender() {
     this.needsRender = true;
+  }
+
+  /**
+   * VUE PLEIN ÉCRAN (touche V / bouton ⛶) : les marges du cockpit passent à 0 et
+   * le décor s'efface. `_resize()` est indispensable derrière — le canvas change
+   * de taille, et sans remesurer le viewport la visée resterait calée sur la
+   * géométrie d'avant la bascule (on ne plante pas, on rate ses tirs).
+   *
+   * ⚠ Cette méthode avait DISPARU du fichier (perdue dans le commit 16a4533) alors
+   * que ses deux appelants et tout le CSS `body.expanded` étaient restés : la
+   * touche V et le bouton levaient donc « toggleExpand is not a function ». Un
+   * appelant sans définition ne se voit pas à la lecture, seulement à l'usage.
+   */
+  toggleExpand() {
+    this.expanded = !this.expanded;
+    document.body.classList.toggle('expanded', this.expanded);
+    this._resize();
   }
 
   /**
@@ -284,6 +304,7 @@ class App {
     if (next === 'menu') {
       this.ship.fxLayer.visible = false;
       setHangarView(this.camera);
+      this.audio.ambienceOff();     // le menu n'est pas un lieu du vaisseau
       this.menu.enter();
       this.menuUI.classList.remove('hidden');
       this.screenName.textContent = '';
@@ -301,6 +322,7 @@ class App {
     } else if (next === 'bridge') {
       // Le CIC couvre l'écran : on ne rend pas la 3D derrière
       this.audio.resume();
+      this.audio.ambience('cic');   // fond de salle : on est à l'intérieur
       this.bridge.enter();
       this.bridgeUI.classList.remove('hidden');
       this.screenName.textContent = 'PASSERELLE';
@@ -308,6 +330,7 @@ class App {
       this.btnSwitch.textContent = 'PONT HANGAR →';
     } else {
       this.audio.resume();
+      this.audio.ambience('combat'); // la basse monte, le souffle recule
       this.ship.fxLayer.visible = true;
       setCombatView(this.camera);
       this.range.enter();

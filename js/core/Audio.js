@@ -126,4 +126,74 @@ export class Audio {
     this._eng.g.gain.setTargetAtTime(Math.min(0.45, level * 0.45), t, 0.08);
     this._eng.o.frequency.setTargetAtTime(50 + level * 45, t, 0.1);
   }
+
+  /**
+   * AMBIANCE — le fond sonore du vaisseau. Sans lui, le silence entre deux tirs
+   * est un silence de page web, pas celui d'un bâtiment sous tension : on n'a plus
+   * l'impression d'être à l'intérieur de quelque chose.
+   *
+   * Deux couches, synthétisées comme le reste (aucun fichier) :
+   *  - une NOTE TRÈS BASSE battante : deux oscillateurs légèrement désaccordés, ce
+   *    qui produit un battement lent. Un oscillateur seul donnerait un bourdon
+   *    électronique mort ; le battement le rend organique sans coûter un LFO.
+   *  - un SOUFFLE de ventilation : du bruit blanc passé en bande étroite. C'est lui
+   *    qui donne le volume de la pièce.
+   *
+   * `mood` : 'cic' au calme (souffle dominant), 'combat' sous le feu (la basse
+   * monte). `stop()` coupe. Volumes très bas à dessein : ça doit se remarquer
+   * quand on l'enlève, pas quand on l'écoute.
+   */
+  ambience(mood = 'cic') {
+    this._ensure();
+    if (!this.enabled) return;
+    if (!this._amb) {
+      this.resume();
+      const mk = (freq, detune) => {
+        const o = this.ctx.createOscillator();
+        o.type = 'sine';
+        o.frequency.value = freq;
+        o.detune.value = detune;
+        return o;
+      };
+      // Deux sinus à 38 Hz désaccordés de 7 cents ⇒ battement d'environ 0,15 Hz
+      const o1 = mk(38, 0), o2 = mk(38, 7);
+      const drone = this.ctx.createGain();
+      drone.gain.value = 0;
+      o1.connect(drone); o2.connect(drone);
+
+      // Souffle : bruit blanc en bande étroite autour de 420 Hz
+      const len = Math.floor(this.ctx.sampleRate * 2);
+      const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const bp = this.ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 420;
+      bp.Q.value = 0.7;
+      const air = this.ctx.createGain();
+      air.gain.value = 0;
+      src.connect(bp); bp.connect(air);
+
+      drone.connect(this.master); air.connect(this.master);
+      o1.start(); o2.start(); src.start();
+      this._amb = { o1, o2, src, drone, air };
+    }
+    const t = this.ctx.currentTime;
+    const combat = mood === 'combat';
+    // Transitions longues (2 s) : une ambiance qui change brusquement s'entend,
+    // et s'entendre est exactement ce qu'elle ne doit pas faire.
+    this._amb.drone.gain.setTargetAtTime(combat ? 0.16 : 0.07, t, 2);
+    this._amb.air.gain.setTargetAtTime(combat ? 0.035 : 0.06, t, 2);
+  }
+
+  /** Coupe l'ambiance (fondu, jamais net). */
+  ambienceOff() {
+    if (!this._amb || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    this._amb.drone.gain.setTargetAtTime(0.0001, t, 0.6);
+    this._amb.air.gain.setTargetAtTime(0.0001, t, 0.6);
+  }
 }

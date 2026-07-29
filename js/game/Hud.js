@@ -556,6 +556,15 @@ export class Hud {
          <div class="ck-label">SOLUTION DE TIR</div>
          <div class="sol-big">—</div>
        </div>
+       <!-- CIBLE PRIORITAIRE : consigne persistante, elle DOIT être affichée.
+            Sinon l'équipage continue d'engager un contact qu'on a désigné dix
+            secondes plus tôt et le joueur ne comprend pas pourquoi il ignore la
+            menace immédiate. -->
+       <div class="ck-group">
+         <div class="ck-label">CIBLE PRIORITAIRE <span class="ck-sub">X</span></div>
+         <div class="prio-name">—</div>
+         <div class="prio-locks"></div>
+       </div>
        <div class="ck-group ck-gauges">
          ${this._gaugeHtml('tgt', 'CIBLE')}
          ${this._gaugeHtml('ammo', 'MISSILES')}
@@ -563,6 +572,8 @@ export class Hud {
        </div>`;
     const b = this.cockpits.gunnery.body;
     this.solBig = b.querySelector('.sol-big');
+    this.prioName = b.querySelector('.prio-name');
+    this.prioLocks = b.querySelector('.prio-locks');
     this.gunTgt = b.querySelector('.g-tgt .g-val');
     this.gunAmmo = b.querySelector('.g-ammo .g-val');
     this.gunNrg = b.querySelector('.g-nrg .g-val');
@@ -720,6 +731,20 @@ export class Hud {
         'on', this._cmdIds[i] === activeId || this._cmdIds[i] === activeId2
       ));
     }
+  }
+
+  /**
+   * Cible prioritaire + pistes du radar. Le nombre de pistes est ce qui rend le
+   * radar intéressant à améliorer : avec une seule, désigner concentre TOUT le feu
+   * et plus rien d'autre n'est traité.
+   */
+  setPriority(name, locks) {
+    if (!this.prioName) return;
+    this.prioName.textContent = name || '— aucune, le plus proche —';
+    this.prioName.className = `prio-name${name ? ' on' : ''}`;
+    this.prioLocks.textContent = locks > 1
+      ? `radar : ${locks} pistes${name ? ` · ${locks - 1} libre(s) pour le reste` : ''}`
+      : `radar : 1 seule piste${name ? ' · tout le feu dessus' : ''}`;
   }
 
   /** Instruments du poste de pilote. */
