@@ -3,7 +3,7 @@
 Jeu spatial WebGL au style **low-poly fil de fer néon**. On commande un vaisseau mère
 « baleine » (livrée **bleu & blanc**, dos foncé / ventre clair) et on **escorte six
 transports civils** à travers cinq secteurs hostiles jusqu'à un refuge, en circulant
-entre les **postes de la passerelle** — commandant, pilote, artilleur, drones.
+entre les **postes de la passerelle** — commandant, pilote, artilleur, drones, ingénieur.
 
 Rendu **Three.js** (chargé depuis un CDN via import map) + post-processing bloom.
 Aucun build ni dépendance : c'est un **site statique**.
@@ -29,7 +29,7 @@ python3 -m http.server 8000
 
 | Entrée | Action |
 |---|---|
-| **Tab** ou clic sur une icône | **changer de poste** (commandant · pilote · artilleur · drones) |
+| **Tab** ou clic sur une icône | **changer de poste** (commandant · pilote · artilleur · drones · ingénieur) |
 | **Chiffres** | **commandes du poste courant** (énergie · conduite · mode de tir · escadron) |
 | **← / →** (ou A/D · Q/D) | virer sur place — *au poste de pilote* (inertie de navire) |
 | **↑ / ↓** (ou W/S · Z/S) | avancer / reculer dans l'axe du nez — *au poste de pilote* |
@@ -204,6 +204,7 @@ te trouves.
 | **Pilote** | appliquer la consigne, éviter les bords | juger **quand** changer de consigne | engager · récupérer · rompre |
 | **Artilleur** | tirer sur le plus proche à portée | toucher ce qui manœuvre, choisir la cible | mode : semi · rafale · auto |
 | **Drones** | appliquer ta consigne sans jamais l'adapter | **désigner la cible** de l'escadron | attaque · escorte · repli |
+| **Ingénieur** | colmater la section la plus abîmée | juger **laquelle sert maintenant** | avaries · armement · propulsion |
 
 **L'équipage n'est pas une machine.** Il suit la cible avec du retard, disperse d'autant plus
 qu'elle est loin, voit mal ce qui sort de la portée du **radar**, et **renonce à tirer** quand
@@ -263,6 +264,13 @@ Concrètement, sur le laser Nv1 (cadence nominale 7 tirs/s) : **4,3 tirs/s** sou
 ATTAQUE, **2,3** en ÉQUILIBRE, **1,3** en DÉFENSE. Et le bouclier remonte à **21,8 PV/s** en
 DÉFENSE contre **7,3** en ATTAQUE. Le panneau joueur affiche en permanence le profil courant
 et les trois jauges (repère pointillé = le tiers neutre).
+
+**Sections de coque** — ta baleine n'a pas une seule barre de vie locale mais **quatre sections** :
+proue, cœur, poupe, propulsion. Les coups portent là où ils tombent, et une section percée met
+**ses modules hors service** — un canon qui se taisait n'est pas en panne, il attend l'atelier.
+Ton ingénieur répare, mais il applique une règle bête : il colmate la section la plus **abîmée**,
+pas la plus **utile**. Tu le verras rafistoler une poupe vide pendant que ton laser est éteint. À
+la machine, tu choisis la section et tu travailles deux fois et demie plus vite.
 
 **Défense** — le **bouclier** absorbe avant la **coque** (base + armure). Tant qu'il
 a de la charge, il forme une **bulle** infranchissable par les **drones ennemis** et

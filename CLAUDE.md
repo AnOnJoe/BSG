@@ -41,7 +41,7 @@ cd BSG && python3 -m http.server 8000   # http://localhost:8000
   Audio, Tune, HallOfFame, SaveManager, NeonMaterials.
 - `js/core/PowerBus.js` + `js/core/CommandRing.js` — **répartition d'énergie** (armes /
   boucliers / moteurs) et son menu radial. Voir ci-dessous.
-- `js/core/Stations.js` — **postes** (commandant / pilote / artilleur / drones) : lequel le joueur tient,
+- `js/core/Stations.js` — **postes** (commandant / pilote / artilleur / drones / ingénieur) : lequel le joueur tient,
   et le transit. Point d'extension unique pour un futur coop.
 - `js/core/AutoHelm.js` — **barreur IA** : produit les mêmes `thrust`/`turn` que
   l'InputController, donc la physique de `Range` est identique qu'on soit à la barre ou non.
@@ -389,7 +389,7 @@ Régén bouclier : 21,8 PV/s en DÉFENSE contre 7,3 en ATTAQUE.
 
 ## Postes (le geste central du jeu)
 Le joueur **ne tient qu'un poste à la fois** ; l'équipage (IA) tient les autres. Le jeu est
-là : *où ai-je le plus de valeur ajoutée, maintenant ?* Trois postes (`Stations.js`) :
+là : *où ai-je le plus de valeur ajoutée, maintenant ?* Cinq postes (`Stations.js`) :
 
 | Poste | L'IA sait | L'IA ne sait pas (ton créneau) | Chiffres |
 |---|---|---|---|
@@ -397,6 +397,7 @@ là : *où ai-je le plus de valeur ajoutée, maintenant ?* Trois postes (`Statio
 | **PILOTE** (`AutoHelm.js`) | appliquer la consigne, éviter les bords | juger **quand** changer de consigne | ENGAGER · RÉCUPÉRER · ROMPRE |
 | **ARTILLEUR** (`WeaponControl.js`) | tirer sur le plus proche à portée | toucher ce qui manœuvre, choisir la cible | mode de tir |
 | **DRONES** (`Range.droneOrder`) | rien : elle applique ta consigne sans l'adapter | regrouper, replier avant qu'ils meurent | ordre d'escadron |
+| **INGÉNIEUR** (`Engineer.js`) | colmater la section la plus abîmée | juger **laquelle sert maintenant** | 4,5 → 10,8 PV/s au poste |
 
 ### Consigne ≠ exécution (la frontière du commandement)
 Le **commandant pose les consignes de TOUS les postes** depuis sa console (`Range.setOrder`,
@@ -507,6 +508,37 @@ aussi à y aller quand ce sera devenu une mauvaise idée.
 (Les « allures » du poste pilote ont été retirées : elles ne faisaient que doubler l'anneau
 d'énergie, qui reste accessible depuis n'importe quel poste.)
 
+## POSTE D'INGÉNIEUR — sections de coque (`Engineer.js` + `HULL_CONFIG.sections`)
+Le cuirassé ennemi se démontait pièce par pièce depuis longtemps ; le joueur, lui, n'avait qu'une
+barre de PV globale. Il a maintenant **quatre sections** — PROUE, CŒUR, POUPE, PROPULSION — qui
+encaissent selon le **point d'impact** (`Ship.takeDamage(d, at)` ramène le point dans le repère de
+la coque, qui tourne). Vérifié sur les quatre : un tir à l'avant va en PROUE, à la queue en
+PROPULSION.
+
+**⚠ Les sections ne remplacent PAS `structure`, elles courent en parallèle.** La létalité du jeu
+est donc inchangée — pas de régression d'équilibrage — et la couche locale n'ajoute qu'une chose :
+une section tombée met **ses modules hors service jusqu'à réparation**. Le bouclier protège aussi
+la coque locale (sections intactes tant que la bulle tient), ce qui garde son rôle cohérent.
+
+**L'IA est délibérément fruste** : elle colmate la section **la plus abîmée**, alors que la bonne
+décision est presque toujours ailleurs. Démontré : poupe à 8 PV mais vide de modules, laser éteint
+en proue ⇒ l'équipage part sur la POUPE. C'est *le* signal « descends à la machine ».
+
+Au poste, le joueur **choisit** la section et répare `engRepairPlayerMul` fois plus vite (mesuré
+**4,5 → 10,8 PV/s**). Les deux avantages sont nécessaires : sans le choix il n'apporterait rien,
+sans le débit choisir ne changerait rien à temps. Une section repasse en service à
+`Ship.SECTION_BACK` (**25 %**) — exiger 100 % rendrait le poste inutile en combat, où l'on ne finit
+jamais un chantier.
+
+Deux garde-fous, tous deux parce qu'un **refus muet se lit comme un bug** :
+- un module coupé par une section percée ne se rallume **pas** au clic, et le HUD l'affiche « HS »
+  barré en magenta — à distinguer d'un module volontairement éteint par le commandant ;
+- percée et remise en service sont annoncées au journal **avec le nom des modules** concernés.
+
+⚠ Piège rencontré : `Hud.setCommands` tombait dans un `else` qui servait `HELM_ORDERS` à tout poste
+non prévu, donc le cockpit de l'ingénieur affichait « ENGAGER / RÉCUPÉRER / ROMPRE ». Tout nouveau
+poste doit avoir sa branche explicite.
+
 ## Cuirassé (`data/capitalConfig.js` + `entities/CapitalShip.js`)
 L'adversaire d'échelle, toutes les 5 vagues. **4,0× la longueur de la baleine à l'écran**
 (892 px contre 224 px, mesuré) : il déborde du cadre, d'où le recul de caméra
@@ -599,8 +631,8 @@ intentions basse fréquence).
 aboutisse. On ne nettoie plus des vagues.
 
 Fait : **menu de départ** puis boucle CIC ↔ combat, **pont hangar** en escale · **la flotte est
-l'économie** (six fonctions dont la perte se paie) · hangar + upgrades + crédits · **4 postes exclusifs** (commandant / pilote / artilleur /
-drones) avec équipage IA médiocre et lisible · **énergie répartie** en 3 bus + anneau de
+l'économie** (six fonctions dont la perte se paie) · hangar + upgrades + crédits · **5 postes exclusifs** (commandant / pilote / artilleur /
+drones / **ingénieur**) avec équipage IA médiocre et lisible · **sections de coque** et modules HS · **énergie répartie** en 3 bus + anneau de
 passerelle · conduite de tir humaine (retard, dispersion, renoncement) · modes de tir · ordres
 d'escadron **et de flotte** · désignation de cible · **cuirassé** démontable pièce par pièce ·
 canon anti-drone · **terrain** qui coupe les tirs · **cadrage cockpit** + plein écran ·
@@ -612,7 +644,7 @@ saut FTL).
 
 ## Prochaines pistes
 Ordre décidé avec l'utilisateur : **2 → 4 → 3 → 6**. Les chantiers **5** (scènes par secteur),
-**2** (économie de campagne) et **4** (dénouement) sont faits.
+**2** (économie de campagne), **4** (dénouement) et **3** (ingénieur) sont faits.
 
 1. **Jouer une traversée complète.** C'est maintenant le point bloquant : la boucle a un début, une
    économie et deux fins, et rien n'a jamais été joué en entier. À doser en main : ce que vaut un
@@ -622,13 +654,10 @@ Ordre décidé avec l'utilisateur : **2 → 4 → 3 → 6**. Les chantiers **5**
    Signal relevé : un joueur qui ne touche à rien voit la flotte immobile (ordre RALLIEMENT par
    défaut, elle suit une baleine à l'arrêt) et le calcul bloqué au minimum de clarté. Le premier
    secteur devra pousser à avancer plus explicitement.
-2. **Poste d'INGÉNIEUR** — le seul métier annoncé qui n'existe pas. Les sections de coque ne sont
-   faites que côté ennemi (le cuirassé et ses dix pièces) ; `hullConfig.js` n'a toujours pas de
-   champ `section`. Il gagne à venir après l'économie, qui a installé pièces et atelier.
-3. **Finitions** : cible prioritaire persistante pour l'artillerie (`radar.maxTargets` reste
+2. **Finitions** : cible prioritaire persistante pour l'artillerie (`radar.maxTargets` reste
    inutilisé), calibrage des seuils de `WeaponControl._updateSolution` (annonce encore BONNE à
    ~40 % de touches sur cible qui zigzague), matière dans le décor du cockpit.
-4. Plus loin : **coop multi-postes** (l'architecture est prête, cf. `Stations.js`), autres coques,
+3. Plus loin : **coop multi-postes** (l'architecture est prête, cf. `Stations.js`), autres coques,
    boutique plus riche, sons d'ambiance.
 
 **Hors périmètre décidé : le tactile.** Mesuré en émulation iOS — aucun code tactile dans le
