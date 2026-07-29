@@ -937,10 +937,31 @@ le panneau perd sa raison d'être. Quatre choses le rendent praticable (`game/Tu
 - **Jouable en ligne : https://anonjoe.github.io/BSG/** — GitHub Pages sert `main` à la racine.
   Aucune étape de build : un `git push` suffit à publier (compter ~1 min de reconstruction).
   Le site étant statique et Three.js venant du CDN, il n'y a rien de plus à faire.
-  ⚠ Corollaire : **tout ce qui est commité est public**, journaux de session compris. Relire
-  avant de pousser (un chemin `/Users/<nom>/…` a déjà dû être retiré du journal pour ça).
-- `CC-Session-Logs/` — journaux de session (`/compress`). À lire via `/resume` avant de reprendre :
-  ils contiennent les décisions de design et leur *pourquoi*, ce que le code seul ne dit pas.
+  ⚠ Corollaire : **tout ce qui est commité est public**, et l'est définitivement. Relire avant
+  de pousser (un chemin `/Users/<nom>/…` a déjà dû être retiré d'un journal pour ça — puis les
+  journaux ont quitté le dépôt, cf. ci-dessous).
+  ⚠ « Semi-public » n'existe pas sur GitHub : la visibilité est *public* ou *private*
+  (*internal* n'existe qu'en organisation Enterprise). Et **passer ce dépôt en privé couperait
+  GitHub Pages** sur un compte gratuit — Pages depuis un dépôt privé demande un plan payant, et
+  restreindre l'accès au site demande Enterprise Cloud. Pour cacher le code tout en gardant le
+  jeu jouable, il faudrait héberger le site ailleurs (Cloudflare Pages déploie depuis un dépôt
+  privé, gratuitement).
+### ⚠ LES JOURNAUX DE SESSION NE VIVENT PAS DANS CE DÉPÔT
+Ils sont dans le dépôt **parent, privé et local** : `~/ClaudeCode/CC-Session-Logs/BSG/`.
+À lire via `/resume` avant de reprendre — ils contiennent les décisions de design et leur
+*pourquoi*, ce que le code seul ne dit pas.
+
+**Pourquoi les avoir sortis d'ici** : ce dépôt est public, donc un journal commité est
+lisible par n'importe qui **et le reste** — le retirer plus tard ne le retire pas de
+l'historique publié. Ce sont aussi les seuls fichiers du projet qui parlent d'autre chose que
+du jeu. `CC-Session-Logs/` est donc dans `.gitignore`.
+
+⚠ **`/compress` écrit dans le dossier du projet courant**, donc il recréera
+`BSG/CC-Session-Logs/` : le fichier produit doit être **déplacé** vers le chemin ci-dessus.
+Le `.gitignore` empêche de le commiter par accident, il n'empêche pas de l'écrire.
+
+⚠ Le dépôt parent **n'a aucun remote** (vérifié) : les journaux y sont privés mais **non
+sauvegardés**. C'est le prix assumé de ce choix.
 
 ## État
 **La boucle est celle de Battlestar Galactica saison 1** : escorter six transports civils

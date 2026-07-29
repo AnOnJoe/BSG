@@ -2,3 +2,13 @@
 **/.DS_Store
 node_modules/
 *.json.bak
+
+# JOURNAUX DE SESSION — NE JAMAIS LES COMMITER ICI.
+# Ce dépôt est PUBLIC (GitHub Pages sert `main` à la racine), donc tout ce qui y
+# entre est lisible par n'importe qui, et de façon définitive : retirer un fichier
+# plus tard ne le retire pas de l'historique déjà publié.
+# Les journaux vivent dans le dépôt PARENT, qui est privé et local :
+#   ~/ClaudeCode/CC-Session-Logs/BSG/
+# `/compress` écrit dans le dossier du projet courant : après l'avoir lancé ici, il
+# faut donc DÉPLACER le fichier produit vers le chemin ci-dessus.
+CC-Session-Logs/
