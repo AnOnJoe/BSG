@@ -26,6 +26,15 @@ cd BSG && python3 -m http.server 8000   # http://localhost:8000
   navigateur — la restriction Workflow ne s'applique pas ici).
 - Contrôle syntaxe rapide : `find js -name '*.js' -print0 | xargs -0 -n1 node --check`.
   (node ne résout pas les imports, mais valide la syntaxe de chaque module.)
+- **`node tools/check-dangling.mjs`** — traque les **appelants sans définition**
+  (`this.app.machin()` alors que `App.machin` n'existe pas). Écrit après le bug
+  `toggleExpand`, resté deux sessions : la touche **V** ne marchait pas et rien ne le
+  signalait. `node --check` ne voit pas ce genre de trou, et la lecture non plus.
+  Heuristique : un résultat se vérifie à la main (faux positif possible sur un champ
+  homonyme), zéro résultat est une bonne nouvelle.
+- **Faire CLIQUER les tests, pas seulement lire l'état.** Deux « bugs » relevés ici
+  n'étaient que des lectures du DOM faites avant la frame suivante — laisser passer
+  ~250 ms après une action avant de mesurer.
 - **Debug console** : `window.app` (l'App), `window.app.range` (combat), `window.TUNE`.
 
 ## Architecture (points d'entrée)

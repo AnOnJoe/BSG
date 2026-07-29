@@ -19,7 +19,7 @@ export class Hangar {
 
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
-    this.menu = null;
+    this.equipMenu = null;   // menu d'équipement (DOM) — à ne pas confondre avec App.menu
 
     this._onClick = (e) => this._pick(e);
     this._onMove = (e) => this._hover(e);
@@ -136,7 +136,7 @@ export class Hangar {
     menu.style.left = Math.min(x, window.innerWidth - 200) + 'px';
     menu.style.top = Math.min(y, window.innerHeight - 220) + 'px';
     document.body.appendChild(menu);
-    this.menu = menu;
+    this.equipMenu = menu;
 
     setTimeout(() => {
       this._outside = (e) => { if (!menu.contains(e.target)) this._closeMenu(); };
@@ -145,7 +145,7 @@ export class Hangar {
   }
 
   _closeMenu() {
-    if (this.menu) { this.menu.remove(); this.menu = null; }
+    if (this.equipMenu) { this.equipMenu.remove(); this.equipMenu = null; }
     if (this._outside) { window.removeEventListener('mousedown', this._outside); this._outside = null; }
   }
 
@@ -189,7 +189,7 @@ export class Hangar {
   }
 
   _pick(e) {
-    if (this.menu) return; // laisse le handler "outside" gérer la fermeture
+    if (this.equipMenu) return; // laisse le handler "outside" gérer la fermeture
     this._setMouse(e);
     this.raycaster.setFromCamera(this.mouse, this.camera);
     const hits = this.raycaster.intersectObjects(this.ship.hull.pickables, false);
