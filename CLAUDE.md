@@ -148,6 +148,44 @@ Le CIC **montre** les deux jauges côte à côte (`Bridge._render`) : le décomp
 calcul qui progresse scène par scène, avec un repère des 100 % pour voir ce qui manquera. Sans cet
 affichage, l'incohérence resterait invisible au joueur.
 
+## ÉCONOMIE : MATÉRIEL + CHANTIERS (`data/progression.js`)
+« L'argent n'est pas une bonne monnaie vu que c'est notre flotte et nos ingénieurs. » Juste : il
+n'y a **personne à qui acheter**. Les crédits sont remplacés par deux ressources qui ne se
+substituent pas :
+
+| Ressource | D'où elle vient | Ce qu'elle limite |
+|---|---|---|
+| **MATÉRIEL** | épaves, Cylons abattus, décisions du CIC | le stock de pièces |
+| **CHANTIERS** | l'équipe de pont, renouvelés **à chaque saut** | combien de travaux par escale |
+
+**C'est la seconde qui fait le jeu.** Avec mille pièces en soute on ne mène toujours que deux
+travaux entre deux sauts : la question n'est plus « ai-je les moyens ? » mais « qu'est-ce qui passe
+en premier ? ». Et elle est liée au **remorqueur** : mesuré, 2 chantiers avec l'atelier, **1 sans**.
+Démonter ne consomme **aucun** chantier et rend la moitié du matériel — on dévisse, on ne fabrique
+rien. Les sauvegardes sont **migrées** (`credits` → `salvage`), pas jetées.
+
+### Déblocage progressif
+Tout était ouvert d'emblée — douze emplacements, neuf modules, de quoi tout tester tout de suite,
+donc rien à découvrir. Au départ : **3 emplacements aménagés sur 12** et **3 plans sur 9**.
+- les autres emplacements sont des **coques nues** : les AMÉNAGER coûte du matériel + un chantier ;
+- les modules inconnus ne s'achètent pas, leur **plan se récupère** — un par saut dans un ordre
+  **fixe** (`PLAN_ORDER`), plus un par cuirassé démonté. L'ordre n'est pas tiré au hasard : une
+  progression aléatoire pourrait laisser un joueur sans arme secondaire toute la traversée.
+  Mesuré sur 4 sauts : 3 → 7 plans, matériel 320 → 1280.
+- les plans inconnus restent **affichés**, grisés : on doit savoir ce qui existe et avoir quelque
+  chose à espérer.
+
+### Le pont hangar, refondu
+Il « faisait décalé », et pour des raisons précises : une colonne de douze grosses cartes qui
+**débordait de l'écran**, des boutons de navigateur là où tout le reste parle en pastilles, les
+types d'emplacement en **anglais minuscule** (« weapon »), et aucun lien entre la baleine au centre
+et la liste. Il est maintenant organisé par **section de coque** — les mêmes que le poste
+d'ingénieur : on répare et on équipe la même géographie.
+⚠ Un emplacement **non aménagé** doit se distinguer nettement d'un emplacement **libre** (bordure
+pointillée, marqueur 3D `locked` éteint), sinon on clique en croyant pouvoir équiper. Et tout refus
+dit **pourquoi** (« plan non récupéré », « plus de chantier ce saut-ci », « matériel insuffisant ») :
+un bouton grisé muet se lit comme un bug.
+
 ## LA FLOTTE EST L'ÉCONOMIE (`FLEET_ROLES`)
 Les âmes n'étaient qu'un compteur : perdre un transport ne coûtait **rien** mécaniquement,
 c'était même une coque de moins à défendre — et s'il s'agissait de la citerne (la plus lente,
@@ -246,8 +284,12 @@ parle s'allume.
   `Range._applyPendingEffects()` (via `App.pendingEffects`) — PV/vitesse d'un transport nommé,
   modules coupés, énergie, crédits, avance de calcul FTL. Chaque effet est **annoncé au journal**
   au début de l'action ; subir un malus sans savoir d'où il vient serait incompréhensible.
-- Contrôles : `Espace`/clic = suivant · `1..3` = choisir · **`N` = passer à l'action** (le skip
-  doit rester possible à tout instant, c'était la réponse au « trop long »).
+- Contrôles : `Espace`/clic = suivant · `1..3` = choisir · **`N` = passer les DIALOGUES**.
+  ⚠ `N` expédiait l'arc entier : on entrait au combat sans qu'aucun choix n'ait été fait, donc
+  « no décision no impact ». Elle saute désormais les répliques et **s'arrête à chaque choix**, et
+  son libellé annonce combien de décisions restent. Première correction encore trouée : elle ne
+  regardait que **devant**, donc sur un choix la touche sautait par-dessus — marteler `N` menait au
+  combat avec zéro décision. Vérifié : marteler `N` ou `Espace` reste bloqué sur le choix.
 - Boucle à trois écrans : `Hangar → Passerelle → Combat → Passerelle → …` (`App._show`). Après un
   saut, `Range._arriveSector()` rend la main au CIC (`pendingSector`).
 
@@ -266,6 +308,49 @@ transport dans le rayon ⇒ `Convoy.jump()` les tue tous ⇒ `lost-fleet`). Corr
   secteur, **+2 s** à la Porte. C'est là qu'est le dilemme, et la pression monte d'elle-même ;
 - **garde-fou** : `_requestJump()` refuse un ordre qui n'emporterait aucun transport, en disant la
   distance restante. Un ordre qui tue toute la flotte d'un coup n'est pas un dilemme, c'est un piège.
+
+### ⚠ LE DÉCOR ÉTAIT INFRANCHISSABLE EN LIGNE DROITE
+Grief de partie test : « gros problème d'évitement des obstacles… c'est très fouillis », « je veux
+juste que la flotte suive mon vaisseau qui va tout droit ». **La cause n'était pas dans le code de
+pilotage.** Mesuré : sur 51 lignes horizontales échantillonnées, **zéro** n'était libre pour un
+corps de rayon 10, et dans **tous** les terrains sauf le vide. Aucune consigne ne peut donner un
+résultat propre là-dedans. `Terrain.build` réserve donc des **VOIES** (`lanes`, `laneHalf`) où rien
+de bloquant n'est posé — 9 à 19 lignes libres sur 51 selon le terrain, sans marquage visible.
+
+Trois bugs de pilotage s'y ajoutaient, et chacun est un piège à ne pas refaire :
+1. `desired = rot + away * 1.15` était **relatif au cap courant** et réappliqué chaque frame : un
+   **intégrateur**. Le cap faisait plus d'un tour complet.
+2. `Terrain.rayHit` ignorait le **rayon du corps qui sonde** : un passage à trois unités du caillou
+   était déclaré libre alors qu'une coque de rayon 4,2 le raclait. D'où le paramètre `pad` — à
+   laisser à 0 pour la **ligne de vue** (un tir n'a pas d'épaisseur), à passer pour une trajectoire.
+3. L'esquive **remplaçait l'objectif** au lieu de composer avec lui : la baleine partait
+   perpendiculairement à la sortie et n'arrivait jamais.
+Remplacé par des **MOUSTACHES** : on sonde plusieurs caps autour du cap voulu, du plus direct au
+plus détourné, et on prend le premier dégagé — le détour est donc minimal et toujours orienté vers
+l'objectif. Hystérésis sur le côté choisi (sans elle, 21 inversions en 25 s).
+Mesuré, 25 s dans la Ceinture sans intervention : avance **−45 → +71**, coque **72 → 100**.
+
+### ⚠ Trois boucles de rétroaction, toutes mesurées
+- **La baleine RECULAIT.** Le barreur escortait le traînard, or le traînard est le transport le plus
+  **éloigné** de la baleine, donc toujours derrière ; il faisait demi-tour, et en RALLIEMENT la
+  flotte reculait avec lui, ce qui éloignait encore le traînard. Règle : **si la flotte suit, la
+  baleine MÈNE** (`ctx.fleetFollows`).
+- **La baleine distançait la flotte** de 101 unités en 8 s, **vidant la bulle de saut** (0/6) —
+  ordonner le saut aurait tué toute la flotte. Deux correctifs faux avant le bon : ralentir
+  proportionnellement (l'écart se stabilisait à 87, encore au-delà du rayon 78) puis couper les gaz
+  (**blocage mutuel**, tout avançait à 1,3/s au lieu de 4, la flotte suivant une baleine à l'arrêt).
+  Le bon modèle est un **asservissement de vitesse** : au-delà de `helmFleetLead` la baleine se cale
+  sur l'allure du convoi. Écart tenu à 44, bulle 6/6.
+
+### La flotte n'est plus un bloc
+« Elle se déplace comme un bloc où on aurait regroupé tous les vaisseaux » — c'était littéral : même
+position visée lissée au même taux pour tous, tous à la vitesse du plus lent. Chaque transport a
+maintenant ses **traits propres** (allure de croisière, mollesse, balancement, décalage de station),
+sa propre inertie, et ils **se repoussent entre eux** — sans quoi ils convergeaient tous dans la
+même voie libre et se chevauchaient. `convoyCatchup` leur permet de pousser les moteurs pour
+recoller, ⚠ **plafond appliqué après le facteur d'urgence** sinon ce n'est pas un plafond (mesuré
+des transports à 10,9 pour un nominal de 5,6). Mesuré : 6 vitesses distinctes en permanence,
+**0 encastrement sur 400 relevés**.
 
 ### Le barreur esquive le décor
 Il ignorait le terrain et barrait droit dans les rochers. `AutoHelm` reçoit `ctx.terrain`, sonde
@@ -415,7 +500,7 @@ là : *où ai-je le plus de valeur ajoutée, maintenant ?* Cinq postes (`Station
 | Poste | L'IA sait | L'IA ne sait pas (ton créneau) | Chiffres |
 |---|---|---|---|
 | **COMMANDANT** | rien : elle n'y touche pas | répartir l'énergie, couper un module, l'IEM | profils d'énergie |
-| **PILOTE** (`AutoHelm.js`) | appliquer la consigne, éviter les bords | juger **quand** changer de consigne | ENGAGER · RÉCUPÉRER · ROMPRE |
+| **PILOTE** (`AutoHelm.js`) | appliquer la consigne, éviter les bords | juger **quand** changer de consigne | ENGAGER · **TENIR** · RÉCUPÉRER · ROMPRE |
 | **ARTILLEUR** (`WeaponControl.js`) | tirer sur le plus proche à portée | toucher ce qui manœuvre, choisir la cible | mode de tir |
 | **DRONES** (`Range.droneOrder`) | rien : elle applique ta consigne sans l'adapter | regrouper, replier avant qu'ils meurent | ordre d'escadron |
 | **INGÉNIEUR** (`Engineer.js`) | colmater la section la plus abîmée | juger **laquelle sert maintenant** | 4,5 → 10,8 PV/s au poste |
@@ -427,7 +512,7 @@ aucun sens. Ce qu'il ne peut pas faire à distance, c'est **exécuter** :
 
 | Poste | Consigne (commandant OU poste) | Exécution (au poste seulement) |
 |---|---|---|
-| PILOTE | engager / récupérer / rompre | barrer à la main |
+| PILOTE | engager / **tenir** / récupérer / rompre | barrer à la main |
 | ARTILLEUR | semi / rafale / auto | viser (100 % contre 30 %) |
 | DRONES | attaque / escorte / repli | **désigner la cible** de l'escadron |
 

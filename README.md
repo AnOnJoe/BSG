@@ -37,6 +37,7 @@ python3 -m http.server 8000
 | **Clic gauche** | tir des lasers — *au poste d'artilleur* |
 | **Barre Espace** | tir des **missiles** (ordre du capitaine, depuis n'importe quel poste) |
 | **J** | **amorcer le saut** : ce qui est dans la bulle part, le reste est abandonné |
+| **1-4** *au poste pilote* | consigne : **ENGAGER · TENIR · RÉCUPÉRER · ROMPRE** |
 | **H** | **pont hangar** — *depuis le CIC, si le Cargo lourd est vivant* |
 | **X** | **cible prioritaire** sous le curseur — *au poste d'artilleur* |
 | **Clic droit** (maintenu) | **anneau de passerelle** : répartir l'énergie — *console du commandant* |
@@ -52,18 +53,30 @@ plutôt vers la proue.
 
 ## Pont hangar
 
-On ne **commence** plus au hangar : le jeu s'ouvre sur un **menu** qui présente la flotte et ce
-que chaque coque porte. Le hangar est devenu le **pont hangar**, une escale entre deux sauts —
-touche **H** depuis le CIC — et il n'est ouvert que si le **Cargo lourd** est encore en vie, parce
-que c'est lui qui transporte les pièces. Les crédits gagnés en route se dépensent donc **pendant**
-la traversée, et pas seulement après avoir perdu.
+On ne **commence** plus au hangar : le jeu s'ouvre sur un **menu**. Le hangar est devenu le **pont
+hangar**, une escale entre deux sauts — touche **H** depuis le CIC — et il n'est ouvert que si le
+**Cargo lourd** est vivant, parce que c'est lui qui transporte les pièces.
 
-- Clique un **emplacement** sur la baleine (ou dans le panneau) → menu des modules
-  compatibles. La baleine a **12 slots** : armes dorsales/ventrales, 2 propulsions,
-  utilitaires (proue, cœur, soute, menton).
-- **Équiper / Changer / Retirer** ; **Améliorer** (Nv 1 → 3). Tout coûte des
-  **crédits** (gagnés en combat) ; retirer rembourse 50 %.
-- Le **build et les crédits** sont sauvegardés (localStorage) et rechargés au démarrage.
+**Tu n'achètes rien.** Il n'y a personne à qui acheter : c'est ta flotte et tes ingénieurs. Deux
+ressources, et elles ne se remplacent pas :
+
+- le **matériel** ⛭ — arraché aux épaves, aux Cylons abattus, aux décisions du CIC ;
+- les **chantiers** ⚒ — ce que l'équipe de pont peut mener pendant *cette* escale. Ils se
+  renouvellent à chaque saut et **ne s'accumulent pas**.
+
+C'est la seconde qui compte. Avec mille pièces en soute tu ne mènes toujours que deux travaux entre
+deux sauts : la question n'est pas « ai-je les moyens ? » mais « qu'est-ce qui passe en premier ? ».
+Et perdre le **Remorqueur** te fait tomber à un seul chantier.
+
+**Tu ne commences pas équipé.** Trois emplacements aménagés sur douze, trois plans connus sur neuf.
+Les autres emplacements sont des **coques nues** : il faut tirer les câbles et renforcer le bâti
+avant d'y monter quoi que ce soit. Et les modules que tu ne connais pas ne s'achètent pas — leur
+**plan se récupère**, un par saut, plus un chaque fois que tu démontes un cuirassé. Ils restent
+affichés, grisés : tu sais ce qui existe.
+
+Le pont est organisé par **section de coque** — les mêmes que ton ingénieur répare. Clique un
+emplacement, sur la baleine ou dans le panneau. Démonter ne coûte aucun chantier et te rend la
+moitié du matériel : tu dévisses, tu ne fabriques rien.
 
 ## La fuite
 
@@ -83,8 +96,9 @@ cargo ? Le navire-hôpital réclame du courant pour ses blocs opératoires ? Cha
 dans le combat qui suit** — une coque réparée contre un module hors service, du courant donné
 contre de l'énergie en moins, des condensateurs préchargés contre une réserve entamée.
 
-`Espace` fait avancer, `1-3` choisit, et **`N` passe directement à l'action** si tu veux en finir
-avec les préliminaires.
+`Espace` fait avancer, `1-3` choisit, et **`N` passe les dialogues** — mais il s'arrête à chaque
+décision. Tu peux expédier la prose, jamais un arbitrage : sans décision, la phase n'aurait aucun
+impact.
 
 Puis le décompte tombe, et la bataille commence : la flotte s'ébranle vers la sortie du secteur
 pendant que le calcul se termine.
@@ -109,6 +123,11 @@ le calcul est prêt.
 perturbation : à l'endroit où vous débarquez, les coordonnées ne se stabilisent pas. Le calcul y
 tourne à **moins de la moitié** de son rythme. S'en éloigner le fait plus que doubler — voilà
 pourquoi la flotte pousse vers la sortie du secteur.
+
+Ton pilote obéit à quatre consignes, et **TENIR** est celle qu'on oublie : moteurs coupés, on ne
+bouge plus. C'est ce qu'on veut pour laisser la flotte se regrouper dans la bulle avant d'amorcer —
+en RALLIEMENT elle s'arrête avec toi. Il continue quand même d'esquiver s'il *dérive* vers un
+rocher : tenir la position n'est pas se laisser écraser.
 
 Tu commandes aussi la flotte elle-même : **RALLIEMENT** (ils convergent sur toi et te suivent —
 tous couvrables et prêts à sauter, mais une cible dense, et on ne progresse plus donc le calcul
