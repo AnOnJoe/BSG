@@ -1,4 +1,4 @@
-import { SCENES, CREW } from '../data/scenes.js';
+import { scenesFor, crewFor } from '../data/scenes.js';
 
 /**
  * PHASE PASSERELLE — les « 33 minutes » avant le contact, vécues dans le CIC.
@@ -22,11 +22,20 @@ export class Bridge {
     this._onKey = (e) => this._key(e);
   }
 
-  get scene() { return SCENES[Math.min(this.index, SCENES.length - 1)]; }
+  /**
+   * Les scènes du secteur COURANT. Elles sont figées à l'entrée (`enter`) : si
+   * on les relisait depuis `range.sector` à chaque accès, un saut survenu entre
+   * deux répliques changerait l'arc en cours de lecture.
+   */
+  get scenes() { return this._scenes; }
+  get scene() { return this._scenes[Math.min(this.index, this._scenes.length - 1)]; }
 
   enter() {
     this.index = 0;
     this.effects = [];
+    const sectorId = this.app.range.sector.id;
+    this._scenes = scenesFor(sectorId);
+    this._crew = crewFor(sectorId);
     this._build();
     this._render();
     window.addEventListener('keydown', this._onKey);
@@ -100,8 +109,10 @@ export class Bridge {
       this._next();
     });
 
-    // Les silhouettes de l'équipage : celle qui parle s'allume
-    this.el.crew.innerHTML = CREW.map((c) =>
+    // Les silhouettes de l'équipage : celle qui parle s'allume. On n'affiche que
+    // les officiers qui prennent la parole DANS CE SECTEUR — la distribution
+    // change donc d'un saut à l'autre, ce qui se voit avant même de lire.
+    this.el.crew.innerHTML = this._crew.map((c) =>
       `<div class="crew-member" data-id="${c.id}">
          <div class="cm-body">${this._officerSvg()}</div>
          <div class="cm-name">${c.id}</div>
@@ -204,7 +215,7 @@ export class Bridge {
   }
 
   _advance() {
-    if (this.index >= SCENES.length - 1) { this._toAction(); return; }
+    if (this.index >= this._scenes.length - 1) { this._toAction(); return; }
     this.index++;
     this._render();
   }

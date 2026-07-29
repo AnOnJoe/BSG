@@ -43,6 +43,17 @@ const MAX_ENEMIES = 8;
 const SHIELD_COLOR = 0xa97bff;
 const REWARD = { fighter: 20, raider: 30, gunship: 70, carrier: 50 };
 
+/**
+ * Effets de passerelle : accepte `['tug', -0.6]` aussi bien que
+ * `[['freighter', +0.4], ['tanker', +0.4]]`. La forme simple reste lisible dans
+ * `data/scenes.js` pour le cas courant (un seul transport visé), la forme
+ * multiple sert aux choix qui touchent plusieurs vaisseaux à la fois.
+ */
+function _pairs(spec) {
+  if (!spec) return [];
+  return Array.isArray(spec[0]) ? spec : [spec];
+}
+
 function lerpAngle(a, b, t) {
   let d = ((b - a + Math.PI) % (Math.PI * 2)) - Math.PI;
   if (d < -Math.PI) d += Math.PI * 2;
@@ -609,22 +620,31 @@ export class Range {
     const list = this.app.pendingEffects || [];
     this.modulesOffline = 0;
     for (const { label, effect } of list) {
-      if (effect.transportHp) {
-        const [type, amount] = effect.transportHp;
+      for (const [type, amount] of _pairs(effect.transportHp)) {
         for (const t of this.convoy.transports) {
           if (t.def.id === type) { t.maxHp += amount; t.hp = Math.min(t.maxHp, t.hp + amount); }
         }
       }
-      if (effect.transportSpeed) {
-        const [type, amount] = effect.transportSpeed;
+      for (const [type, amount] of _pairs(effect.transportSpeed)) {
         for (const t of this.convoy.transports) {
           if (t.def.id === type) t.def = { ...t.def, speed: Math.max(1.5, t.def.speed + amount) };
         }
       }
       if (effect.modulesOffline) this.modulesOffline += effect.modulesOffline;
       if (effect.energy) this.ship.energy = Math.max(0, this.ship.energy + effect.energy);
+      // Coque de départ : jamais sous 1 PV, sinon un choix de passerelle pourrait
+      // tuer le joueur avant le premier tir.
+      if (effect.structure) {
+        this.ship.structure = Math.max(1,
+          Math.min(this.ship.structureMax, this.ship.structure + effect.structure));
+      }
       if (effect.credits) this.app.addCredits(effect.credits);
-      if (effect.ftlBonus) this.ftl.charge = Math.min(95, this.ftl.charge + effect.ftlBonus);
+      if (effect.ftlBonus) {
+        this.ftl.charge = Math.max(0, Math.min(95, this.ftl.charge + effect.ftlBonus));
+      }
+      // Jalon du dénouement : on note que le commandant a payé pour chercher
+      // l'émission. Aucune mécanique encore — le transport compromis viendra.
+      if (effect.trackSignal) this.app.signalTracked = true;
       this.hud.pushLog(label);
     }
     // Modules coupés : on éteint les premières armes, et on le dit
