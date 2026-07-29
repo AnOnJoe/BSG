@@ -129,6 +129,25 @@ et le laisser. Les âmes perdues le sont pour de bon, jusqu'à la fin de la part
 Les Cylons ne viennent pas pour toi : **ils viennent pour eux**. Rester planté à côté du convoi
 ne suffit pas, il faut aller intercepter.
 
+## Le dernier saut
+
+Arriver au bout ne suffit pas. Depuis le Cimetière de coques, ton officier tactique relève une
+**émission qui part de ta propre flotte** deux minutes avant chaque attaque. Voilà comment ils vous
+trouvent, et voilà pourquoi sauter n'a jamais rien changé.
+
+Au dernier secteur, la console du commandant s'ouvre sur six suspects. Chaque **relevé** en écarte
+un à coup sûr, mais coûte **11 % de calcul de saut** — donc du temps sous le feu. La certitude
+complète en demande cinq. Tu peux aussi tirer sur un pressentiment : moins cher, mais abattre un
+innocent coûte ses âmes, sa fonction, et l'émission continue.
+
+Et tirer sur un civil ne se fait pas par accident : il faut le **désigner**, explicitement. Après
+quoi ton propre équipage l'engagera.
+
+Deux fins. Détruire celui qui les appelle, et la boucle se rompt : le refuge est atteint — le bilan
+nommera qui tu as sacrifié, et les innocents tombés avant lui. Ou refuser, sauter quand même, et
+ressortir **au même endroit** : ils reviennent, il n'y a plus de victoire à obtenir, et la partie
+ne peut s'achever que sur l'extinction de la flotte. Les assauts se resserrent à chaque tour.
+
 Cinq secteurs jusqu'au refuge — Nébuleuse de Ragnar,
 la Ceinture, Cimetière de coques, le Blocus, la Porte. Chacun a son **décor** et son caractère :
 la Ceinture est un dédale de roches où le radar se brouille, le Blocus un vide dégagé où rien

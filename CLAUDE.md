@@ -190,6 +190,40 @@ passait la remise à zéro. Deux pièges rencontrés :
 - l'état de la barre était posé par `_show()`, jamais appelé pour l'écran initial ⇒ le bouton
   restait visible sur le menu.
 
+## LE DÉNOUEMENT (`core/SignalHunt.js`) — détruire un des siens
+« On ne sait pas comment ils nous trouvent. » Le ressort le plus fort de la saison, et il
+**retourne le jeu** : depuis le début on protège six coques, et la seule sortie consiste à en
+détruire une soi-même. Il se joue au dernier secteur (`sector.finale`).
+
+**Pourquoi ici et pas plus tôt** : tant que les âmes n'étaient qu'un compteur, abattre un de ses
+transports ne pesait rien. Ce n'est qu'avec l'économie de flotte que le sacrifice ampute — et le
+coupable étant **tiré au sort**, ce peut être la citerne dont on a besoin pour forcer le calcul.
+
+**L'arbitrage est information contre temps.** Chaque **RELEVÉ** écarte un innocent à coup sûr mais
+coûte `TUNE.signalFixCost` (11 %) de charge FTL, c'est-à-dire exactement ce qui permet de fuir.
+Mesuré : la certitude complète prend **5 relevés** et fait tomber le calcul de **74 à 19 %**. On
+peut donc tirer avant d'être sûr — moins cher, mais tuer un innocent coûte ses âmes, sa fonction,
+et **ne rompt pas la boucle**.
+⚠ Un relevé n'écarte **jamais** le coupable : payer de la charge FTL pour n'apprendre parfois rien
+transformerait la déduction en loterie.
+
+**Le tir sur un civil exige un ordre explicite** (`SignalHunt.designate`, clic sur la console du
+commandant). Sans cette autorisation, un civil n'entre pas dans `_hostilesForPlayer()` — sinon une
+balle perdue massacrerait la flotte qu'on est venu sauver, et l'horreur serait **subie** au lieu
+d'être décidée. Corollaire assumé : une fois désigné, l'équipage l'engage aussi.
+
+**Deux issues :**
+- détruire le coupable puis sauter ⇒ `_win()`, et le bilan nomme qui a été sacrifié **et** les
+  innocents abattus avant lui. Les taire viderait la décision de son poids.
+- sauter sans avoir résolu ⇒ `_loopAgain()` : on ressort au **même point**, il n'existe plus
+  aucune victoire, seule l'extinction de la flotte peut finir la partie. Le CIC joue un arc court
+  du refus (`PORTE_BOUCLE`, 5 scènes, **aucun choix** — c'est le sens du refus) et le bandeau dit
+  « MÊME POINT, TOUR n ». Les assauts se resserrent de `loopAssaultTighten` par tour : refuser doit
+  coûter, pas ennuyer.
+
+⚠ La clé de mémorisation de l'arc du CIC (`Bridge._lastSector`) inclut le **tour de boucle**, sinon
+revenir à la Porte reprenait l'arc à sa dernière réplique et sautait la passerelle.
+
 ### PHASE PASSERELLE — les 33 minutes se jouent dans le CIC
 `game/Bridge.js` + `data/scenes.js`. Le répit se passait sur l'écran tactique : rien à voir, rien
 à faire, une baleine immobile et un compteur qui descend. Il se joue maintenant **à l'intérieur**,
@@ -572,32 +606,29 @@ d'escadron **et de flotte** · désignation de cible · **cuirassé** démontabl
 canon anti-drone · **terrain** qui coupe les tirs · **cadrage cockpit** + plein écran ·
 **traversée de 5 secteurs** avec victoire · vagues à thème · **phase passerelle (CIC)** avec
 dialogues et choix à conséquences (**un arc par secteur**, 42 scènes) · **saut sur place** (bulle
-de rassemblement + amorçage vulnérable) · mise en scène (annonce radar, ralenti, saut FTL).
+de rassemblement + amorçage vulnérable) · **dénouement** : le transport compromis à identifier
+et à détruire soi-même, sinon la boucle tourne sans fin · mise en scène (annonce radar, ralenti,
+saut FTL).
 
 ## Prochaines pistes
-Ordre décidé avec l'utilisateur : **2 → 4 → 3 → 6**, les chantiers 5 (scènes par secteur) et
-2 (économie de campagne) étant faits.
+Ordre décidé avec l'utilisateur : **2 → 4 → 3 → 6**. Les chantiers **5** (scènes par secteur),
+**2** (économie de campagne) et **4** (dénouement) sont faits.
 
-1. **Le DÉNOUEMENT** — « on ne sait pas comment ils nous trouvent ». Il vient **après** l'économie
-   de campagne, et ce n'est pas un hasard : la décision finale est « on élimine le navire
-   compromis », or détruire un de ses transports ne mordait rien tant que les âmes n'étaient qu'un
-   compteur. Deux issues voulues : le détruire ⇒ la boucle se rompt, victoire ; refuser ⇒ les
-   assauts ne s'arrêtent plus et la partie ne peut finir que par l'extinction de la flotte.
-   L'amorce est posée : l'émission détectée dans les dialogues du Cimetière et du Blocus, et le
-   jalon `trackSignal` (enregistré dans `App.signalTracked`, encore sans mécanique).
-2. **Jouer une traversée complète.** À faire **maintenant que l'économie existe** : combien vaut
-   un transport, est-ce que perdre la citerne se sent, le pont hangar arrive-t-il trop tard.
-   Les tests headless valident les mécanismes, jamais le dosage.
+1. **Jouer une traversée complète.** C'est maintenant le point bloquant : la boucle a un début, une
+   économie et deux fins, et rien n'a jamais été joué en entier. À doser en main : ce que vaut un
+   transport, si perdre la citerne se sent, si le pont hangar arrive trop tard, et surtout si
+   `signalFixCost` (11 %, soit 55 % pour la certitude complète) laisse le dénouement jouable ou le
+   rend intenable. Les tests headless valident les mécanismes, jamais le dosage.
    Signal relevé : un joueur qui ne touche à rien voit la flotte immobile (ordre RALLIEMENT par
    défaut, elle suit une baleine à l'arrêt) et le calcul bloqué au minimum de clarté. Le premier
    secteur devra pousser à avancer plus explicitement.
-3. **Poste d'INGÉNIEUR** — le seul métier annoncé qui n'existe pas. Les sections de coque ne sont
+2. **Poste d'INGÉNIEUR** — le seul métier annoncé qui n'existe pas. Les sections de coque ne sont
    faites que côté ennemi (le cuirassé et ses dix pièces) ; `hullConfig.js` n'a toujours pas de
    champ `section`. Il gagne à venir après l'économie, qui a installé pièces et atelier.
-4. **Finitions** : cible prioritaire persistante pour l'artillerie (`radar.maxTargets` reste
+3. **Finitions** : cible prioritaire persistante pour l'artillerie (`radar.maxTargets` reste
    inutilisé), calibrage des seuils de `WeaponControl._updateSolution` (annonce encore BONNE à
    ~40 % de touches sur cible qui zigzague), matière dans le décor du cockpit.
-5. Plus loin : **coop multi-postes** (l'architecture est prête, cf. `Stations.js`), autres coques,
+4. Plus loin : **coop multi-postes** (l'architecture est prête, cf. `Stations.js`), autres coques,
    boutique plus riche, sons d'ambiance.
 
 **Hors périmètre décidé : le tactile.** Mesuré en émulation iOS — aucun code tactile dans le
