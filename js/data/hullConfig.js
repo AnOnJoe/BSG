@@ -44,22 +44,45 @@ export const HULL_CONFIG = {
   // Superstructure façon passerelle de commandement (Star Destroyer-like)
   tower: { pos: [-0.6, 2.15, 0], base: [1.4, 0.55, 0.7], bridge: [0.6, 0.4, 0.45] },
 
+  /**
+   * SECTIONS DE COQUE — le poste d'INGÉNIEUR.
+   *
+   * Le cuirassé ennemi se démonte pièce par pièce depuis longtemps ; le joueur,
+   * lui, n'avait qu'une barre de PV globale. Il a maintenant quatre sections qui
+   * encaissent LOCALEMENT, selon le point d'impact.
+   *
+   * ⚠ Les sections NE remplacent PAS `structure` : elles courent en parallèle.
+   * La létalité du jeu reste donc exactement celle d'avant (aucune régression
+   * d'équilibrage), et la couche locale n'ajoute qu'une chose — quand une section
+   * tombe, **ses modules sont hors service jusqu'à réparation**. C'est ça le
+   * travail de l'ingénieur : décider quoi remettre en marche d'abord.
+   *
+   * `at` est le centre de la section dans le repère de la coque : c'est lui qui
+   * décide où va un impact (la section la plus proche).
+   */
+  sections: [
+    { id: 'bow', name: 'PROUE', hp: 70, at: [5.4, 0] },
+    { id: 'core', name: 'CŒUR', hp: 95, at: [1.6, 0.2] },
+    { id: 'aft', name: 'POUPE', hp: 80, at: [-2.8, 0.2] },
+    { id: 'engines', name: 'PROPULSION', hp: 60, at: [-6.6, 0.4] },
+  ],
+
   slots: [
     // Armes dorsales
-    { id: 'dorsal_fwd', name: 'Dorsal avant', type: 'weapon', pos: [4.2, 1.75, 0.82] },
-    { id: 'dorsal_mid', name: 'Dorsal central', type: 'weapon', pos: [1.2, 1.9, 0.82] },
-    { id: 'dorsal_aft', name: 'Dorsal arrière', type: 'weapon', pos: [-3.4, 1.5, 0.82] },
+    { id: 'dorsal_fwd', name: 'Dorsal avant', type: 'weapon', section: 'bow', pos: [4.2, 1.75, 0.82] },
+    { id: 'dorsal_mid', name: 'Dorsal central', type: 'weapon', section: 'core', pos: [1.2, 1.9, 0.82] },
+    { id: 'dorsal_aft', name: 'Dorsal arrière', type: 'weapon', section: 'aft', pos: [-3.4, 1.5, 0.82] },
     // Armes ventrales
-    { id: 'ventral_fwd', name: 'Ventral avant', type: 'weapon', pos: [3.9, -1.2, 0.82] },
-    { id: 'ventral', name: 'Ventral', type: 'weapon', pos: [1.6, -1.5, 0.82] },
-    { id: 'ventral_aft', name: 'Ventral arrière', type: 'weapon', pos: [-2.2, -1.35, 0.82] },
+    { id: 'ventral_fwd', name: 'Ventral avant', type: 'weapon', section: 'bow', pos: [3.9, -1.2, 0.82] },
+    { id: 'ventral', name: 'Ventral', type: 'weapon', section: 'core', pos: [1.6, -1.5, 0.82] },
+    { id: 'ventral_aft', name: 'Ventral arrière', type: 'weapon', section: 'aft', pos: [-2.2, -1.35, 0.82] },
     // Propulsion (réacteurs) — à la queue
-    { id: 'engine', name: 'Propulsion', type: 'engine', pos: [-6.9, 0.1, 0.0] },
-    { id: 'engine2', name: 'Propulsion 2', type: 'engine', pos: [-6.4, 0.85, 0.0] },
+    { id: 'engine', name: 'Propulsion', type: 'engine', section: 'engines', pos: [-6.9, 0.1, 0.0] },
+    { id: 'engine2', name: 'Propulsion 2', type: 'engine', section: 'engines', pos: [-6.4, 0.85, 0.0] },
     // Utilitaires (radar, bouclier, armure)
-    { id: 'core', name: 'Coeur utilitaire', type: 'utility', pos: [2.4, 1.15, 0.82] },
-    { id: 'core_aft', name: 'Soute arrière', type: 'utility', pos: [-1.8, 1.55, 0.82] },
-    { id: 'chin', name: 'Menton', type: 'utility', pos: [5.4, -0.7, 0.82] },
-    { id: 'nose', name: 'Proue', type: 'utility', pos: [6.5, 0.15, 0.82] },
+    { id: 'core', name: 'Coeur utilitaire', type: 'utility', section: 'core', pos: [2.4, 1.15, 0.82] },
+    { id: 'core_aft', name: 'Soute arrière', type: 'utility', section: 'aft', pos: [-1.8, 1.55, 0.82] },
+    { id: 'chin', name: 'Menton', type: 'utility', section: 'bow', pos: [5.4, -0.7, 0.82] },
+    { id: 'nose', name: 'Proue', type: 'utility', section: 'bow', pos: [6.5, 0.15, 0.82] },
   ],
 };

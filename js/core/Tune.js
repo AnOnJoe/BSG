@@ -24,6 +24,11 @@ export const TUNE = {
   // la règle du projet. À 1,7 l'écart n'était que de 9-10 points (invisible en jeu),
   // à 2,8 la cible lointaine tombait à 24 % — punitif.
   crewFatigueMul: 2.2,
+  // INGÉNIEUR : débit de réparation des sections de coque (PV/s), et le facteur
+  // gagné en tenant soi-même le poste. Le joueur doit y gagner assez pour que
+  // descendre à la machine vaille le transit — mais l'équipage doit rester utile.
+  engRepairRate: 4.5,
+  engRepairPlayerMul: 2.4,
   crewBiasTime: 0.5,     // durée d'un même biais de visée (s) : rafales cohérentes
   crewHoldFactor: 3,     // au-delà de ce ratio erreur/taille de cible, l'équipage ne tire plus
   powerOutputMul: 1.4, // débit total des réacteurs (×) réparti entre les 3 bus
@@ -116,6 +121,8 @@ export const TUNE_SPECS = [
   ['crewSpread', 'Équipage : dispersion (rad)', 0, 0.4, 0.01],
   ['crewNoRadarMul', 'Équipage : sans radar (×)', 1, 5, 0.25],
   ['crewFatigueMul', 'Équipage : épuisé, sans hôpital (×)', 1, 4, 0.1],
+  ['engRepairRate', 'Ingénieur : réparation (PV/s)', 0.5, 20, 0.5],
+  ['engRepairPlayerMul', 'Ingénieur : au poste (×)', 1, 5, 0.1],
   ['crewBiasTime', 'Équipage : durée du biais (s)', 0.1, 2, 0.1],
   ['crewHoldFactor', 'Équipage : seuil abandon tir', 1, 8, 0.5],
   ['powerOutputMul', 'Débit réacteurs (×)', 0.6, 2.5, 0.1],

@@ -14,6 +14,9 @@ import { Shield } from '../entities/modules/Shield.js';
 import { Armor } from '../entities/modules/Armor.js';
 import { Radar } from '../entities/modules/Radar.js';
 
+/** Réutilisé pour ramener un point d'impact dans le repère de la coque. */
+const _hit = new THREE.Vector3();
+
 const MODULE_CLASSES = {
   laser: LaserCannon,
   missile: MissileLauncher,
@@ -31,6 +34,9 @@ const MODULE_CLASSES = {
  * sérialisation pour la sauvegarde, et l'update de tous les modules.
  */
 export class Ship {
+  /** Part de la section à retrouver pour qu'elle reparte (cf. `repairSection`). */
+  static SECTION_BACK = 0.25;
+
   constructor() {
     this.group = new THREE.Group();
     this.hull = new Hull();
@@ -55,7 +61,84 @@ export class Ship {
     // Répartition de l'énergie entre armes / boucliers / moteurs (anneau de passerelle)
     this.power = new PowerBus();
     this.energyCostMul = 1; // fixé par le mode de tir (WeaponControl)
+    // SECTIONS DE COQUE (poste d'ingénieur). Elles courent EN PARALLÈLE de
+    // `structure` : la létalité du jeu ne change pas, mais une section tombée met
+    // ses modules hors service jusqu'à réparation.
+    this.sections = {};
+    this.resetSections();
   }
+
+  // --- sections de coque (ingénieur) ---
+
+  resetSections() {
+    for (const s of HULL_CONFIG.sections || []) {
+      this.sections[s.id] = { def: s, hp: s.hp, maxHp: s.hp, down: false };
+    }
+  }
+
+  get sectionList() { return (HULL_CONFIG.sections || []).map((s) => this.sections[s.id]); }
+
+  /** Modules montés dans une section. */
+  modulesInSection(id) {
+    return HULL_CONFIG.slots
+      .filter((s) => s.section === id)
+      .map((s) => this.slots[s.id])
+      .filter(Boolean);
+  }
+
+  /**
+   * Section la plus proche d'un point d'impact, exprimé dans le repère de la
+   * COQUE (donc déjà ramené du monde par l'appelant : la baleine tourne).
+   */
+  sectionAt(lx, ly) {
+    let best = null, bd = Infinity;
+    for (const s of this.sectionList) {
+      const d = (s.def.at[0] - lx) ** 2 + (s.def.at[1] - ly) ** 2;
+      if (d < bd) { bd = d; best = s; }
+    }
+    return best;
+  }
+
+  /**
+   * Encaisse localement. Une section à 0 tombe et **coupe ses modules** : on
+   * mémorise `_sectionDown` pour pouvoir les rallumer à la réparation sans
+   * ressusciter ceux que le commandant avait volontairement éteints.
+   * @returns la section tombée à cet instant, ou null.
+   */
+  damageSection(s, amount) {
+    if (!s || s.down) return null;
+    s.hp = Math.max(0, s.hp - amount);
+    if (s.hp > 0) return null;
+    s.down = true;
+    for (const m of this.modulesInSection(s.def.id)) {
+      if (!m.active) continue;
+      m._sectionDown = true;
+      m.setActive(false);
+    }
+    return s;
+  }
+
+  /**
+   * Réparation. Une section remonte au-dessus de `SECTION_BACK` (25 %) redevient
+   * opérationnelle : exiger 100 % rendrait l'ingénieur inutile en combat, où l'on
+   * n'a jamais le temps de finir un chantier.
+   * @returns true si la section vient de repasser en service.
+   */
+  repairSection(s, amount) {
+    if (!s || s.hp >= s.maxHp) return false;
+    s.hp = Math.min(s.maxHp, s.hp + amount);
+    if (!s.down || s.hp < s.maxHp * Ship.SECTION_BACK) return false;
+    s.down = false;
+    for (const m of this.modulesInSection(s.def.id)) {
+      if (!m._sectionDown) continue;
+      m._sectionDown = false;
+      m.setActive(true);
+    }
+    return true;
+  }
+
+  /** Un module est-il coupé parce que sa section est tombée ? */
+  isSectionDown(mod) { return !!mod?._sectionDown; }
 
   // --- construction ---
   mount(slotId, moduleId, level = 1) {
@@ -146,7 +229,8 @@ export class Ship {
     this.energy = this.energyMax;
     this._sinceHit = 99;
     this.power.reset(); // on repart toujours en profil équilibré
-    for (const m of this.modules) if (m.reload) m.reload();
+    this.resetSections();
+    for (const m of this.modules) { m._sectionDown = false; if (m.reload) m.reload(); }
   }
 
   consume(amount) {
@@ -157,7 +241,15 @@ export class Ship {
   /** Bouclier opérationnel : dès qu'il a de la charge (il protège de nouveau). */
   get shieldUp() { return this.shieldMax > 0 && this.shield > 0; }
 
-  takeDamage(d) {
+  /**
+   * @param d dégâts
+   * @param at point d'impact EN COORDONNÉES MONDE (optionnel). S'il est fourni et
+   *   que le bouclier est tombé, la section correspondante encaisse aussi — la
+   *   bulle protège donc la coque locale autant que la structure, ce qui garde
+   *   cohérent le rôle du bouclier.
+   * @returns la section tombée à cet instant, ou null (pour l'annonce au HUD).
+   */
+  takeDamage(d, at = null) {
     this._sinceHit = 0;
     let r = d;
     if (this.shield > 0) {
@@ -167,6 +259,12 @@ export class Ship {
       if (this.shield <= 0) this.shieldBroken = true; // le bouclier se brise
     }
     this.structure = Math.max(0, this.structure - r);
+    if (r <= 0 || !at) return null;
+    // Le point d'impact est dans le repère du monde : la baleine tourne, il faut
+    // le ramener dans son repère avant de chercher la section la plus proche.
+    _hit.set(at.x, at.y, at.z ?? 0);
+    this.group.worldToLocal(_hit);
+    return this.damageSection(this.sectionAt(_hit.x, _hit.y), r);
   }
 
   isDefeated() { return this.structure <= 0; }

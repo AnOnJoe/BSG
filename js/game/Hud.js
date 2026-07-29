@@ -1,6 +1,6 @@
 import { STATION_DEFS } from '../core/Stations.js';
 import { FIRE_MODES } from '../core/WeaponControl.js';
-import { HELM_ORDERS, DRONE_ORDERS, FLEET_ORDERS } from '../data/orders.js';
+import { HELM_ORDERS, DRONE_ORDERS, FLEET_ORDERS, ENGINEER_ORDERS } from '../data/orders.js';
 import { viewport } from '../core/Viewport.js';
 
 /**
@@ -30,7 +30,7 @@ export class Hud {
     this.container = container;
   }
 
-  build(weaponControl, ship, onToggle, onStation, onOrder, onSignalFix, onDesignate) {
+  build(weaponControl, ship, onToggle, onStation, onOrder, onSignalFix, onDesignate, onSection) {
     this.container.innerHTML = '';
     this._indicators = [];
     this.ship = ship;
@@ -40,6 +40,7 @@ export class Hud {
     // Dénouement : relevé payé en charge FTL, et autorisation de tir sur un civil.
     this.onSignalFix = onSignalFix;
     this.onDesignate = onDesignate;
+    this.onSection = onSection;
     this._cmdKey = '';
     this._capKey = '';
     this._modKey = '';
@@ -334,6 +335,73 @@ export class Hud {
     this._buildHelmCockpit();
     this._buildGunneryCockpit();
     this._buildDroneCockpit();
+    this._buildEngineerCockpit();
+  }
+
+  /**
+   * INGÉNIEUR : le plan de coque en sections. C'est l'instrument central du poste —
+   * on doit voir d'un coup d'œil laquelle est percée, ce qu'elle a éteint, et où
+   * l'atelier travaille en ce moment. Sans ce dernier point, l'insuffisance de
+   * l'équipage (il colmate le plus abîmé, pas le plus utile) resterait invisible,
+   * et le poste n'aurait aucune raison d'exister.
+   */
+  _buildEngineerCockpit() {
+    this.cockpits.engineer.body.innerHTML =
+      `<div class="ck-group ck-sections">
+         <div class="ck-label">SECTIONS DE COQUE <span class="ck-sub">chiffres = désigner</span></div>
+         <div class="sec-row"></div>
+       </div>
+       <div class="ck-group">
+         <div class="ck-label">ATELIER</div>
+         <div class="eng-work">—</div>
+         <div class="eng-rate"></div>
+       </div>`;
+    const b = this.cockpits.engineer.body;
+    this.secRow = b.querySelector('.sec-row');
+    this.engWork = b.querySelector('.eng-work');
+    this.engRate = b.querySelector('.eng-rate');
+    this._secKey = '';
+  }
+
+  /**
+   * État des sections. `onSection` est branché sur le clic ; le refus (hors du
+   * poste) est géré par `Range`, pas ici — le HUD ne décide pas des autorisations.
+   */
+  setSections(ship, engineer, atPost, rate) {
+    if (!this.secRow) return;
+    const list = ship.sectionList;
+    const key = list.map((x) => `${x.def.id}:${Math.ceil(x.hp)}:${x.down ? 'd' : ''}` +
+      `:${engineer.target === x ? 't' : ''}:${engineer.section === x ? 'w' : ''}`).join(',');
+    if (key !== this._secKey) {
+      this._secKey = key;
+      this.secRow.innerHTML = list.map((x, i) => {
+        const pct = Math.max(0, Math.min(100, (x.hp / x.maxHp) * 100));
+        const mods = ship.modulesInSection(x.def.id);
+        const hs = mods.filter((m) => ship.isSectionDown(m));
+        const cls = x.down ? 'down' : pct < 50 ? 'hurt' : 'ok';
+        return `<div class="sec-cell ${cls}${engineer.target === x ? ' pick' : ''}` +
+          `${engineer.section === x ? ' work' : ''}" data-i="${i}">
+            <div class="sc-head"><span class="sc-key">${i + 1}</span>${x.def.name}</div>
+            <div class="sc-bar"><div class="sc-fill" style="width:${pct}%"></div></div>
+            <div class="sc-hp">${Math.ceil(x.hp)}/${x.maxHp}</div>
+            <div class="sc-mods">${hs.length
+              ? `⚠ ${hs.map((m) => m.def.name).join(', ')} HS`
+              : mods.length ? `${mods.length} module(s)` : '—'}</div>
+          </div>`;
+      }).join('');
+      for (const el of this.secRow.querySelectorAll('.sec-cell')) {
+        el.addEventListener('click', () => this.onSection?.(list[+el.dataset.i]));
+      }
+    }
+    const w = engineer.section;
+    this.engWork.textContent = w
+      ? `${w.def.name} — ${Math.round((w.hp / w.maxHp) * 100)} %`
+      : 'rien à réparer';
+    this.engWork.className = `eng-work${w ? ' on' : ''}`;
+    // Dire QUI répare et à quel débit : c'est l'argument pour descendre au poste.
+    this.engRate.textContent = w
+      ? `${rate.toFixed(1)} PV/s · ${atPost ? 'vous' : 'équipage'}`
+      : '';
   }
 
   /** COMMANDANT : répartition d'énergie, modules, IEM. */
@@ -355,6 +423,7 @@ export class Hud {
          ${this._orderRowHtml('helm', 'PILOTE', HELM_ORDERS)}
          ${this._orderRowHtml('gunnery', 'ARTILLEUR', FIRE_MODES)}
          ${this._orderRowHtml('drones', 'DRONES', DRONE_ORDERS)}
+         ${this._orderRowHtml('engineer', 'INGÉNIEUR', ENGINEER_ORDERS)}
        </div>
        <div class="ck-group ck-modules">
          <div class="ck-label">MODULES <span class="ck-sub">clic = activer / couper</span></div>
@@ -372,7 +441,7 @@ export class Hud {
 
     // Console d'ordres : le commandant pose les consignes des autres postes sans
     // quitter la sienne. Il ne peut pas pour autant barrer ni viser à leur place.
-    this.orderBtns = { fleet: [], helm: [], gunnery: [], drones: [] };
+    this.orderBtns = { fleet: [], helm: [], gunnery: [], drones: [], engineer: [] };
     for (const kind of Object.keys(this.orderBtns)) {
       for (const btn of body.querySelectorAll(`.ord-btn[data-kind="${kind}"]`)) {
         btn.addEventListener('click', () => this.onOrder?.(kind, btn.dataset.id));
@@ -545,7 +614,12 @@ export class Hud {
     if (!this.chips) return;
     for (const { chip, module, ammoEl } of this.chips) {
       chip.classList.toggle('active', module.active);
-      chip.querySelector('.mod-lv').textContent = `Nv ${module.level}`;
+      // HORS SERVICE par section percée : à distinguer d'un module simplement
+      // coupé par le commandant, sinon on clique dessus en vain sans comprendre.
+      const hs = !!module._sectionDown;
+      chip.classList.toggle('offline', hs);
+      chip.title = hs ? 'Section percée — réparation nécessaire (poste d\'ingénieur)' : '';
+      chip.querySelector('.mod-lv').textContent = hs ? 'HS' : `Nv ${module.level}`;
       chip.style.setProperty('--chip-color', hexToCss(module.levelColor));
       ammoEl.textContent = module.defId === 'missile' ? `${module.ammo}/${module.ammoMax}` : '';
     }

@@ -43,6 +43,21 @@ export const FLEET_ORDERS = [
   { id: 'push', name: 'FORCER', speedMul: 1.35, spread: 0.34, wear: 1.7 },
 ];
 
+/**
+ * Poste INGÉNIEUR — priorité de réparation des sections de coque.
+ *
+ * `sections` restreint le champ de l'équipage. Aucune de ces trois consignes n'est
+ * bonne partout : ARMEMENT rend du feu mais laisse la propulsion en vrac (donc on
+ * ne peut plus rompre), PROPULSION rend la manœuvre mais on tire moins, et
+ * AVARIES colmate le plus abîmé — ce qui est souvent la section la moins utile,
+ * puisque le plus abîmé n'est pas le plus nécessaire.
+ */
+export const ENGINEER_ORDERS = [
+  { id: 'damage', name: 'AVARIES', sections: null },
+  { id: 'weapons', name: 'ARMEMENT', sections: ['bow', 'core', 'aft'] },
+  { id: 'engines', name: 'PROPULSION', sections: ['engines'] },
+];
+
 /** Poste DRONES — emploi de l'escadron. */
 export const DRONE_ORDERS = [
   { id: 'attack', name: 'ATTAQUE' },

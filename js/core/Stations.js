@@ -23,6 +23,9 @@ export const STATION_DEFS = [
   { id: 'helm', name: 'PILOTE', icon: '⛭', role: 'cap · allure · manœuvres' },
   { id: 'gunnery', name: 'ARTILLEUR', icon: '⌖', role: 'ciblage · mode de tir' },
   { id: 'drones', name: 'DRONES', icon: '◈', role: 'ordres d\'escadron' },
+  // INGÉNIEUR : répare les sections de coque. Son IA colmate le plus abîmé, ce qui
+  // est presque toujours le mauvais choix — cf. core/Engineer.js.
+  { id: 'engineer', name: 'INGÉNIEUR', icon: '⚒', role: 'sections · réparations' },
 ];
 
 export function stationDef(id) {

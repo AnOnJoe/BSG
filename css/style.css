@@ -1611,3 +1611,61 @@ body.expanded #ftl-panel { left: 12px; top: 176px; width: 196px; }
 .sig-fix:disabled { opacity: 0.45; cursor: default; }
 .sig-note { margin-top: 4px; font-size: 8px; letter-spacing: 0.5px; color: var(--neon-amber); }
 .sig-note.done { color: var(--neon-green); }
+
+/* ============================================================
+   POSTE D'INGÉNIEUR — le plan de coque en sections.
+   Il faut voir d'un coup d'œil laquelle est percée, ce qu'elle a éteint, et
+   OÙ L'ATELIER TRAVAILLE : sans ce dernier point, l'insuffisance de l'équipage
+   (il colmate le plus abîmé, pas le plus utile) resterait invisible et le poste
+   n'aurait aucune raison d'exister.
+   ============================================================ */
+.sec-row { display: flex; gap: 5px; }
+.sec-cell {
+  flex: 1; min-width: 92px;
+  border: 1px solid rgba(75,106,122,0.5); border-radius: 4px;
+  padding: 4px 6px; cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.sec-cell:hover { border-color: var(--neon-cyan); }
+.sc-head { display: flex; align-items: center; gap: 5px; font-size: 9px; letter-spacing: 1.2px; }
+.sc-key {
+  font-size: 8px; color: var(--bg); background: var(--dim);
+  border-radius: 3px; padding: 0 3px;
+}
+.sc-bar {
+  height: 5px; margin: 3px 0 2px;
+  border: 1px solid rgba(75,106,122,0.4); border-radius: 2px;
+  background: rgba(0,0,0,0.5); overflow: hidden;
+}
+.sc-fill { height: 100%; background: var(--neon-green); transition: width 0.2s; }
+.sc-hp { font-size: 8px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.sc-mods { font-size: 8px; letter-spacing: 0.3px; color: var(--dim); margin-top: 1px; }
+
+.sec-cell.hurt .sc-fill { background: var(--neon-amber); }
+.sec-cell.hurt .sc-head { color: var(--neon-amber); }
+/* PERCÉE : ses modules sont hors service jusqu'à réparation */
+.sec-cell.down {
+  border-color: rgba(255,51,136,0.6); background: rgba(255,51,136,0.08);
+}
+.sec-cell.down .sc-fill { background: var(--neon-magenta); }
+.sec-cell.down .sc-head { color: var(--neon-magenta); }
+.sec-cell.down .sc-mods { color: var(--neon-magenta); }
+/* Désignée par l'ingénieur au poste */
+.sec-cell.pick { border-color: var(--neon-cyan); box-shadow: 0 0 7px rgba(51,255,255,0.35); }
+/* Là où l'atelier travaille en ce moment — liseré animé */
+.sec-cell.work .sc-bar { border-color: var(--neon-cyan); }
+.sec-cell.work .sc-fill { animation: eng-pulse 1s ease-in-out infinite; }
+@keyframes eng-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+.eng-work { font-size: 12px; letter-spacing: 1.5px; color: var(--dim); }
+.eng-work.on { color: var(--neon-cyan); }
+.eng-rate { font-size: 8px; letter-spacing: 1px; color: var(--neon-amber); margin-top: 2px; }
+
+/* Pastille de module HORS SERVICE : à distinguer d'un module simplement coupé */
+.mod-chip.offline {
+  border-color: rgba(255,51,136,0.65) !important;
+  background: rgba(255,51,136,0.1);
+  cursor: not-allowed;
+}
+.mod-chip.offline .mod-name { color: var(--neon-magenta); text-decoration: line-through; }
+.mod-chip.offline .mod-lv { color: var(--neon-magenta); letter-spacing: 1.5px; }

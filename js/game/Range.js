@@ -17,6 +17,7 @@ import { Terrain } from '../entities/Terrain.js';
 import { Convoy } from '../entities/Convoy.js';
 import { FtlDrive, FTL_MODES } from '../core/FtlDrive.js';
 import { SignalHunt } from '../core/SignalHunt.js';
+import { Engineer } from '../core/Engineer.js';
 import { FLEET, totalSouls, FLEET_ROLES } from '../data/convoyConfig.js';
 import { COMBAT_OFFSET } from '../core/Camera.js';
 import { Drone } from '../entities/Drone.js';
@@ -85,6 +86,7 @@ export class Range {
     this.campaignActive = false;
     this._roles = null;         // fonctions de la flotte à la frame précédente
     this.signal = new SignalHunt(); // dénouement : le transport compromis
+    this.engineer = new Engineer();  // 5e poste : sections de coque
     this.loopCount = 0;         // tours de boucle refusés au dernier secteur
     // Anneau de passerelle (clic droit) : bascule de profil d'énergie
     this.ring = new CommandRing(
@@ -280,7 +282,8 @@ export class Range {
       (id) => this.goToStation(id),
       (kind, id) => this.setOrder(kind, id),
       () => this._takeSignalFix(),
-      (t) => this._designateTransport(t)
+      (t) => this._designateTransport(t),
+      (sec) => this._designateSection(sec)
     );
     this.aim.enable();
     this.input.enable();
@@ -337,6 +340,7 @@ export class Range {
     this._roles = null;          // le veilleur de fonctions repart à neuf
     this.weapons.fatigue = 1;
     this.signal.reset();
+    this.engineer.reset();
     this.loopCount = 0;
     this.ftl.reset(this.sector.ftlTime, this.sector.ftlPreCharge);
     this._resetDradis();
@@ -439,6 +443,52 @@ export class Range {
       this.hud.pushLog(`GAETA — C'est lui. ${left[0].def.name}. Il n'y a plus de doute.`);
       this.hud.showWaveBanner(0, `⌖ ${left[0].def.name.toUpperCase()} — L'ÉMISSION VIENT DE LUI`);
     }
+    return true;
+  }
+
+  /**
+   * Une section vient-elle de tomber ? Il FAUT le dire, et dire quoi est éteint :
+   * sinon le joueur constate un canon qui ne répond plus et croit à un bug — c'est
+   * le même piège que « SOLUTION BONNE » sur une cible masquée.
+   */
+  _onHullHit(downed) {
+    if (!downed) return;
+    const mods = this.ship.modulesInSection(downed.def.id);
+    const names = mods.map((m) => m.def.name).join(', ');
+    this.hud.pushLog(`SECTION ${downed.def.name} PERCÉE — ${names || 'aucun module'} hors service.`);
+    this.hud.showWaveBanner(0, `⚒ ${downed.def.name} PERCÉE — ${mods.length} MODULE(S) HS`);
+    this.hud.flashDamage(0.7);
+    this.shake.add(0.4);
+    this.audio.boom?.(0.5);
+    this.hud.refreshStates();
+  }
+
+  /**
+   * Réparation d'une section, une frame. L'équipage colmate le plus abîmé (souvent
+   * le mauvais choix) ; au poste, le joueur choisit et va `engRepairPlayerMul` fois
+   * plus vite. Cf. `core/Engineer.js`.
+   */
+  _updateEngineer(dt) {
+    const atPost = this.stations.manned('engineer');
+    const res = this.engineer.update(dt, this.ship, atPost, this.stations.crewed('engineer'));
+    if (res.restored) {
+      const mods = this.ship.modulesInSection(res.section.def.id);
+      this.hud.pushLog(`SECTION ${res.section.def.name} remise en service` +
+        `${mods.length ? ` — ${mods.map((m) => m.def.name).join(', ')} repart` : ''}.`);
+      this.hud.showWaveBanner(0, `⚒ ${res.section.def.name} REMISE EN SERVICE`);
+      this.audio.pickup?.();
+      this.hud.refreshStates();
+    }
+  }
+
+  /** Section désignée par l'ingénieur AU POSTE (le commandant n'a que la priorité). */
+  _designateSection(sec) {
+    if (!this.stations.manned('engineer')) {
+      this.hud.showWaveBanner(0, 'SECTION — poste d\'ingénieur');
+      return false;
+    }
+    this.engineer.target = this.engineer.target === sec ? null : sec;
+    this.audio.relay?.();
     return true;
   }
 
@@ -637,6 +687,11 @@ export class Range {
     } else if (st === 'helm') {
       const order = HELM_ORDERS[n - 1];
       if (order) this.setOrder('helm', order.id);
+    } else if (st === 'engineer') {
+      // Au poste, les chiffres DÉSIGNENT une section : c'est l'exécution, et elle
+      // n'appartient qu'à l'ingénieur. La priorité, elle, passe par setOrder.
+      const sec = this.ship.sectionList[n - 1];
+      if (sec) this._designateSection(sec);
     }
     this.hud.refreshStates();
   }
@@ -714,7 +769,7 @@ export class Range {
     if (this.over) return false;
     // La flotte n'obéit qu'au commandant : aucun poste ne la commande en propre.
     const post = kind === 'helm' ? 'helm' : kind === 'gunnery' ? 'gunnery'
-      : kind === 'fleet' ? 'command' : 'drones';
+      : kind === 'fleet' ? 'command' : kind === 'engineer' ? 'engineer' : 'drones';
     if (!this.stations.manned('command') && !this.stations.manned(post)) {
       this.hud.showWaveBanner(this.wave, 'ORDRE — console du commandant');
       return false;
@@ -727,6 +782,11 @@ export class Range {
       this.fleetOrder = id;
       this.hud.pushLog(`Ordre à la flotte : ${FLEET_ORDERS.find((o) => o.id === id).name}.`);
       ok = true;
+    } else if (kind === 'engineer') {
+      ok = this.engineer.setOrder(id);
+      // Changer de priorité annule la section désignée à la main : sinon la
+      // consigne du commandant serait sans effet visible et paraîtrait ignorée.
+      if (ok) this.engineer.target = null;
     }
     if (ok) this.audio.relay();
     return ok;
@@ -753,6 +813,15 @@ export class Range {
     if (this.over) return;
     if (!this.stations.manned('command')) {
       this.hud.showWaveBanner(this.wave, 'MODULES — console du commandant');
+      return;
+    }
+    // Un module dont la SECTION est percée ne se rallume pas au clic : il faut le
+    // réparer. Sans ce garde-fou, la mise hors service n'aurait aucun poids et le
+    // poste d'ingénieur deviendrait décoratif.
+    const mod = this.weapons.layout()[n - 1]?.module;
+    if (mod && this.ship.isSectionDown(mod)) {
+      this.hud.showWaveBanner(this.wave, `${mod.def.name.toUpperCase()} — SECTION PERCÉE`);
+      this.hud.pushLog(`${mod.def.name} : la section est percée, il faut la réparer.`);
       return;
     }
     this.weapons.toggle(n);
@@ -1156,7 +1225,8 @@ export class Range {
           done = true;
         } else if (hitEntity.isPlayer) {
           const wasShield = this.ship.shieldUp;
-          this.ship.takeDamage(b.damage);
+          // Le POINT d'impact décide de la section touchée (poste d'ingénieur).
+          this._onHullHit(this.ship.takeDamage(b.damage, b.mesh.position));
           if (wasShield) { impactColor = SHIELD_COLOR; this.shake.add(0.06); } // absorbé par le bouclier
           else { this.hud.flashDamage(0.45); this.shake.add(0.16); }           // touche la coque
         } else {
@@ -1368,14 +1438,17 @@ export class Range {
       if (dist < min) {
         const push = min - dist, nx = dx / dist, ny = dy / dist;
         b.x += nx * push; b.y += ny * push;
-        this.ship.takeDamage(14 * dt);
+        // Abordage : le contact se produit du côté de l'ennemi.
+        this._onHullHit(this.ship.takeDamage(14 * dt, {
+          x: a.x + nx * this.ship.collisionRadius, y: a.y + ny * this.ship.collisionRadius,
+        }));
         e.takeDamage(14 * dt);
         this.shake.add(0.06);
       }
     }
     // Décor : le joueur est repoussé et racle sa coque ; les ennemis contournent.
     if (this.terrain.push(a, this.ship.collisionRadius)) {
-      this.ship.takeDamage(10 * dt);
+      this._onHullHit(this.ship.takeDamage(10 * dt, a));
       this.shake.add(0.05);
     }
     for (const e of this.aliveEnemies) this.terrain.push(e.group.position, e.collisionRadius);
@@ -1393,7 +1466,10 @@ export class Range {
           const push = min - dist;
           a.x += (dx / dist) * push;
           a.y += (dy / dist) * push;
-          this.ship.takeDamage(18 * dt);
+          this._onHullHit(this.ship.takeDamage(18 * dt, {
+            x: a.x + (dx / dist) * this.ship.collisionRadius,
+            y: a.y + (dy / dist) * this.ship.collisionRadius,
+          }));
           this.shake.add(0.1);
         }
       }
@@ -1627,6 +1703,14 @@ export class Range {
     }
     else if (st === 'gunnery') this.hud.setCommands(st, FIRE_MODES, this.weapons.modeId);
     else if (st === 'drones') this.hud.setCommands(st, DRONE_ORDERS, this.droneOrder);
+    else if (st === 'engineer') {
+      // Au poste d'ingénieur, les chiffres DÉSIGNENT une section. Le `else` final
+      // servait HELM_ORDERS à tout le monde : le cockpit de l'ingénieur affichait
+      // donc « ENGAGER / RÉCUPÉRER / ROMPRE », qui ne sont pas ses commandes.
+      const secs = this.ship.sectionList.map((x) => ({ id: x.def.id, name: x.def.name }));
+      this.hud.setCommands(st, secs,
+        this.engineer.target?.def?.id, this.engineer.section?.def?.id);
+    }
     else this.hud.setCommands(st, HELM_ORDERS, this.helmOrder);
 
     // Instruments propres aux postes de pilote et de drones
@@ -1681,6 +1765,10 @@ export class Range {
     });
     // Dénouement : suspects, relevés payés, tir autorisé (masqué hors du finale).
     this.hud.setSignal(this.signal, this.convoy.transports, TUNE.signalFixCost);
+    // Sections de coque + qui répare quoi (poste d'ingénieur)
+    const engAtPost = this.stations.manned('engineer');
+    this.hud.setSections(this.ship, this.engineer, engAtPost,
+      TUNE.engRepairRate * (engAtPost ? TUNE.engRepairPlayerMul : 1));
     this.hud.setWave(this.assaultNo, this.aliveEnemies.length, {
       sector: this.sector, index: this.sectorIndex + 1, total: SECTOR_COUNT,
       theme: this.waveTheme, terrain: this.terrain.name,
@@ -1787,6 +1875,8 @@ export class Range {
     this.stations.update(dt);
     // Une fonction de la flotte vient-elle de disparaître ? (voir _watchFleetRoles)
     this._watchFleetRoles();
+    // Réparation des sections de coque (poste d'ingénieur)
+    this._updateEngineer(dt);
     // Pendant un saut : plus d'ennemis, on laisse le vaisseau sur son erre.
     if (this.jumping) {
       this.jumpTimer -= dt;
