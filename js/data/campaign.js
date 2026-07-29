@@ -65,6 +65,10 @@ export const SECTORS = [
     assaultEvery: 16,
     themes: ['battle', 'siege', 'swarm'],
     capital: true,
+    // DÉNOUEMENT : ici, sauter ne suffit plus. Tant que le transport compromis
+    // n'est pas identifié et détruit, la boucle recommence — et la seule autre
+    // issue est l'extinction de la flotte. Cf. `core/SignalHunt.js`.
+    finale: true,
   },
 ];
 

@@ -36,17 +36,21 @@ export class Bridge {
 
   enter() {
     const sectorId = this.app.range.sector.id;
+    const loop = this.app.range.loopCount || 0;
+    // La clé inclut le tour de boucle : chaque passage refusé à la Porte doit
+    // rejouer l'arc du refus, pas reprendre là où l'on s'était arrêté.
+    const key = `${sectorId}#${loop}`;
     // ⚠ Une ESCALE au pont hangar repasse par `exit()`/`enter()`. Sans ce test, y
     // descendre puis remonter rejouait l'arc depuis la première réplique et
     // ANNULAIT les choix déjà faits — on pouvait même les repayer en boucle.
     // On ne repart de zéro que si l'on entre dans un NOUVEAU secteur.
-    if (sectorId !== this._lastSector) {
+    if (key !== this._lastSector) {
       this.index = 0;
       this.effects = [];
-      this._lastSector = sectorId;
+      this._lastSector = key;
     }
-    this._scenes = scenesFor(sectorId);
-    this._crew = crewFor(sectorId);
+    this._scenes = scenesFor(sectorId, loop);
+    this._crew = crewFor(sectorId, loop);
     this._build();
     this._render();
     window.addEventListener('keydown', this._onKey);
@@ -190,7 +194,12 @@ export class Bridge {
   _render() {
     const s = this.scene;
     const sector = this.app.range.sector;
-    this.el.sector.textContent = `${sector.name} · ${sector.subtitle}`;
+    const loop = this.app.range.loopCount || 0;
+    // Un tour de boucle refusé doit se lire dans le bandeau : sinon le joueur voit
+    // « dernier saut avant le refuge » alors qu'il tourne en rond depuis trois sauts.
+    this.el.sector.textContent = loop > 0
+      ? `${sector.name} · ↻ MÊME POINT, TOUR ${loop}`
+      : `${sector.name} · ${sector.subtitle}`;
 
     const m = Math.floor(s.at);
     this.el.time.textContent = `${String(m).padStart(2, '0')}:00`;

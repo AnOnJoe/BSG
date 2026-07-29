@@ -1563,3 +1563,51 @@ body.expanded #ftl-panel { left: 12px; top: 176px; width: 196px; }
 
 .mn-keys { display: flex; gap: 18px; flex-wrap: wrap; font-size: 9px; letter-spacing: 1px; color: var(--dim); }
 .mn-keys b { color: var(--text); }
+
+/* ============================================================
+   DÉNOUEMENT — le transport compromis (console du commandant).
+   Tout est explicite : combien de relevés payés, ce que le suivant coûte,
+   et sur qui le feu est ouvert. Une décision de cette gravité ne doit pas
+   reposer sur une icône qu'il faut interpréter.
+   ============================================================ */
+.ck-signal { min-width: 250px; }
+.sig-row { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 5px; }
+.sig-chip {
+  display: flex; flex-direction: column; gap: 1px;
+  border: 1px solid rgba(75,106,122,0.5); border-radius: 4px;
+  padding: 3px 6px; cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.sc-name { font-size: 9px; color: var(--text); }
+.sc-state { font-size: 7px; letter-spacing: 1.2px; color: var(--dim); }
+.sig-chip.susp:hover { border-color: var(--neon-amber); background: rgba(255,170,51,0.08); }
+/* Écarté par un relevé : hors de cause, on n'y touche plus */
+.sig-chip.out { opacity: 0.38; cursor: default; }
+.sig-chip.out .sc-name { text-decoration: line-through; }
+/* Détruit */
+.sig-chip.dead { opacity: 0.3; cursor: default; border-color: rgba(255,51,136,0.35); }
+.sig-chip.dead .sc-state { color: var(--neon-magenta); }
+/* Dernier suspect : c'est lui */
+.sig-chip.found { border-color: var(--neon-amber); background: rgba(255,170,51,0.12); }
+.sig-chip.found .sc-name { color: var(--neon-amber); }
+.sig-chip.found .sc-state { color: var(--neon-amber); }
+/* Feu autorisé : il faut que ça se voie sans ambiguïté */
+.sig-chip.mark {
+  border-color: var(--neon-magenta);
+  background: rgba(255,51,136,0.16);
+  box-shadow: 0 0 8px rgba(255,51,136,0.4);
+}
+.sig-chip.mark .sc-name, .sig-chip.mark .sc-state { color: var(--neon-magenta); }
+
+.sig-fix {
+  width: 100%;
+  font-family: var(--font); font-size: 9px; letter-spacing: 1.5px;
+  color: var(--text); background: rgba(8,16,26,0.7);
+  border: 1px solid var(--panel-border); border-radius: 4px;
+  padding: 5px 8px; cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.sig-fix:hover:not(:disabled) { border-color: var(--neon-cyan); background: rgba(51,255,255,0.1); }
+.sig-fix:disabled { opacity: 0.45; cursor: default; }
+.sig-note { margin-top: 4px; font-size: 8px; letter-spacing: 0.5px; color: var(--neon-amber); }
+.sig-note.done { color: var(--neon-green); }

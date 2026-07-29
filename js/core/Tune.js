@@ -52,6 +52,10 @@ export const TUNE = {
                        // saut précédent) : avancer vers la sortie la ramène à 1,
                        // ce qui donne une raison mécanique de traverser
   jumpSpoolTime: 5.5,  // amorçage du saut : durée d'immobilité vulnérable (s)
+  // DÉNOUEMENT : un relevé écarte un innocent mais se paie en charge FTL, donc en
+  // assauts supplémentaires. C'est tout l'arbitrage — la certitude contre le temps.
+  signalFixCost: 11,   // % de charge FTL consommée par relevé
+  loopAssaultTighten: 0.82, // assauts ×(ce facteur) à chaque tour de boucle refusé
   contactDelay: 12,    // sursis à l'arrivée dans le couloir avant le contact (s)
                        // — les 33 minutes sont jouées au CIC, pas ici
   cylonPlayerAggro: 26, // en dessous de cette distance, un Cylon traite la baleine
@@ -131,6 +135,8 @@ export const TUNE_SPECS = [
   ['dradisCompress', 'Compression des 33 min (×)', 4, 40, 0.5],
   ['contactDelay', 'Sursis avant contact (s)', 2, 40, 1],
   ['jumpSpoolTime', 'Amorçage du saut (s)', 1, 15, 0.5],
+  ['signalFixCost', 'Relevé : coût en charge FTL (%)', 0, 30, 1],
+  ['loopAssaultTighten', 'Boucle refusée : assauts (×)', 0.5, 1, 0.02],
   ['ftlMinClarity', 'Calcul perturbé à l\'entrée (×)', 0.1, 1, 0.02],
   ['cylonPlayerAggro', 'Cylons : distance d\'agressivité', 8, 60, 2],
   ['capitalCamZoom', 'Recul caméra cuirassé (×)', 1, 2.5, 0.05],

@@ -456,6 +456,36 @@ const PORTE = [
   },
 ];
 
+/**
+ * LA BOUCLE REFUSÉE. On a sauté sans avoir trouvé le traître : on ressort au même
+ * endroit, et il n'y a plus de victoire à obtenir. Arc court — l'obstination doit
+ * avoir une voix, mais pas rallonger la partie à chaque tour. Il n'offre plus de
+ * choix : c'est le sens du refus, on ne décide plus rien.
+ */
+const PORTE_BOUCLE = [
+  {
+    at: 33, speaker: 'GAETA', role: 'tactique',
+    text: 'Saut terminé. Commandant… mêmes relevés, même perturbation. Nous n\'avons pas avancé d\'un mètre.',
+  },
+  {
+    at: 24, speaker: 'ROSLIN', role: 'présidente',
+    text: 'L\'émission repart. Elle est partie avec nous, commandant, parce qu\'elle est à bord de l\'un de ces vaisseaux. Nous pouvons sauter mille fois.',
+  },
+  {
+    at: 14, speaker: 'ADAMA', role: 'commandant',
+    text: 'Alors ce n\'est plus une poursuite. C\'est une arithmétique : ils reviennent toutes les trente-trois minutes, et nous perdons un vaisseau à chaque fois.',
+  },
+  {
+    at: 6, speaker: 'COTTLE', role: 'médecin-chef',
+    text: 'Vous savez ce qu\'il faut faire. Vous le savez depuis le Cimetière. Je n\'ai pas de traitement pour ça.',
+  },
+  {
+    at: 1, speaker: 'GAETA', role: 'tactique',
+    text: 'Contacts. Encore. Relèvement identique, commandant — comme si nous ne nous étions jamais déplacés.',
+    last: true,
+  },
+];
+
 /** Arc par secteur, indexé sur l'`id` de `data/campaign.js`. */
 export const SECTOR_SCENES = {
   ragnar: RAGNAR,
@@ -465,13 +495,17 @@ export const SECTOR_SCENES = {
   porte: PORTE,
 };
 
-/** Les scènes d'un secteur (repli sur le premier arc si l'id est inconnu). */
-export function scenesFor(sectorId) {
+/**
+ * Les scènes d'un secteur (repli sur le premier arc si l'id est inconnu).
+ * `loop` > 0 = on repasse à la Porte sans avoir rompu la boucle : l'arc du refus.
+ */
+export function scenesFor(sectorId, loop = 0) {
+  if (loop > 0 && sectorId === 'porte') return PORTE_BOUCLE;
   return SECTOR_SCENES[sectorId] || RAGNAR;
 }
 
 /** Les officiers qui prennent la parole dans ce secteur, dans l'ordre de CREW. */
-export function crewFor(sectorId) {
-  const speaking = new Set(scenesFor(sectorId).map((s) => s.speaker));
+export function crewFor(sectorId, loop = 0) {
+  const speaking = new Set(scenesFor(sectorId, loop).map((s) => s.speaker));
   return CREW.filter((c) => speaking.has(c.id));
 }

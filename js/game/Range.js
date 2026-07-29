@@ -16,6 +16,7 @@ import { CapitalShip } from '../entities/CapitalShip.js';
 import { Terrain } from '../entities/Terrain.js';
 import { Convoy } from '../entities/Convoy.js';
 import { FtlDrive, FTL_MODES } from '../core/FtlDrive.js';
+import { SignalHunt } from '../core/SignalHunt.js';
 import { FLEET, totalSouls, FLEET_ROLES } from '../data/convoyConfig.js';
 import { COMBAT_OFFSET } from '../core/Camera.js';
 import { Drone } from '../entities/Drone.js';
@@ -83,6 +84,8 @@ export class Range {
     // Une traversée est-elle en cours ? Décide si `enter()` recommence ou reprend.
     this.campaignActive = false;
     this._roles = null;         // fonctions de la flotte à la frame précédente
+    this.signal = new SignalHunt(); // dénouement : le transport compromis
+    this.loopCount = 0;         // tours de boucle refusés au dernier secteur
     // Anneau de passerelle (clic droit) : bascule de profil d'énergie
     this.ring = new CommandRing(
       (presetId) => this._setPowerPreset(presetId),
@@ -275,7 +278,9 @@ export class Range {
       this.ship,
       (n) => this._toggleModule(n),
       (id) => this.goToStation(id),
-      (kind, id) => this.setOrder(kind, id)
+      (kind, id) => this.setOrder(kind, id),
+      () => this._takeSignalFix(),
+      (t) => this._designateTransport(t)
     );
     this.aim.enable();
     this.input.enable();
@@ -331,6 +336,8 @@ export class Range {
     this.convoy.lostSouls = 0;
     this._roles = null;          // le veilleur de fonctions repart à neuf
     this.weapons.fatigue = 1;
+    this.signal.reset();
+    this.loopCount = 0;
     this.ftl.reset(this.sector.ftlTime, this.sector.ftlPreCharge);
     this._resetDradis();
     this.jumping = false;
@@ -388,6 +395,66 @@ export class Range {
     this.hud.refreshStates();
     this._applyPendingEffects();
     this.hud.pushLog(`${this.sector.name} — ${this.sector.subtitle}`);
+    this._openFinale();
+  }
+
+  /**
+   * DÉNOUEMENT. Au dernier secteur, sauter ne suffit plus : il faut avoir trouvé
+   * et détruit le transport qui les appelle. La chasse n'est ouverte qu'une fois —
+   * si la boucle recommence, le coupable reste le même, sinon les relevés déjà
+   * payés seraient perdus et l'acharnement ne servirait à rien.
+   */
+  _openFinale() {
+    if (!this.sector.finale || this.signal.active) return;
+    if (!this.signal.start(this.convoy.transports)) return;
+    this.hud.pushLog('GAETA — L\'émission part de la flotte. L\'un de ces vaisseaux les appelle.');
+    this.hud.pushLog('Console du commandant : RELEVÉ pour écarter un suspect · DÉSIGNER pour ouvrir le feu.');
+    this.hud.showWaveBanner(0, '⚠ L\'ÉMISSION VIENT DE LA FLOTTE');
+  }
+
+  /**
+   * RELEVÉ. Écarte un innocent, mais se paie en charge FTL — donc en assauts
+   * supplémentaires. La certitude contre le temps : c'est l'arbitrage du dénouement.
+   * Réservé à la console du commandant, comme l'énergie et l'IEM.
+   */
+  _takeSignalFix() {
+    if (!this.signal.active || this.signal.resolved) return false;
+    if (!this.stations.manned('command')) {
+      this.hud.showWaveBanner(0, 'RELEVÉ — console du commandant');
+      return false;
+    }
+    if (this.signal.certain(this.convoy.transports)) {
+      this.hud.pushLog('Le relèvement est déjà établi — inutile de recommencer.');
+      return false;
+    }
+    const out = this.signal.fix(this.convoy.transports);
+    if (!out) return false;
+    this.ftl.charge = Math.max(0, this.ftl.charge - TUNE.signalFixCost);
+    this.ftl.ready = this.ftl.charge >= 100;
+    this.audio.relay?.();
+    this.hud.pushLog(`Relevé ${this.signal.fixes} — ${out.def.name} est écarté ` +
+      `(−${TUNE.signalFixCost} % de calcul).`);
+    const left = this.signal.suspects(this.convoy.transports);
+    if (left.length === 1) {
+      this.hud.pushLog(`GAETA — C'est lui. ${left[0].def.name}. Il n'y a plus de doute.`);
+      this.hud.showWaveBanner(0, `⌖ ${left[0].def.name.toUpperCase()} — L'ÉMISSION VIENT DE LUI`);
+    }
+    return true;
+  }
+
+  /** Autorise le tir sur un civil. Ordre du commandant, et de lui seul. */
+  _designateTransport(t) {
+    if (!this.signal.active || !t || !t.alive) return false;
+    if (!this.stations.manned('command')) {
+      this.hud.showWaveBanner(0, 'TIR SUR LA FLOTTE — console du commandant');
+      return false;
+    }
+    const now = this.signal.designate(t);
+    this.hud.pushLog(now
+      ? `⚠ TIR AUTORISÉ sur ${t.def.name}. Que ce soit consigné.`
+      : `Tir suspendu sur ${t.def.name}.`);
+    this.audio.relay?.();
+    return true;
   }
 
   _clearEntities() {
@@ -610,6 +677,26 @@ export class Range {
       }
     }
     this._roles = now;
+    // DÉNOUEMENT : le veilleur sert aussi à conclure. Un transport vient-il de
+    // mourir, et était-ce LE bon ? Il faut le dire — abattre un innocent sans
+    // retour explicite laisserait croire que la boucle est rompue.
+    if (this.signal.active && !this.signal.resolved) {
+      for (const t of this.convoy.transports) {
+        if (t.alive || t._signalSeen) continue;
+        t._signalSeen = true;
+        const verdict = this.signal.onTransportLost(t);
+        if (verdict === 'culprit') {
+          this.hud.pushLog(`GAETA — L'émission s'est arrêtée. ${t.def.name}… c'était lui.`);
+          this.hud.showWaveBanner(0, '✔ L\'ÉMISSION A CESSÉ — LA BOUCLE EST ROMPUE');
+          this.drama(0.35, 2.0);
+          this.app.renderer.pulse(1);
+        } else if (verdict === 'innocent') {
+          this.hud.pushLog(`L'émission continue. ${t.def.name} n'était pas le bon.`);
+          this.hud.showWaveBanner(0, '✖ L\'ÉMISSION CONTINUE — CE N\'ÉTAIT PAS LUI');
+          this.drama(0.4, 1.6);
+        }
+      }
+    }
     // Épuisement de l'équipage : sans infirmerie, la conduite de tir se dégrade
     // pour le reste de la traversée.
     this.weapons.fatigue = now.has('infirmary') ? 1 : TUNE.crewFatigueMul;
@@ -939,6 +1026,12 @@ export class Range {
     // Chaque pièce du cuirassé est une cible à part entière : c'est ce qui permet
     // de le démonter batterie par batterie plutôt que de « vider un sac de PV ».
     if (this.capital.alive) for (const p of this.capital.parts) if (p.alive) list.push(p);
+    // DÉNOUEMENT : un civil n'entre dans la liste des cibles du joueur que s'il a
+    // été DÉSIGNÉ par le commandant. Sans cette autorisation explicite, une balle
+    // perdue massacrerait la flotte qu'on est venu sauver — l'horreur serait subie
+    // au lieu d'être décidée, et c'est la décision qui fait la scène.
+    const mark = this.signal.designated;
+    if (mark && mark.alive) list.push(mark);
     return list;
   }
 
@@ -1379,7 +1472,15 @@ export class Range {
   _arriveSector() {
     this.jumping = false;
     this.ftl.jumping = false;
-    if (this.sectorIndex + 1 >= SECTOR_COUNT) { this._win(); return; }
+    if (this.sectorIndex + 1 >= SECTOR_COUNT) {
+      // DÉNOUEMENT. Arriver au bout ne suffit plus : tant que le vaisseau qui les
+      // appelle est encore dans la flotte, le saut ne fait que déplacer le
+      // problème. C'est le sens du titre de l'épisode — on peut sauter
+      // indéfiniment, ça ne fait pas cesser la poursuite.
+      if (this.signal.resolved) { this._win(); return; }
+      this._loopAgain();
+      return;
+    }
     this.sectorIndex++;
     // Nouveau saut = nouvelles 33 minutes : on repasse par la passerelle.
     this.pendingSector = true;
@@ -1402,7 +1503,39 @@ export class Range {
     if (this.pendingSector) { this.pendingSector = false; this.app.toBridge(); }
   }
 
-  /** Traversée achevée : la victoire que `_end(type)` n'a jamais reçue. */
+  /**
+   * LA BOUCLE CONTINUE. On a sauté sans avoir trouvé le traître : on ressort au
+   * même endroit, ils reviennent, et il n'existe plus aucune victoire à obtenir —
+   * seulement l'extinction de la flotte, un transport après l'autre. C'est
+   * exactement le refus de décider, et il faut qu'il ait une fin, pas un blocage.
+   *
+   * La pression monte à chaque tour (`loopAssaultTighten`) pour que ça ne s'étire
+   * pas indéfiniment : refuser doit coûter, pas ennuyer.
+   */
+  _loopAgain() {
+    this.loopCount++;
+    this.wave = 0;
+    this.assaultNo = 0;
+    this.waveTheme = null;
+    this.nextTheme = null;
+    this.ftl.reset(this.sector.ftlTime, this.sector.ftlPreCharge);
+    this.convoy.redeploy(ENTRY_X, ARENA.y * 1.2);
+    this.ship.group.position.set(ENTRY_X + 26, 0, 0);
+    this.shipVel.set(0, 0, 0);
+    this.shipAngVel = 0;
+    this.terrain.build(this.sector.terrain, ARENA, { x: ENTRY_X, y: 0, r: 60 });
+    this._resetDradis();
+    this.hud.hideJump();
+    this.hud.pushLog(`Saut n°${this.loopCount + 5} — et le DRADIS se rallume déjà. Rien n'a changé.`);
+    this.hud.pushLog('L\'émission part toujours de la flotte. Tant qu\'elle émet, ils suivront.');
+    this.hud.showWaveBanner(0, `↻ LA BOUCLE CONTINUE — TOUR ${this.loopCount}`);
+    this.app.toBridge();
+  }
+
+  /**
+   * Traversée achevée. Le refuge n'est atteint que si la boucle a été rompue —
+   * c'est-à-dire si le commandant a fait détruire un de ses propres transports.
+   */
   _win() {
     this.over = true;
     this.campaignActive = false;
@@ -1413,8 +1546,20 @@ export class Range {
     this.app.renderer.pulse(1);
     const hof = HallOfFame.add(SECTOR_COUNT, this.app.credits);
     const souls = this.convoy.souls;
-    this.hud.showOutcome('victory',
-      `Refuge atteint — ${souls.toLocaleString('fr-FR')} survivants sur ${this.soulsAtStart.toLocaleString('fr-FR')}`,
+    const culprit = this.signal.culprit?.def?.name || 'un des nôtres';
+    const wrong = this.signal.wrongKills.length;
+    // Les noms de coques n'ont pas tous le même genre (« Citerne à tylium »,
+    // « Remorqueur ») : on les présente après un deux-points plutôt qu'avec un
+    // article, sinon la phrase est fautive une fois sur deux.
+    let sub = `Refuge atteint — ${souls.toLocaleString('fr-FR')} survivants sur ` +
+      `${this.soulsAtStart.toLocaleString('fr-FR')} · boucle rompue en détruisant l'un des nôtres : ${culprit}`;
+    // Les innocents abattus en route doivent figurer dans le bilan : c'est le prix
+    // de l'incertitude, et le taire viderait la décision de son poids.
+    if (wrong) {
+      sub += ` · et ${wrong} vaisseau${wrong > 1 ? 'x' : ''} innocent${wrong > 1 ? 's' : ''} ` +
+        `avant lui (${this.signal.wrongKills.map((t) => t.def.name).join(', ')})`;
+    }
+    this.hud.showOutcome('victory', sub,
       () => this.app.startCampaign(), () => this.app.toMenu(), hof);
   }
 
@@ -1534,6 +1679,8 @@ export class Range {
       clarity: this.ftl.clarity ?? 1,
       progress: this.corridorProgress ?? 0,
     });
+    // Dénouement : suspects, relevés payés, tir autorisé (masqué hors du finale).
+    this.hud.setSignal(this.signal, this.convoy.transports, TUNE.signalFixCost);
     this.hud.setWave(this.assaultNo, this.aliveEnemies.length, {
       sector: this.sector, index: this.sectorIndex + 1, total: SECTOR_COUNT,
       theme: this.waveTheme, terrain: this.terrain.name,
@@ -1854,7 +2001,10 @@ export class Range {
     if (this.contact) this.assaultTimer -= dt;
     if (this.assaultTimer <= 0) {
       this._launchAssault();
-      this.assaultTimer = this.sector.assaultEvery;
+      // Refuser de rompre la boucle coûte : chaque tour resserre les assauts, pour
+      // que l'obstination ait une fin plutôt que de s'étirer indéfiniment.
+      this.assaultTimer = this.sector.assaultEvery
+        * Math.pow(TUNE.loopAssaultTighten, this.loopCount);
     } else if (this.assaultTimer < 5 && !this.nextTheme) {
       this._announceNextWave();
     }

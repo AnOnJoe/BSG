@@ -30,13 +30,16 @@ export class Hud {
     this.container = container;
   }
 
-  build(weaponControl, ship, onToggle, onStation, onOrder) {
+  build(weaponControl, ship, onToggle, onStation, onOrder, onSignalFix, onDesignate) {
     this.container.innerHTML = '';
     this._indicators = [];
     this.ship = ship;
     this.onToggle = onToggle;
     this.onStation = onStation;
     this.onOrder = onOrder;
+    // Dénouement : relevé payé en charge FTL, et autorisation de tir sur un civil.
+    this.onSignalFix = onSignalFix;
+    this.onDesignate = onDesignate;
     this._cmdKey = '';
     this._capKey = '';
     this._modKey = '';
@@ -356,6 +359,15 @@ export class Hud {
        <div class="ck-group ck-modules">
          <div class="ck-label">MODULES <span class="ck-sub">clic = activer / couper</span></div>
          <div class="mod-row"></div>
+       </div>
+       <!-- DÉNOUEMENT : n'apparaît qu'au dernier secteur. Le relevé et
+            l'autorisation de tirer sur un civil sont des actes de commandement,
+            ils n'ont donc rien à faire ailleurs que sur cette console. -->
+       <div class="ck-group ck-signal hidden">
+         <div class="ck-label">ÉMISSION <span class="ck-sub">clic = désigner</span></div>
+         <div class="sig-row"></div>
+         <button class="sig-fix">RELEVÉ</button>
+         <div class="sig-note"></div>
        </div>`;
 
     // Console d'ordres : le commandant pose les consignes des autres postes sans
@@ -374,7 +386,54 @@ export class Hud {
       pct: body.querySelector(`.bus-${b.key} .bus-pct`),
     }));
     this.modRow = body.querySelector('.mod-row');
+    this.sigGroup = body.querySelector('.ck-signal');
+    this.sigRow = body.querySelector('.sig-row');
+    this.sigNote = body.querySelector('.sig-note');
+    this.sigFix = body.querySelector('.sig-fix');
+    this.sigFix.addEventListener('click', () => this.onSignalFix?.());
     this._buildModuleChips(weaponControl);
+  }
+
+  /**
+   * DÉNOUEMENT — les suspects, leur état, et le tir autorisé. Tout est explicite :
+   * combien de relevés ont été payés, ce qu'un relevé de plus coûtera, et sur qui
+   * le feu est ouvert. Une décision de cette gravité ne doit pas reposer sur une
+   * icône qu'il faut interpréter.
+   */
+  setSignal(hunt, transports, fixCost) {
+    if (!this.sigGroup) return;
+    this.sigGroup.classList.toggle('hidden', !hunt.active);
+    if (!hunt.active) return;
+
+    const suspects = hunt.suspects(transports);
+    const certain = suspects.length === 1;
+    this.sigRow.innerHTML = transports.map((t, i) => {
+      const dead = !t.alive;
+      const out = hunt.cleared.has(t);
+      const mark = hunt.designated === t;
+      const cls = dead ? 'dead' : out ? 'out' : mark ? 'mark' : certain ? 'found' : 'susp';
+      return `<div class="sig-chip ${cls}" data-i="${i}">
+        <span class="sc-name">${t.def.name}</span>
+        <span class="sc-state">${dead ? 'détruit' : out ? 'écarté' : mark ? '⌖ FEU' : certain ? 'C\'EST LUI' : 'suspect'}</span>
+      </div>`;
+    }).join('');
+    for (const el of this.sigRow.querySelectorAll('.sig-chip')) {
+      el.addEventListener('click', () => this.onDesignate?.(transports[+el.dataset.i]));
+    }
+
+    if (hunt.resolved) {
+      this.sigNote.textContent = 'L\'émission a cessé. Sautez : la boucle est rompue.';
+      this.sigNote.className = 'sig-note done';
+      this.sigFix.disabled = true;
+      this.sigFix.textContent = 'RELEVÉ — inutile';
+      return;
+    }
+    this.sigFix.disabled = certain;
+    this.sigFix.textContent = certain ? 'RELÈVEMENT ÉTABLI' : `RELEVÉ (−${fixCost} % de calcul)`;
+    this.sigNote.className = 'sig-note';
+    this.sigNote.textContent = certain
+      ? 'Le tir sur un civil doit être ordonné : cliquez-le pour ouvrir le feu.'
+      : `${suspects.length} suspects · ${hunt.fixes} relevé(s) payé(s)`;
   }
 
   /**
