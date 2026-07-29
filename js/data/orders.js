@@ -1,3 +1,5 @@
+import { TUNE } from '../core/Tune.js';
+
 /**
  * CONSIGNES données à l'équipage. Elles vivent ici (et non dans `Range`) parce
  * que le HUD comme le champ de tir en ont besoin : les mettre dans `Range`
@@ -39,8 +41,13 @@ export const HELM_ORDERS = [
  */
 export const FLEET_ORDERS = [
   { id: 'tighten', name: 'RALLIEMENT', speedMul: 0.95, spread: 0.16, wear: 0, follow: true },
-  { id: 'disperse', name: 'DISPERSER', speedMul: 1.0, spread: 1.05, wear: 0 },
-  { id: 'push', name: 'FORCER', speedMul: 1.35, spread: 0.34, wear: 1.7 },
+  { id: 'disperse', name: 'DISPERSER', speedMul: 1.0,
+    get spread() { return 1.05 * TUNE.fleetSpreadMul; }, wear: 0 },
+  // FORCER est le sommet du triangle qui se paie : allure contre usure. Les deux
+  // chiffres sont réglables (panneau T) parce que c'est là que l'équilibre se joue.
+  { id: 'push', name: 'FORCER', get speedMul() { return TUNE.fleetPushSpeed; },
+    get spread() { return 0.34 * TUNE.fleetSpreadMul; },
+    get wear() { return TUNE.fleetPushWear; } },
 ];
 
 /**

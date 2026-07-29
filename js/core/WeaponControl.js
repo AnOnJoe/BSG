@@ -17,9 +17,15 @@ export const FIRE_MODES = [
   // Cadences effectives mesurées, cible à 20 : SEMI ~2/s · RAFALE ~3,4/s · AUTO 7/s.
   // Le classement doit être strict, sinon le « mode posé » tirerait plus que la
   // rafale et le compromis n'existerait plus.
-  { id: 'semi', name: 'SEMI', rate: 0.3, spread: 0, cost: 0.75 },
-  { id: 'burst', name: 'RAFALE', rate: 1.0, spread: 0.02, cost: 1.0, burst: 3, pause: 0.45 },
-  { id: 'auto', name: 'AUTO', rate: 1.0, spread: 0.06, cost: 1.15 },
+  // ⚠ Le classement doit rester STRICT : SEMI < RAFALE < AUTO en cadence soutenue.
+  // Un « mode posé » qui tirerait plus que la rafale annulerait le compromis, et
+  // c'est déjà arrivé (rate: 0.45 sur SEMI le rendait plus rapide que RAFALE).
+  // Les trois valeurs qui commandent ce classement sont donc réglables (panneau T),
+  // avec ce garde-fou en tête.
+  { id: 'semi', name: 'SEMI', get rate() { return TUNE.fireSemiRate; }, spread: 0, cost: 0.75 },
+  { id: 'burst', name: 'RAFALE', rate: 1.0, spread: 0.02, cost: 1.0, burst: 3,
+    get pause() { return TUNE.fireBurstPause; } },
+  { id: 'auto', name: 'AUTO', rate: 1.0, spread: 0.06, get cost() { return TUNE.fireAutoCost; } },
 ];
 
 function modeById(id) {

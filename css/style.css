@@ -550,7 +550,9 @@ button:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; backgrou
   position: fixed;
   top: 62px;
   right: 20px;
-  width: 300px;
+  /* Élargi : chaque réglage porte son aide en clair, 300 px la rendaient illisible. */
+  width: 420px;
+  max-width: calc(100vw - 40px);
   max-height: calc(100vh - 90px);
   overflow-y: auto;
   z-index: 40;
@@ -1757,3 +1759,62 @@ body.expanded #cockpit-shell .shell-bezel { opacity: 0; }
   mix-blend-mode: screen;
 }
 body.expanded #cockpit-shell .shell-glare { opacity: 0; }
+
+/* ============================================================
+   PANNEAU DE RÉGLAGES — 69 jauges groupées, filtrables, avec leur aide.
+   Une liste à plat de 69 lignes n'est pas « complète », elle est inutilisable :
+   on ne règle rien, et le panneau perd sa raison d'être.
+   ============================================================ */
+.tp-count { font-size: 10px; letter-spacing: 1px; color: var(--dim); }
+.tp-count.on { color: var(--neon-amber); }
+.tp-filter {
+  width: 100%; margin-bottom: 10px;
+  font-family: var(--font); font-size: 11px;
+  color: var(--text); background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(75,106,122,0.4); border-radius: 4px;
+  padding: 5px 8px;
+}
+.tp-filter:focus { outline: none; border-color: var(--neon-cyan); }
+.tp-filter::placeholder { color: rgba(75,106,122,0.9); }
+
+.tp-group { margin-bottom: 6px; }
+.tp-ghead {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--neon-cyan);
+  border-bottom: 1px solid rgba(51,255,255,0.2);
+  padding: 5px 2px; cursor: pointer; user-select: none;
+}
+.tp-ghead:hover { background: rgba(51,255,255,0.05); }
+.tp-gcaret { transition: transform 0.15s; display: inline-block; transform: rotate(-90deg); }
+.tp-ghead.open .tp-gcaret { transform: rotate(0deg); }
+.tp-gname { flex: 1; }
+/* Pastille « n réglages modifiés dans ce groupe » : visible même replié */
+.tp-gtouched { font-size: 9px; letter-spacing: 0; color: var(--neon-amber); }
+.tp-gn { font-size: 9px; letter-spacing: 0; color: var(--dim); }
+.tp-gbody { padding: 6px 0 2px; }
+.tp-gbody.collapsed { display: none; }
+
+.tp-row { margin-bottom: 10px; }
+.tp-lab { margin-bottom: 3px; }
+.tp-row label { display: block; color: var(--text); cursor: help; }
+/* L'aide : toujours visible, jamais en infobulle. C'est le point de la demande. */
+.tp-help {
+  margin-top: 1px;
+  font-size: 10px; line-height: 1.35;
+  color: var(--dim);
+}
+.tp-ctl { display: flex; align-items: center; gap: 8px; }
+.tp-undo {
+  font-family: var(--font); font-size: 11px; line-height: 1;
+  color: var(--neon-amber); background: transparent;
+  border: 1px solid rgba(255,170,51,0.45); border-radius: 3px;
+  padding: 2px 5px; cursor: pointer;
+}
+.tp-undo:hover { background: rgba(255,170,51,0.14); }
+/* Réglage modifié : liseré ambre, pour ne pas oublier ce qu'on a touché */
+.tp-row.touched { border-left: 2px solid var(--neon-amber); padding-left: 7px; margin-left: -9px; }
+.tp-row.touched label { color: var(--neon-amber); }
+.tp-row.hidden { display: none; }
+.tp-group.hidden { display: none; }
+.tp-actions { flex-wrap: wrap; }

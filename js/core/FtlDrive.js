@@ -12,10 +12,16 @@ import { TUNE } from './Tune.js';
  * boucliers — exactement la décision qui fait le sel de la série : gagner du
  * temps contre la capacité à encaisser.
  */
+/**
+ * ⚠ `rate` et `drain` du mode FORCÉ sont lus depuis TUNE et non figés ici : c'est
+ * l'arbitrage central du jeu (gagner du temps contre encaisser), donc exactement
+ * le genre de valeur qu'il faut pouvoir régler manette en main (panneau T).
+ */
 export const FTL_MODES = [
   { id: 'idle', name: 'ARRÊT', rate: 0, drain: 0 },
   { id: 'normal', name: 'CALCUL', rate: 1, drain: 0 },
-  { id: 'forced', name: 'FORCÉ', rate: 2.4, drain: 14 },
+  { id: 'forced', name: 'FORCÉ', get rate() { return TUNE.ftlForcedRate; },
+    get drain() { return TUNE.ftlForcedDrain; } },
 ];
 
 export class FtlDrive {

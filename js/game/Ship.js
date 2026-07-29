@@ -34,8 +34,12 @@ const MODULE_CLASSES = {
  * sérialisation pour la sauvegarde, et l'update de tous les modules.
  */
 export class Ship {
-  /** Part de la section à retrouver pour qu'elle reparte (cf. `repairSection`). */
-  static SECTION_BACK = 0.25;
+  /**
+   * Part de la section à retrouver pour qu'elle reparte (cf. `repairSection`).
+   * Lue depuis TUNE : c'est un des réglages qui décide si le poste d'ingénieur est
+   * jouable en combat ou décoratif.
+   */
+  static get SECTION_BACK() { return TUNE.sectionBackAt; }
 
   constructor() {
     this.group = new THREE.Group();
@@ -72,7 +76,10 @@ export class Ship {
 
   resetSections() {
     for (const s of HULL_CONFIG.sections || []) {
-      this.sections[s.id] = { def: s, hp: s.hp, maxHp: s.hp, down: false };
+      // Multiplicateur global de PV de section (panneau T), appliqué à la remise
+      // à neuf : régler en pleine bataille ne répare ni ne perce rien d'un coup.
+      const max = Math.max(1, Math.round(s.hp * TUNE.sectionHpMul));
+      this.sections[s.id] = { def: s, hp: max, maxHp: max, down: false };
     }
   }
 

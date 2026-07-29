@@ -38,7 +38,7 @@ const ENTRY_X = -ARENA.x + 60;      // là où la flotte débouche
 // centrée sur la baleine — d'où le travail du pilote : se placer au milieu des
 // siens avant de déclencher.
 const CONVOY_LIMIT = ARENA.x - 40;  // là où la flotte cesse d'avancer
-const GATHER_RADIUS = 78;           // rayon de la bulle de saut
+// Le rayon de la bulle est réglable en direct : voir `Range.gatherR` et TUNE.gatherRadius.
 // Dimensionné pour le plus gros thème (NUÉE : 7 chasseurs). Le pool est
 // pré-alloué une fois pour toutes et réutilisé de vague en vague.
 const MAX_ENEMIES = 8;
@@ -220,8 +220,10 @@ export class Range {
       }
       return new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), neonLineMat(0x8fdfff, op));
     };
-    this.bubbleOuter = ring(GATHER_RADIUS, 0.18);
-    this.bubbleInner = ring(GATHER_RADIUS * 0.94, 0.1);
+    // Construite à RAYON 1 puis mise à l'échelle dans `_updateBubble` : le rayon
+    // est ainsi réglable en direct (panneau T) sans reconstruire la géométrie.
+    this.bubbleOuter = ring(1, 0.18);
+    this.bubbleInner = ring(0.94, 0.1);
     this.jumpGate.add(this.bubbleOuter, this.bubbleInner);
     this.jumpGate.visible = false;
     this.scene.add(this.jumpGate);
@@ -231,6 +233,8 @@ export class Range {
   _updateBubble(dt) {
     const p = this.ship.group.position;
     this.jumpGate.position.set(p.x, p.y, 0);
+    // Anneaux construits à rayon 1 : l'échelle porte le rayon réglable.
+    this.jumpGate.scale.setScalar(this.gatherR);
     this.convoy.setGatherPoint(p.x, p.y);
     const spooling = this.spoolT > 0;
     const ready = this.ftl.ready;
@@ -559,6 +563,9 @@ export class Range {
     this.fx.clear();
   }
 
+  /** Rayon de la bulle de rassemblement, lu en direct (panneau T). */
+  get gatherR() { return TUNE.gatherRadius; }
+
   get sector() { return sectorAt(this.sectorIndex); }
 
   /** Thèmes autorisés : le caractère du secteur restreint l'opposition. */
@@ -608,8 +615,8 @@ export class Range {
     this.wave = this.assaultNo;          // conservé pour le HUD et le Hall of Fame
     const types = this._composeWave(this.assaultNo);
     const scale = 1 + this.sectorIndex * 0.35;
-    const baseHp = Math.round((42 + this.assaultNo * 6) * scale);
-    const baseDmg = +((3.4 + this.assaultNo * 0.5) * scale).toFixed(1);
+    const baseHp = Math.round((42 + this.assaultNo * 6) * scale * TUNE.enemyHpMul);
+    const baseDmg = +((3.4 + this.assaultNo * 0.5) * scale * TUNE.enemyDmgMul).toFixed(1);
     const drones = Math.min(this.sectorIndex, 2);
 
     // Point de référence : la tête de la flotte
@@ -658,8 +665,8 @@ export class Range {
   _spawnWave(n) {
     this.wave = n;
     this.betweenWaves = false;
-    const baseHp = 45 + n * 12;
-    const baseDmg = 4 + n;
+    const baseHp = Math.round((45 + n * 12) * TUNE.enemyHpMul);
+    const baseDmg = +((4 + n) * TUNE.enemyDmgMul).toFixed(1);
     const baseDrones = Math.min(Math.max(n - 1, 0), 2);
     const types = this._composeWave(n);
     const px = this.ship.group.position.x, py = this.ship.group.position.y;
@@ -885,7 +892,7 @@ export class Range {
     // tous d'un coup — donc partie perdue en un appui, sans avertissement. Ce
     // n'est pas un dilemme, c'est un piège : on refuse et on dit pourquoi.
     const p = this.ship.group.position;
-    const { inside, outside } = this.convoy.splitByBubble(p.x, p.y, GATHER_RADIUS);
+    const { inside, outside } = this.convoy.splitByBubble(p.x, p.y, this.gatherR);
     if (!inside.length) {
       this.hud.showWaveBanner(0, 'SAUT REFUSÉ — aucun transport dans la bulle');
       this.hud.pushLog('Saut refusé : placez-vous au milieu de la flotte avant d\'amorcer.');
@@ -1553,7 +1560,7 @@ export class Range {
     // Le saut n'emporte que ce qui est dans son rayon : les traînards restent.
     // C'est la décision de la série — partir maintenant, ou attendre sous le feu.
     const p0 = this.ship.group.position;
-    const out = this.convoy.jump(p0.x, p0.y, GATHER_RADIUS);
+    const out = this.convoy.jump(p0.x, p0.y, this.gatherR);
     this.jumping = true;
     this.jumpTimer = 4.6;
     this._clearEntities();
@@ -1791,10 +1798,10 @@ export class Range {
         const l = this.convoy.laggard;
         if (!l) return 0;
         const q = this.ship.group.position;
-        return Math.max(0, Math.hypot(l.position.x - q.x, l.position.y - q.y) - GATHER_RADIUS);
+        return Math.max(0, Math.hypot(l.position.x - q.x, l.position.y - q.y) - this.gatherR);
       })(),
       inBubble: this.convoy.splitByBubble(
-        this.ship.group.position.x, this.ship.group.position.y, GATHER_RADIUS
+        this.ship.group.position.x, this.ship.group.position.y, this.gatherR
       ),
       spool: Math.max(0, this.spoolT || 0),
       clarity: this.ftl.clarity ?? 1,
@@ -1842,7 +1849,7 @@ export class Range {
         x: t.position.x, y: t.position.y, hurt: t.hp / t.maxHp < 0.5,
         laggard: t === this.convoy.laggard,
       })),
-      bubble: GATHER_RADIUS,
+      bubble: this.gatherR,
     });
     this._updateIndicators();
   }
@@ -2070,7 +2077,7 @@ export class Range {
         this.fx.explosion(e.group.position, e.color, 1.4 + e.scale);
         this.fx.debris(e.group.position, e.color, Math.round(12 * e.scale), e.scale);
         this.audio.boom(1.2); this.shake.add(0.6); this.app.renderer.pulse(1.0);
-        this.app.addCredits(REWARD[e.type] || 30);
+        this.app.addCredits(Math.round((REWARD[e.type] || 30) * TUNE.rewardMul));
       }
     });
 

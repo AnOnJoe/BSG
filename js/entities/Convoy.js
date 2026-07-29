@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TRANSPORT_TYPES, FLEET } from '../data/convoyConfig.js';
 import { FLEET_ORDERS } from '../data/orders.js';
+import { TUNE } from '../core/Tune.js';
 import { makeSolid, neonLineMat } from '../core/NeonMaterials.js';
 
 /**
@@ -17,8 +18,10 @@ class Transport {
     this.id = `${typeId}-${lane}`;
     this.name = def.name;
     this.souls = def.souls;
-    this.maxHp = def.hp;
-    this.hp = def.hp;
+    // Multiplicateur global de PV (panneau T). Appliqué au MONTAGE : changer le
+    // réglage en pleine bataille ne doit pas soigner ni tuer la flotte d'un coup.
+    this.maxHp = def.hp * TUNE.convoyHpMul;
+    this.hp = this.maxHp;
     this.radius = def.radius;
     this.alive = true;
     this.jumped = false;   // a franchi le saut (donc sauvé)
@@ -142,17 +145,22 @@ class Transport {
    * on le perd parce qu'il s'est fait mordre, pas à cause d'un décalage arbitraire
    * décidé au départ.
    */
+  /** Allure nominale, multiplicateur global compris (réglable au panneau T). */
+  get baseSpeed() { return this.def.speed * TUNE.convoySpeedMul; }
+
   get effSpeed() {
     const ratio = this.hp / this.maxHp;
-    if (ratio >= 0.4) return this.def.speed;
+    const at = TUNE.crippledAt;
+    if (ratio >= at) return this.baseSpeed;
     // La pénalité doit être SÉVÈRE : à −55 % seulement, un cargo blessé (4,13)
     // restait plus rapide que la citerne saine (4,0), donc il ne décrochait
-    // jamais et le dilemme n'existait pas. 40 % de coque → 50 % d'allure,
-    // 0 % → 20 %.
-    return this.def.speed * (0.2 + (ratio / 0.4) * 0.3);
+    // jamais et le dilemme n'existait pas. Au seuil → `crippledSpeedMin + range`
+    // de l'allure, à 0 % de coque → `crippledSpeedMin`.
+    const min = TUNE.crippledSpeedMin;
+    return this.baseSpeed * (min + (ratio / Math.max(0.01, at)) * (0.5 - min));
   }
 
-  get crippled() { return this.hp / this.maxHp < 0.4; }
+  get crippled() { return this.hp / this.maxHp < TUNE.crippledAt; }
 
   /** Halo « en retard » : ambre, et rouge pulsant quand le saut n'attend plus que lui. */
   setLaggard(on, urgent) {
@@ -263,7 +271,7 @@ export class Convoy {
     const list = this.alive.filter((t) => !t.crippled);
     const pool = list.length ? list : this.alive;
     if (!pool.length) return 0;
-    return Math.min(...pool.map((t) => t.def.speed));
+    return Math.min(...pool.map((t) => t.baseSpeed));
   }
 
   /**

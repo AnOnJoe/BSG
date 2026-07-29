@@ -1,3 +1,5 @@
+import { TUNE } from '../core/Tune.js';
+
 /**
  * LA FUITE. Structure reprise de la première saison : les Cylons retrouvent la
  * flotte à chaque fois, on ne sait pas comment, et le seul recours est de sauter.
@@ -78,7 +80,12 @@ export const SECTORS = [
  * l'atelier (cf. `FLEET_ROLES` dans `data/convoyConfig.js`). Les munitions, elles,
  * ne se rechargent plus du tout : sans atelier on ne fabrique rien.
  */
-export const JUMP_REPAIR = { structure: 40, noWorkshop: 12, ammo: true, credits: 240 };
+export const JUMP_REPAIR = {
+  get structure() { return TUNE.jumpRepairHull; },
+  get noWorkshop() { return TUNE.jumpRepairNoWorkshop; },
+  ammo: true,
+  get credits() { return TUNE.jumpRepairCredits; },
+};
 
 export function sectorAt(i) { return SECTORS[Math.min(i, SECTORS.length - 1)]; }
 export const SECTOR_COUNT = SECTORS.length;
