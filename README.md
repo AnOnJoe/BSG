@@ -38,6 +38,7 @@ python3 -m http.server 8000
 | **Barre Espace** | tir des **missiles** (ordre du capitaine, depuis n'importe quel poste) |
 | **J** | **amorcer le saut** : ce qui est dans la bulle part, le reste est abandonné |
 | **H** | **pont hangar** — *depuis le CIC, si le Cargo lourd est vivant* |
+| **X** | **cible prioritaire** sous le curseur — *au poste d'artilleur* |
 | **Clic droit** (maintenu) | **anneau de passerelle** : répartir l'énergie — *console du commandant* |
 | **E** | **IEM** (impulsion) — *console du commandant* |
 | **Clic sur un module** | l'activer / le couper — *console du commandant* |
@@ -206,6 +207,13 @@ te trouves.
 | **Drones** | appliquer ta consigne sans jamais l'adapter | **désigner la cible** de l'escadron | attaque · escorte · repli |
 | **Ingénieur** | colmater la section la plus abîmée | juger **laquelle sert maintenant** | avaries · armement · propulsion |
 
+**Cible prioritaire.** Au poste d'artilleur, **X** désigne un contact : l'équipage s'y accroche et
+continue de l'engager même quand tu es reparti ailleurs — y compris quand ce n'est plus la bonne
+idée. Le nombre de **pistes** que ton radar tient à la fois décide du reste : avec une seule, tous
+les canons convergent sur la même cible — parfait contre un cuirassé, catastrophique contre une
+nuée. Un radar de niveau 3 en tient trois, et tes tourelles se partagent les menaces. Améliorer le
+radar, c'est acheter de la souplesse, pas un chiffre.
+
 **L'équipage n'est pas une machine.** Il suit la cible avec du retard, disperse d'autant plus
 qu'elle est loin, voit mal ce qui sort de la portée du **radar**, et **renonce à tirer** quand
 la solution est trop mauvaise plutôt que de vider ta réserve d'énergie. Concrètement : ~100 %
@@ -316,6 +324,10 @@ spirale, **vignette** CRT + scanlines), **bloom** néon, **secousse d'écran**, 
 et **champs de débris**, flashs de tir ronds, et **audio synthétisé** (WebAudio, sans
 fichier : laser, missile, IEM, impacts, moteur, victoire/défaite).
 
+Le vaisseau a un **fond sonore** : une note très basse qui bat lentement et un souffle de
+ventilation. La basse monte au combat, le souffle domine au CIC. Ce n'est pas là pour s'entendre —
+c'est là pour qu'on remarque son absence.
+
 Le **saut FTL** étire les étoiles en traînées puis blanchit l'écran. Et l'épique étant un
 contraste et non une intensité constante, certains instants passent au **ralenti** : la
 destruction d'un cuirassé, et sa propre mort.
@@ -344,22 +356,13 @@ petite classe ; ajouter une autre coque = un fichier de config du même format.
 
 ## Prochaines pistes
 
-**Jouer une traversée complète.** Rien n'a encore été joué de bout en bout : les vérifications
-automatisées valident les mécanismes, pas l'équilibrage. Durée réelle d'un secteur, tentation de
-DISPERSER, temps de démontage du cuirassé — tout ça reste à mesurer manette en main.
+**Jouer une traversée complète.** C'est le seul vrai point restant, et il ne se code pas : la boucle
+a un début, une économie, cinq postes et deux fins, mais rien n'a jamais été joué de bout en bout.
+Les vérifications automatisées valident les mécanismes, jamais le dosage. Ce qui reste à juger
+manette en main : le coût d'un relevé au dernier secteur (11 % de calcul, donc 55 % pour être
+certain), ce que vaut vraiment un transport, si le pont hangar arrive trop tard, et la durée réelle
+d'un secteur. Tout est réglable en direct dans le panneau **T**.
 
-**Poste d'ingénieur** — le seul des métiers annoncés qui n'existe pas. Les **sections de coque**
-qui cassent localement ne sont faites que côté ennemi (le cuirassé et ses dix pièces) ; il s'agit
-de transposer la même mécanique au joueur.
-
-**Le mystère narratif** — « on ne sait pas comment ils nous trouvent ». En jeu : un transport
-compromis à identifier, puis à détruire soi-même. C'est le ressort le plus fort de la saison, et
-il n'est pas exploité. Dans la même veine : varier les scènes de CIC selon le secteur, aujourd'hui
-identiques aux cinq sauts.
-
-**Cible prioritaire pour l'artillerie** — les drones ont leur désignation, pas les tourelles
-(`radar.maxTargets` reste inutilisé).
-
-Ensuite : **coop à plusieurs postes** (chacun tient un poste du même vaisseau ; l'architecture est
-en place dans `Stations.js`, il s'agit de poser un opérateur distant là où il y a une IA), autres
-formes de vaisseau mère, boutique plus riche, menu de départ, sons d'ambiance.
+Ensuite : **coop à plusieurs postes** — chacun tient un poste du même vaisseau ; l'architecture est
+en place dans `Stations.js`, il s'agit de poser un opérateur distant là où il y a une IA. Puis
+d'autres formes de vaisseau mère, une boutique plus riche, et davantage de scènes de CIC.

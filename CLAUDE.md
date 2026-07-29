@@ -360,6 +360,18 @@ L'épique est un **contraste**, pas une intensité constante :
   ⚠ Le `dt` reçu est déjà mis à l'échelle : il faut le rediviser par `_dramaScale` pour
   décompter en temps réel, sinon un ralenti à 0,3 dure trois fois trop longtemps.
 - Bannières de secteur, pastilles de progression, ping radar.
+- **Matière du cockpit** : rivets et joints de panneaux sur les montants, et surtout l'écran
+  **encastré** dans la coque (ombre interne + chanfrein) — c'est le signal « on est derrière une
+  vitre » le plus efficace. ⚠ Les **hublots latéraux** ont été essayés puis **retirés** : les marges
+  portent déjà les panneaux du HUD, et des ouvertures y ressemblaient à des points parasites, pas à
+  une coque. Tout est en dégradés répétés (aucun asset) et `#cockpit-shell` reste en
+  `pointer-events: none` — vérifié, `elementFromPoint` renvoie bien le canvas.
+- **Ambiance sonore** synthétisée (`Audio.ambience`) : une note très basse **battante** (deux sinus
+  désaccordés de 7 cents — un oscillateur seul donne un bourdon électronique mort) plus un **souffle**
+  de ventilation en bande étroite, qui donne le volume de la pièce. La basse monte au combat, le
+  souffle domine au CIC, transitions sur 2 s (une ambiance qui change brusquement s'entend, et
+  s'entendre est ce qu'elle ne doit pas faire). Mesuré : basse 0,047 → 0,140 du CIC au combat. Le
+  menu reste **silencieux** : ce n'est pas un lieu du vaisseau.
 
 ## Rythme : jeu de postes, pas beat'em all
 Un jeu de postes **ne peut pas** être nerveux : sans respiration, on n'a jamais le temps de
@@ -493,6 +505,35 @@ distance et ×`crewNoRadarMul` hors portée radar — ce qui donne enfin un rôl
 module radar —, et **délai de verrouillage**. Plus un garde-fou : au-delà de `crewHoldFactor`
 fois la taille angulaire de la cible, l'équipage **renonce** au lieu de vider ta réserve.
 
+**Seuils de « SOLUTION DE TIR » DÉRIVÉS de la géométrie**, et non posés à la main. Un tir touche
+quand l'erreur de visée reste sous la taille **angulaire** de la cible, donc quand
+`quality >= 1 − 1/crewHoldFactor` (**0,667**). Or « BONNE » commençait à **0,60** : le HUD annonçait
+une bonne solution là où l'on ne touche pas. Mesuré sur 8 500 tirs (4 profils de cible × 4 distances),
+par tranches de 0,025 : **≤54 % de touches jusqu'à 0,675, puis 100 % au-delà** — la transition est
+franche. Les seuils suivent maintenant `crewHoldFactor`, donc ils restent justes s'il est réglé.
+
+### Cible prioritaire et pistes du radar (`radar.maxTargets`)
+La **cible prioritaire** (touche **X**) est une consigne persistante de plus : l'équipage continue de
+l'engager quand le joueur quitte le poste, sans jamais la remettre en question. Réservée au poste
+d'artilleur — le commandant pose le mode de tir à distance, mais choisir où concentrer le feu demande
+d'y être. Elle se libère seule si la cible meurt ou sort de la portée radar.
+
+⚠ **Première tentative creuse, et instructive.** J'avais fait de `maxTargets` un budget de verrous
+consommé par tourelle : ça ne changeait **absolument rien**, parce que toutes les tourelles
+interrogent `nearestHostileTo` depuis leur propre position et **convergent donc sur le même
+ennemi** — le budget n'était jamais atteint. Mesuré `[13,13,13]` à 1 comme à 3 pistes. Le radar tient
+désormais une **liste** de pistes et les tourelles s'y **répartissent**. Mesuré, 3 lasers contre
+3 ennemis à 12/20/30 :
+
+| Pistes | Cibles des tourelles | Effet |
+|---|---|---|
+| 1 | `[13,13,13]` | tout le feu sur une cible : redoutable sur un gros bâtiment, débordé par une nuée |
+| 2 | `[13,20,13]` | |
+| 3 | `[13,20,31]` | un canon par menace, mais chacune tombe plus lentement |
+| 1 + priorité à 30 | `[31,31,31]` | concentration totale sur la désignée |
+
+Améliorer le radar achète donc de la **souplesse tactique**, et non un chiffre de portée.
+
 Taux de touche mesurés (laser Nv1, portée 40) : **100 %** à courte portée ou sur cible
 immobile bien pistée · **30 %** sur cible qui manœuvre · **~30 %** hors portée radar ·
 **100 %** pour un joueur au poste sur le même cas. À noter : la portée du laser (40) dépasse
@@ -612,6 +653,11 @@ intentions basse fréquence).
 - **`.project(camera)`** mute le Vector3 → toujours cloner avant de projeter.
 - **Cache navigateur** (voir plus haut) : re-tester en hard-refresh avant de conclure
   à un bug.
+- **Appelant sans définition** : `App.toggleExpand()` a disparu du fichier (perdue dans `16a4533`)
+  alors que ses deux appelants ET tout le CSS `body.expanded` étaient restés. La touche **V** et le
+  bouton ⛶ levaient donc « toggleExpand is not a function » pendant deux sessions. Ça ne se voit
+  pas à la lecture, seulement à l'usage — d'où l'intérêt de faire *cliquer* les tests headless sur
+  les commandes, et pas seulement de lire l'état.
 
 ## Dépôt & journaux de session
 - BSG est un **sous-dépôt git autonome** (`BSG/.git`), volontairement séparé du dépôt parent
@@ -639,29 +685,32 @@ canon anti-drone · **terrain** qui coupe les tirs · **cadrage cockpit** + plei
 **traversée de 5 secteurs** avec victoire · vagues à thème · **phase passerelle (CIC)** avec
 dialogues et choix à conséquences (**un arc par secteur**, 42 scènes) · **saut sur place** (bulle
 de rassemblement + amorçage vulnérable) · **dénouement** : le transport compromis à identifier
-et à détruire soi-même, sinon la boucle tourne sans fin · mise en scène (annonce radar, ralenti,
-saut FTL).
+et à détruire soi-même, sinon la boucle tourne sans fin · **cible prioritaire** d'artillerie et pistes de radar ·
+mise en scène (annonce radar, ralenti, saut FTL, **matière de cockpit**, **ambiance sonore**).
 
 ## Prochaines pistes
-Ordre décidé avec l'utilisateur : **2 → 4 → 3 → 6**. Les chantiers **5** (scènes par secteur),
-**2** (économie de campagne), **4** (dénouement) et **3** (ingénieur) sont faits.
+Les cinq chantiers décidés sont faits : **5** (scènes par secteur), **2** (économie de campagne),
+**4** (dénouement), **3** (ingénieur) et **6** (finitions).
 
-1. **Jouer une traversée complète.** C'est maintenant le point bloquant : la boucle a un début, une
-   économie et deux fins, et rien n'a jamais été joué en entier. À doser en main : ce que vaut un
-   transport, si perdre la citerne se sent, si le pont hangar arrive trop tard, et surtout si
-   `signalFixCost` (11 %, soit 55 % pour la certitude complète) laisse le dénouement jouable ou le
-   rend intenable. Les tests headless valident les mécanismes, jamais le dosage.
-   Signal relevé : un joueur qui ne touche à rien voit la flotte immobile (ordre RALLIEMENT par
+1. **JOUER UNE TRAVERSÉE COMPLÈTE.** C'est désormais le seul point bloquant, et il ne se code pas :
+   la boucle a un début, une économie, cinq postes et deux fins, mais **rien n'a jamais été joué en
+   entier**. Les tests headless valident les mécanismes, jamais le dosage. À juger manette en main :
+   - `signalFixCost` (11 %, soit **55 % de calcul pour la certitude complète**) — c'est le réglage
+     dont je doute le plus ; il peut rendre le dénouement intenable ou trivial ;
+   - ce que vaut réellement un transport, et si perdre la citerne se **sent** ;
+   - si le pont hangar arrive trop tard dans la traversée ;
+   - `engRepairRate` (4,5 PV/s, 10,8 au poste) : assez pour que descendre à la machine vaille le
+     transit ?
+   - la durée réelle d'un secteur, et le temps de démontage du cuirassé.
+   Tout est réglable en direct dans le panneau **T**.
+   Signal déjà relevé : un joueur qui ne touche à rien voit la flotte immobile (ordre RALLIEMENT par
    défaut, elle suit une baleine à l'arrêt) et le calcul bloqué au minimum de clarté. Le premier
    secteur devra pousser à avancer plus explicitement.
-2. **Finitions** : cible prioritaire persistante pour l'artillerie (`radar.maxTargets` reste
-   inutilisé), calibrage des seuils de `WeaponControl._updateSolution` (annonce encore BONNE à
-   ~40 % de touches sur cible qui zigzague), matière dans le décor du cockpit.
-3. Plus loin : **coop multi-postes** (l'architecture est prête, cf. `Stations.js`), autres coques,
-   boutique plus riche, sons d'ambiance.
+2. Plus loin : **coop multi-postes** (l'architecture est prête, cf. `Stations.js`), autres coques,
+   boutique plus riche, varier les scènes du CIC au-delà d'un arc par secteur.
 
 **Hors périmètre décidé : le tactile.** Mesuré en émulation iOS — aucun code tactile dans le
 projet, canvas à **0 px de large en portrait**, et une meurtrière de 380×137 en paysage sur
 iPhone. Sur iPad (canvas 708×564) il faut un clavier. Ça demanderait une couche de contrôles
-tactiles ET une mise en page mobile, or une sim de capitaine à quatre postes a besoin de surface
+tactiles ET une mise en page mobile, or une sim de capitaine à cinq postes a besoin de surface
 d'écran. Décision : on ne le fait pas.
