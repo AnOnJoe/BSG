@@ -66,10 +66,10 @@ export class Hud {
       <div class="pp-title">BALEINE</div>
       ${this._barHtml('structure', 'COQUE')}
       ${this._barHtml('shield', 'BOUCLIER')}
-      <div class="pp-credits">◈ <span class="cr-num"></span></div>
+      <div class="pp-credits" title="Matériel récupéré">⛭ <span class="cr-num"></span></div>
     `;
     this.container.appendChild(this.vital);
-    this.creditsNum = this.vital.querySelector('.cr-num');
+    this.salvageNum = this.vital.querySelector('.cr-num');
     this.structFill = this.vital.querySelector('.bar-structure .hp-fill');
     this.structNum = this.vital.querySelector('.bar-structure .hp-num');
     this.shieldBlock = this.vital.querySelector('.bar-shield');
@@ -812,8 +812,8 @@ export class Hud {
     }
   }
 
-  setCredits(n) {
-    if (this.creditsNum) this.creditsNum.textContent = Math.floor(n);
+  setSalvage(n) {
+    if (this.salvageNum) this.salvageNum.textContent = Math.floor(n);
   }
 
   /**
@@ -1031,7 +1031,7 @@ export class Hud {
       (left.length
         ? `<div class="jp-left">✖ resté${left.length > 1 ? 's' : ''} en arrière : ${left.map((t) => t.name).join(', ')}</div>`
         : '') +
-      `<div class="jp-repair">+${repair.structure} coque · munitions rechargées · +${repair.credits} ◈</div>`;
+      `<div class="jp-repair">+${repair.structure} coque · munitions rechargées · +${repair.salvage} ⛭ matériel</div>`;
   }
 
   hideJump() {

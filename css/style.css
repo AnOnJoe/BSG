@@ -227,106 +227,122 @@ button:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; backgrou
 .ui-layer > * { pointer-events: auto; }
 
 /* ---- Panneau hangar (liste des slots) ---- */
-#slot-panel {
-  position: fixed;
-  top: 70px;
-  left: 20px;
-  width: 300px;
-  max-height: calc(100vh - 100px);
+/* ============================================================
+   PONT HANGAR (#deck) — REFONDU.
+   L'ancien panneau « faisait décalé » et c'était mérité : une colonne de douze
+   grosses cartes qui débordait de l'écran, des boutons de navigateur là où tout le
+   reste parle en pastilles, et les types d'emplacement en anglais minuscule.
+   Il reprend maintenant le vocabulaire des consoles, et il est organisé par
+   SECTION DE COQUE — les mêmes que le poste d'ingénieur. On répare et on équipe la
+   même géographie.
+   ============================================================ */
+#deck {
+  position: absolute;
+  left: 16px; top: 62px;
+  width: min(430px, 40vw);
+  max-height: calc(100vh - 96px);
   overflow-y: auto;
+  z-index: 15;
   background: var(--panel);
   border: 1px solid var(--panel-border);
-  border-radius: 6px;
-  padding: 14px;
+  border-radius: 8px;
+  padding: 10px 12px;
   backdrop-filter: blur(4px);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(51,255,255,0.4) rgba(0,0,0,0.3);
 }
-#slot-panel h2 {
-  margin: 0 0 6px;
-  font-size: 13px;
-  letter-spacing: 3px;
-  color: var(--neon-cyan);
-  text-transform: uppercase;
+.dk-top {
+  display: flex; justify-content: space-between; align-items: baseline;
+  border-bottom: 1px solid var(--panel-border); padding-bottom: 6px; margin-bottom: 8px;
 }
-.credits-line {
-  font-size: 13px;
-  letter-spacing: 1px;
-  color: var(--neon-amber);
-  margin-bottom: 12px;
-}
-.slot-row {
-  border: 1px solid rgba(75,106,122,0.35);
-  border-radius: 5px;
-  padding: 10px;
-  margin-bottom: 10px;
-  transition: border-color 0.15s;
-}
-.slot-row.highlight { border-color: var(--neon-cyan); box-shadow: 0 0 12px rgba(51,255,255,0.25); }
-.slot-row .slot-name {
-  font-size: 11px;
-  letter-spacing: 2px;
-  color: var(--dim);
-  text-transform: uppercase;
-}
-.slot-row .slot-module {
-  font-size: 14px;
-  margin: 4px 0 8px;
-  color: var(--text);
-}
-.slot-row .slot-module .lv { color: var(--neon-amber); font-size: 12px; }
-.slot-row .slot-module.empty { color: var(--dim); font-style: italic; }
-.slot-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.slot-actions button, .equip-menu button {
-  font-size: 11px;
-  padding: 5px 9px;
-  letter-spacing: 1px;
-  border-radius: 4px;
-  border: 1px solid rgba(75,106,122,0.5);
-  background: transparent;
-  color: var(--text);
-  transition: all 0.12s;
-}
-.slot-actions button:hover, .equip-menu button:hover {
-  border-color: var(--neon-cyan);
-  color: var(--neon-cyan);
-  box-shadow: 0 0 8px rgba(51,255,255,0.25);
-}
+.dk-title { font-size: 11px; letter-spacing: 3px; color: var(--neon-cyan); }
+.dk-res { display: flex; gap: 12px; font-size: 10px; letter-spacing: 1px; color: var(--dim); }
+/* Les DEUX ressources côte à côte : le stock, et la capacité de l'équipe. C'est la
+   seconde qui décide, elle doit donc être aussi visible que la première. */
+.dk-mat b { color: var(--neon-green); }
+.dk-works b { color: var(--neon-amber); }
+.dk-works.none { color: var(--neon-magenta); }
+.dk-works.none b { color: var(--neon-magenta); }
 
-/* ---- Menu d'équipement (popover) ---- */
+.dk-sec { margin-bottom: 9px; }
+.dk-sec-head {
+  font-size: 9px; letter-spacing: 2.5px; color: var(--neon-cyan);
+  border-bottom: 1px solid rgba(51,255,255,0.16); padding-bottom: 3px; margin-bottom: 5px;
+}
+.dk-sec-head.down { color: var(--neon-magenta); border-bottom-color: rgba(255,51,136,0.35); }
+.dk-sec-body { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+
+.dk-slot {
+  border: 1px solid rgba(75,106,122,0.45); border-radius: 5px;
+  padding: 5px 7px; cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.dk-slot:hover { border-color: var(--neon-cyan); background: rgba(51,255,255,0.06); }
+.dk-name { font-size: 11px; color: var(--text); }
+.dk-sub { font-size: 8px; letter-spacing: 1px; color: var(--dim); margin-top: 1px; }
+.dk-cost { font-size: 8px; letter-spacing: 1px; color: var(--neon-amber); margin-top: 3px; }
+.dk-lv { font-size: 9px; letter-spacing: 2px; color: var(--neon-amber); margin-top: 3px; }
+/* Module monté */
+.dk-slot.filled { border-color: rgba(102,255,153,0.4); }
+.dk-slot.filled .dk-name { color: var(--neon-green); }
+/* Hors service : sa section est percée (poste d'ingénieur) */
+.dk-slot.hs { border-color: rgba(255,51,136,0.5); }
+.dk-slot.hs .dk-name { color: var(--neon-magenta); text-decoration: line-through; }
+.dk-slot.hs .dk-sub { color: var(--neon-magenta); }
+/* Aménagé mais libre */
+.dk-slot.empty .dk-name { color: var(--dim); }
+/* NON AMÉNAGÉ : une coque nue. Doit se distinguer nettement d'un slot libre,
+   sinon on clique en croyant pouvoir équiper. */
+.dk-slot.bare {
+  border-style: dashed; border-color: rgba(75,106,122,0.35);
+  background: rgba(0,0,0,0.25);
+}
+.dk-slot.bare .dk-name { color: rgba(191,233,255,0.45); }
+.dk-slot.bare .dk-cost { color: rgba(255,170,51,0.5); }
+/* …sauf si on a de quoi le faire maintenant : alors on le montre. */
+.dk-slot.bare.can { border-color: rgba(255,170,51,0.55); }
+.dk-slot.bare.can .dk-cost { color: var(--neon-amber); }
+
+.dk-hint { margin-top: 6px; font-size: 9px; letter-spacing: 0.5px; color: var(--dim); }
+
+/* Menu d'équipement : même grammaire que les consignes du HUD */
 .equip-menu {
-  position: fixed;
-  z-index: 40;
-  background: var(--panel);
+  position: fixed; z-index: 60;
+  width: 230px;
+  background: rgba(6, 12, 20, 0.96);
   border: 1px solid var(--panel-border);
   border-radius: 6px;
-  padding: 8px;
-  min-width: 180px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  box-shadow: 0 0 20px rgba(0,0,0,0.6);
+  padding: 7px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 8px 26px rgba(0,0,0,0.6);
 }
 .equip-menu .menu-title {
-  font-size: 10px;
-  letter-spacing: 2px;
-  color: var(--dim);
-  text-transform: uppercase;
-  padding: 2px 4px 6px;
+  font-size: 9px; letter-spacing: 2px; color: var(--neon-cyan);
+  border-bottom: 1px solid rgba(51,255,255,0.2);
+  padding-bottom: 4px; margin-bottom: 5px;
 }
+.equip-menu .menu-note {
+  font-size: 9px; line-height: 1.35; color: var(--dim); margin-bottom: 6px;
+}
+.dk-act {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  width: 100%; margin-bottom: 3px;
+  font-family: var(--font); font-size: 11px; text-align: left;
+  color: var(--text); background: transparent;
+  border: 1px solid rgba(75,106,122,0.45); border-radius: 4px;
+  padding: 5px 7px; cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.dk-act:hover:not(:disabled) { border-color: var(--neon-green); background: rgba(102,255,153,0.08); }
+.da-lab { flex: 1; }
+.da-cost { font-size: 9px; letter-spacing: 1px; color: var(--neon-amber); }
+/* Refusé : on dit POURQUOI. Un bouton grisé muet se lit comme un bug. */
+.dk-act.nope { cursor: not-allowed; opacity: 0.55; border-style: dashed; }
+.dk-act.nope .da-cost { color: var(--dim); }
+.da-why { flex-basis: 100%; font-size: 8px; letter-spacing: 0.5px; color: var(--neon-magenta); }
+.dk-act.back { border-color: rgba(255,51,136,0.4); }
+.dk-act.back:hover { border-color: var(--neon-magenta); background: rgba(255,51,136,0.08); }
 
-.hint {
-  position: fixed;
-  bottom: 18px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 12px;
-  letter-spacing: 1px;
-  color: var(--dim);
-  text-align: center;
-  background: var(--panel);
-  padding: 8px 16px;
-  border-radius: 20px;
-  border: 1px solid rgba(75,106,122,0.3);
-}
 
 /* ---- HUD champ de tir ---- */
 /* Les modules vivent maintenant dans la console du COMMANDANT (cf. #cockpit) */
@@ -1818,3 +1834,10 @@ body.expanded #cockpit-shell .shell-glare { opacity: 0; }
 .tp-row.hidden { display: none; }
 .tp-group.hidden { display: none; }
 .tp-actions { flex-wrap: wrap; }
+
+/* Rappel de l'économie sur le menu de départ : on n'achète rien, on récupère. */
+.mn-note {
+  margin: 0; font-size: 10px; line-height: 1.5; color: var(--dim);
+  border-left: 2px solid rgba(102,255,153,0.35); padding-left: 10px;
+}
+.mn-note b { color: var(--neon-green); }

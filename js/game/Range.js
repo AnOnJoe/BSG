@@ -17,6 +17,8 @@ import { Terrain } from '../entities/Terrain.js';
 import { Convoy } from '../entities/Convoy.js';
 import { FtlDrive, FTL_MODES } from '../core/FtlDrive.js';
 import { SignalHunt } from '../core/SignalHunt.js';
+import { PLAN_ORDER, PLANS_PER_SECTOR, PLAN_SOURCE } from '../data/progression.js';
+import { MODULE_CONFIG } from '../data/moduleConfig.js';
 import { Engineer } from '../core/Engineer.js';
 import { FLEET, totalSouls, FLEET_ROLES } from '../data/convoyConfig.js';
 import { COMBAT_OFFSET } from '../core/Camera.js';
@@ -930,7 +932,7 @@ export class Range {
         this.ship.structure = Math.max(1,
           Math.min(this.ship.structureMax, this.ship.structure + effect.structure));
       }
-      if (effect.credits) this.app.addCredits(effect.credits);
+      if (effect.salvage) this.app.addSalvage(effect.salvage);
       if (effect.ftlBonus) {
         this.ftl.charge = Math.max(0, Math.min(95, this.ftl.charge + effect.ftlBonus));
       }
@@ -1571,12 +1573,19 @@ export class Range {
     const repair = this._jumpRepair();
     this.ship.structure = Math.min(this.ship.structureMax, this.ship.structure + repair.structure);
     if (repair.ammo) for (const m of this.ship.modules) if (m.reload) m.reload();
-    this.app.addCredits(repair.credits);
+    this.app.addSalvage(repair.salvage);
     this.audio.pickup();
     this.app.renderer.pulse(1);
     this.shake.add(0.6);
     this.drama(0.4, 1.2);
     this.hud.playJumpFx();
+
+    // ÉCONOMIE DE L'ESCALE. Les chantiers ne s'accumulent pas : ils se renouvellent
+    // au saut, et leur nombre dépend du remorqueur (l'atelier). Avec dix mille
+    // pièces en soute on ne mène toujours que deux travaux — c'est cette contrainte
+    // qui fait choisir, pas le stock.
+    this.app.refillWorks(this.convoy.hasRole('workshop'));
+    this._recoverPlans(1);
 
     const last = this.sectorIndex + 1 >= SECTOR_COUNT;
     this.hud.showJump(this.sector, last ? null : sectorAt(this.sectorIndex + 1), {
@@ -1586,6 +1595,25 @@ export class Range {
       souls: this.convoy.souls,
       lost: this.convoy.lostSouls,
     });
+  }
+
+  /**
+   * PLANS RÉCUPÉRÉS. Un module inconnu ne s'achète pas — il n'y a personne à qui
+   * l'acheter : son plan se trouve, dans les épaves ou en démontant un cuirassé.
+   * L'ordre est fixe (`PLAN_ORDER`) et non tiré au hasard : une progression qui
+   * dépendrait de la chance pourrait laisser un joueur sans arme secondaire pendant
+   * toute la traversée.
+   */
+  _recoverPlans(n) {
+    let got = 0;
+    for (const id of PLAN_ORDER) {
+      if (got >= n * PLANS_PER_SECTOR) break;
+      if (!this.app.learnPlan(id)) continue;
+      got++;
+      this.hud.pushLog(`PLAN RÉCUPÉRÉ — ${PLAN_SOURCE[id] || id}. Disponible au pont hangar.`);
+      this.hud.showWaveBanner(0, `⛭ PLAN RÉCUPÉRÉ — ${(MODULE_CONFIG[id]?.name || id).toUpperCase()}`);
+    }
+    return got;
   }
 
   /** Arrivée : nouveau couloir, la flotte ressort à l'entrée, le calcul repart. */
@@ -1664,7 +1692,7 @@ export class Range {
     this.stations.reset();
     this.audio.win();
     this.app.renderer.pulse(1);
-    const hof = HallOfFame.add(SECTOR_COUNT, this.app.credits);
+    const hof = HallOfFame.add(SECTOR_COUNT, this.app.salvage);
     const souls = this.convoy.souls;
     const culprit = this.signal.culprit?.def?.name || 'un des nôtres';
     const wrong = this.signal.wrongKills.length;
@@ -1702,7 +1730,9 @@ export class Range {
     this.drama(0.32, 1.8); // on regarde le colosse se démonter
     this.shake.add(1.0);
     this.app.renderer.pulse(1.0);
-    this.app.addCredits(cfg.reward);
+    this.app.addSalvage(cfg.reward);
+    // Un cuirassé démonté, c'est de la technologie cylonne à récupérer.
+    this._recoverPlans(1);
     this.hud.showWaveBanner(this.wave, `${cfg.name} DÉTRUIT · +${cfg.reward} ◈`);
     this.capital.kill();
   }
@@ -1725,7 +1755,7 @@ export class Range {
     this.hud.flashDamage(0.9);
     this.shake.add(0.85);
     this.app.renderer.pulse(1.0);
-    const hof = HallOfFame.add(this.sectorIndex + 1, this.app.credits);
+    const hof = HallOfFame.add(this.sectorIndex + 1, this.app.salvage);
     const sub = type === 'lost-fleet'
       ? 'La flotte a été anéantie — il n\'y a plus personne à sauver'
       : `Perdu au secteur ${this.sectorIndex + 1} — ${this.convoy.souls.toLocaleString('fr-FR')} survivants abandonnés`;
@@ -1780,7 +1810,7 @@ export class Range {
       gunnery: this.weapons.modeId,
       drones: this.droneOrder,
     });
-    this.hud.setCredits(this.app.credits);
+    this.hud.setSalvage(this.app.salvage);
     // Halo sur le retardataire : « certains ne sont pas prêts » doit se voir dans
     // le monde, pas seulement se déduire d'un chiffre.
     const lag = this.convoy.laggard;
@@ -2091,7 +2121,7 @@ export class Range {
         this.fx.explosion(e.group.position, e.color, 1.4 + e.scale);
         this.fx.debris(e.group.position, e.color, Math.round(12 * e.scale), e.scale);
         this.audio.boom(1.2); this.shake.add(0.6); this.app.renderer.pulse(1.0);
-        this.app.addCredits(Math.round((REWARD[e.type] || 30) * TUNE.rewardMul));
+        this.app.addSalvage(Math.round((REWARD[e.type] || 30) * TUNE.rewardMul));
       }
     });
 
@@ -2110,7 +2140,7 @@ export class Range {
         this.audio.boom(1.1);
         this.shake.add(0.45);
         this.app.renderer.pulse(0.8);
-        this.app.addCredits(60);
+        this.app.addSalvage(60);
         // On nomme la pièce : sinon le joueur ne comprend pas ce qu'il vient de gagner
         this.hud.showWaveBanner(this.wave, `${p.name} — HORS SERVICE`);
       });

@@ -84,7 +84,7 @@ export const JUMP_REPAIR = {
   get structure() { return TUNE.jumpRepairHull; },
   get noWorkshop() { return TUNE.jumpRepairNoWorkshop; },
   ammo: true,
-  get credits() { return TUNE.jumpRepairCredits; },
+  get salvage() { return TUNE.jumpRepairCredits; },
 };
 
 export function sectorAt(i) { return SECTORS[Math.min(i, SECTORS.length - 1)]; }

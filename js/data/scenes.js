@@ -25,7 +25,7 @@
  *   modulesOffline: 1                   modules coupés au prochain combat
  *   energy:        -25                  réserve de départ
  *   structure:     -20                  coque de départ (jamais sous 1 PV)
- *   credits:       +150
+ *   salvage:       +150
  *   ftlBonus:      +8                   % de calcul déjà fait au contact
  */
 
@@ -55,8 +55,8 @@ const RAGNAR = [
     choices: [
       {
         text: 'Accordé. Qu\'il économise.',
-        note: 'Remorqueur : +180 crédits, mais −0,6 de vitesse',
-        effect: { credits: +180, transportSpeed: ['tug', -0.6] },
+        note: 'Remorqueur : +180 de matériel, mais −0,6 de vitesse',
+        effect: { salvage: +180, transportSpeed: ['tug', -0.6] },
       },
       {
         text: 'Refusé. Moteurs chauds, on peut partir à tout moment.',
@@ -179,8 +179,8 @@ const CEINTURE = [
     choices: [
       {
         text: 'Prenez votre équipe. On a besoin de matériel.',
-        note: '+320 crédits · deux modules coupés au prochain combat',
-        effect: { credits: +320, modulesOffline: 2 },
+        note: '+320 de matériel · deux modules coupés au prochain combat',
+        effect: { salvage: +320, modulesOffline: 2 },
       },
       {
         text: 'Pas maintenant. Tout le monde à son poste.',
@@ -240,13 +240,13 @@ const CIMETIERE = [
     choices: [
       {
         text: 'Deux équipes. Prenez tout ce que vous pouvez.',
-        note: '+520 crédits · deux modules coupés · −20 de coque',
-        effect: { credits: +520, modulesOffline: 2, structure: -20 },
+        note: '+520 de matériel · deux modules coupés · −20 de coque',
+        effect: { salvage: +520, modulesOffline: 2, structure: -20 },
       },
       {
         text: 'Une seule équipe, et vite.',
-        note: '+240 crédits · un module coupé',
-        effect: { credits: +240, modulesOffline: 1 },
+        note: '+240 de matériel · un module coupé',
+        effect: { salvage: +240, modulesOffline: 1 },
       },
       {
         text: 'On ne pille pas des tombes. En avant.',
@@ -290,8 +290,8 @@ const CIMETIERE = [
       },
       {
         text: 'Dites-leur que nous réparons.',
-        note: '+200 crédits (le calme évite les incidents) · calcul : −6 %',
-        effect: { credits: +200, ftlBonus: -6 },
+        note: '+200 de matériel (le calme évite les incidents) · calcul : −6 %',
+        effect: { salvage: +200, ftlBonus: -6 },
       },
     ],
   },
@@ -322,8 +322,8 @@ const BLOCUS = [
       },
       {
         text: 'Qu\'ils s\'écartent s\'ils le veulent.',
-        note: '+280 crédits · Transport Gemenon : −0,8 de vitesse (isolé)',
-        effect: { credits: +280, transportSpeed: ['ferry', -0.8] },
+        note: '+280 de matériel · Transport Gemenon : −0,8 de vitesse (isolé)',
+        effect: { salvage: +280, transportSpeed: ['ferry', -0.8] },
       },
     ],
   },
@@ -427,8 +427,8 @@ const PORTE = [
         // identifier puis détruire) s'y branchera — d'ici là le joueur ne paie
         // que ce qui est annoncé, jamais une promesse en l'air.
         text: 'Cherchez. Je veux savoir lequel.',
-        note: 'Calcul : −10 % · +240 crédits (Gaeta réquisitionne du matériel)',
-        effect: { ftlBonus: -10, credits: +240, trackSignal: true },
+        note: 'Calcul : −10 % · +240 de matériel (Gaeta réquisitionne du matériel)',
+        effect: { ftlBonus: -10, salvage: +240, trackSignal: true },
       },
       {
         text: 'Plus tard. On saute d\'abord.',

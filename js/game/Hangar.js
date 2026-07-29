@@ -1,12 +1,31 @@
 import * as THREE from 'three';
 import { SLOT_ACCEPTS, MODULE_CONFIG, MODULE_COST, upgradeCost } from '../data/moduleConfig.js';
 import { HULL_CONFIG } from '../data/hullConfig.js';
+import { SLOT_FITOUT } from '../data/progression.js';
 import { viewport } from '../core/Viewport.js';
 
+/** Type de slot en français : « weapon » n'a rien à faire à l'écran. */
+const SLOT_TYPE = { weapon: 'ARME', engine: 'PROPULSION', utility: 'UTILITAIRE' };
+
 /**
- * Hangar : construction / amélioration du vaisseau. On clique un slot (marqueur
- * 3D sur la coque OU rangée du panneau) pour ouvrir le menu des modules
- * compatibles, monter/retirer, ou améliorer (Nv 1→2→3).
+ * PONT HANGAR — aménager la coque, monter et améliorer les modules.
+ *
+ * ⚠ REFONDU après une partie test : « je trouve que le hangar fait décalé au niveau
+ * design ». Il l'était, et pour des raisons précises — il ne partageait RIEN du
+ * vocabulaire visuel construit ailleurs :
+ *  - une colonne de douze grosses cartes qui débordait de l'écran par le bas ;
+ *  - des boutons de navigateur, là où tout le reste du jeu parle en pastilles et en
+ *    consignes (`.ord-btn`, `.sig-chip`, `.sec-cell`) ;
+ *  - les types d'emplacement en anglais minuscule (« weapon », « engine ») ;
+ *  - aucun lien entre la baleine au centre et la liste à gauche.
+ *
+ * Il est maintenant organisé par SECTION DE COQUE — les mêmes que le poste
+ * d'ingénieur (PROUE / CŒUR / POUPE / PROPULSION). Ce n'est pas cosmétique : on
+ * répare et on équipe la même géographie, et savoir qu'une arme est en proue veut
+ * enfin dire quelque chose.
+ *
+ * Il porte aussi l'économie : MATÉRIEL (le stock de pièces) et CHANTIERS (la
+ * capacité de l'équipe pendant cette escale). Cf. `data/progression.js`.
  */
 export class Hangar {
   constructor(app) {
@@ -20,6 +39,7 @@ export class Hangar {
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
     this.equipMenu = null;   // menu d'équipement (DOM) — à ne pas confondre avec App.menu
+    this.selected = null;    // emplacement mis en avant
 
     this._onClick = (e) => this._pick(e);
     this._onMove = (e) => this._hover(e);
@@ -44,99 +64,172 @@ export class Hangar {
   }
 
   // ---------- panneau ----------
+
+  /** Sections dans l'ordre du plan de coque, avec leurs emplacements. */
+  _bySection() {
+    return (HULL_CONFIG.sections || []).map((sec) => ({
+      sec,
+      slots: HULL_CONFIG.slots.filter((s) => s.section === sec.id),
+    })).filter((g) => g.slots.length);
+  }
+
   _buildPanel() {
-    this.container.innerHTML = '';
-    const panel = document.createElement('div');
-    panel.id = 'slot-panel';
-    panel.innerHTML = `<h2>Emplacements</h2><div class="credits-line">◈ ${Math.floor(this.app.credits)} crédits</div>`;
+    const app = this.app;
+    const works = app.works;
+    this.container.innerHTML = `
+      <div id="deck">
+        <div class="dk-top">
+          <span class="dk-title">PONT HANGAR</span>
+          <span class="dk-res">
+            <span class="dk-mat" title="Pièces récupérées sur les épaves et les Cylons abattus">
+              ⛭ <b>${Math.floor(app.salvage)}</b> matériel</span>
+            <span class="dk-works ${works > 0 ? '' : 'none'}"
+                  title="Travaux que l'équipe de pont peut mener pendant cette escale">
+              ⚒ <b>${works}</b> chantier${works > 1 ? 's' : ''}</span>
+          </span>
+        </div>
+        <div class="dk-sections">${this._bySection().map((g) => this._sectionHtml(g)).join('')}</div>
+        <div class="dk-hint"></div>
+      </div>`;
 
-    for (const slot of HULL_CONFIG.slots) {
-      const mod = this.ship.slots[slot.id];
-      const row = document.createElement('div');
-      row.className = 'slot-row';
-      row.dataset.slot = slot.id;
-      const label = mod
-        ? `${mod.def.name} <span class="lv">Nv ${mod.level}</span>`
-        : '— vide —';
-      row.innerHTML =
-        `<div class="slot-name">${slot.name} · ${slot.type}</div>` +
-        `<div class="slot-module ${mod ? '' : 'empty'}">${label}</div>` +
-        `<div class="slot-actions"></div>`;
-      const actions = row.querySelector('.slot-actions');
+    this.container.querySelector('.dk-hint').textContent = works > 0
+      ? (this.app.hangarReturn === 'bridge'
+        ? 'Escale entre deux sauts · clique un emplacement, sur la baleine ou ici'
+        : 'Clique un emplacement, sur la baleine ou ici · « ← MENU » pour revenir')
+      : 'Plus de chantier disponible — l\'équipe de pont a fait ce qu\'elle pouvait ce saut-ci.';
 
-      const btnEquip = document.createElement('button');
-      btnEquip.textContent = mod ? 'Changer' : 'Équiper';
-      btnEquip.addEventListener('click', (e) => {
-        const r = row.getBoundingClientRect();
-        this._openEquipMenu(slot.id, r.right + 8, r.top);
+    for (const cell of this.container.querySelectorAll('.dk-slot')) {
+      cell.addEventListener('click', () => {
+        const r = cell.getBoundingClientRect();
+        this._openEquipMenu(cell.dataset.slot, r.right + 8, r.top);
       });
-      actions.appendChild(btnEquip);
-
-      if (mod) {
-        const upCost = upgradeCost(mod.level);
-        const btnUp = document.createElement('button');
-        btnUp.textContent = mod.canUpgrade() ? `Améliorer → Nv ${mod.level + 1} (◈${upCost})` : 'Niveau max';
-        btnUp.disabled = !mod.canUpgrade() || this.app.credits < upCost;
-        btnUp.addEventListener('click', () => this._upgrade(slot.id));
-        actions.appendChild(btnUp);
-
-        const refund = Math.floor((MODULE_COST[mod.defId] || 0) * 0.5);
-        const btnRm = document.createElement('button');
-        btnRm.textContent = `Retirer (+◈${refund})`;
-        btnRm.addEventListener('click', () => this._unmount(slot.id));
-        actions.appendChild(btnRm);
-      }
-
-      panel.appendChild(row);
     }
-    this.container.appendChild(panel);
+  }
 
-    const hint = document.createElement('div');
-    hint.className = 'hint';
-    // Le hangar n'est plus l'écran d'accueil mais une ESCALE : le texte doit dire
-    // où l'on est dans la traversée, sinon on ne sait pas ce qu'on est venu faire.
-    hint.textContent = this.app.hangarReturn === 'bridge'
-      ? 'Escale entre deux sauts — les pièces viennent du Cargo lourd · « ← CIC » pour remonter'
-      : 'Clique un emplacement sur la baleine ou dans la liste · « ← MENU » pour revenir';
-    this.container.appendChild(hint);
+  _sectionHtml(g) {
+    const down = this.ship.sections?.[g.sec.id]?.down;
+    return `<div class="dk-sec">
+      <div class="dk-sec-head${down ? ' down' : ''}">${g.sec.name}${down ? ' · PERCÉE' : ''}</div>
+      <div class="dk-sec-body">${g.slots.map((s) => this._slotHtml(s)).join('')}</div>
+    </div>`;
+  }
+
+  _slotHtml(slot) {
+    const app = this.app;
+    const mod = this.ship.slots[slot.id];
+    const fitted = app.isFitted(slot.id);
+    const cost = SLOT_FITOUT[slot.type] ?? 200;
+    if (!fitted) {
+      // Emplacement NON AMÉNAGÉ : une coque nue. On dit ce qu'il coûterait, sinon
+      // c'est un carré grisé sans explication.
+      const can = app.salvage >= cost && app.works > 0;
+      return `<div class="dk-slot bare${can ? ' can' : ''}" data-slot="${slot.id}">
+        <div class="dk-name">${slot.name}</div>
+        <div class="dk-sub">${SLOT_TYPE[slot.type] || slot.type} · non aménagé</div>
+        <div class="dk-cost">⛭ ${cost} · ⚒ 1</div>
+      </div>`;
+    }
+    if (!mod) {
+      return `<div class="dk-slot empty" data-slot="${slot.id}">
+        <div class="dk-name">${slot.name}</div>
+        <div class="dk-sub">${SLOT_TYPE[slot.type] || slot.type} · libre</div>
+        <div class="dk-cost">équiper</div>
+      </div>`;
+    }
+    const hs = this.ship.isSectionDown(mod);
+    return `<div class="dk-slot filled${hs ? ' hs' : ''}" data-slot="${slot.id}">
+      <div class="dk-name">${mod.def.name}</div>
+      <div class="dk-sub">${slot.name} · ${hs ? 'HORS SERVICE' : `Nv ${mod.level}`}</div>
+      <div class="dk-lv">${'▮'.repeat(mod.level)}${'▯'.repeat(mod.maxLevel - mod.level)}</div>
+    </div>`;
   }
 
   // ---------- menu d'équipement ----------
+
+  /** Une ligne de menu : libellé, coût, et la raison si c'est refusé. */
+  _menuRow(label, cost, works, why, fn) {
+    const b = document.createElement('button');
+    b.className = 'dk-act';
+    b.innerHTML = `<span class="da-lab">${label}</span>` +
+      (cost !== null ? `<span class="da-cost">⛭ ${cost}${works ? ' · ⚒ 1' : ''}</span>` : '');
+    if (why) {
+      b.disabled = true;
+      b.classList.add('nope');
+      b.title = why;
+      b.innerHTML += `<span class="da-why">${why}</span>`;
+    } else {
+      b.addEventListener('click', fn);
+    }
+    return b;
+  }
+
   _openEquipMenu(slotId, x, y) {
     this._closeMenu();
+    const app = this.app;
     const slot = this.ship.hull.getSlotDef(slotId);
     const current = this.ship.slots[slotId];
     const menu = document.createElement('div');
     menu.className = 'equip-menu';
+    this.selected = slotId;
 
     const title = document.createElement('div');
     title.className = 'menu-title';
-    title.textContent = `${slot.name} — ${slot.type}`;
+    title.textContent = `${slot.name} — ${SLOT_TYPE[slot.type] || slot.type}`;
     menu.appendChild(title);
 
-    for (const moduleId of SLOT_ACCEPTS[slot.type]) {
-      const def = MODULE_CONFIG[moduleId];
-      const cost = MODULE_COST[moduleId] || 0;
-      const b = document.createElement('button');
-      const isCur = current && current.defId === moduleId;
-      b.textContent = `${isCur ? '● ' : ''}${def.name} (◈${cost})`;
-      b.disabled = this.app.credits < cost;
-      b.addEventListener('click', () => this._mount(slotId, moduleId, cost));
-      menu.appendChild(b);
+    if (!app.isFitted(slotId)) {
+      // AMÉNAGER d'abord : on ne monte rien sur une coque nue.
+      const cost = SLOT_FITOUT[slot.type] ?? 200;
+      const why = app.works <= 0 ? 'plus de chantier ce saut-ci'
+        : app.salvage < cost ? 'matériel insuffisant' : null;
+      const note = document.createElement('div');
+      note.className = 'menu-note';
+      note.textContent = 'Coque nue : il faut tirer les câbles et renforcer le bâti avant d\'y monter quoi que ce soit.';
+      menu.appendChild(note);
+      menu.appendChild(this._menuRow('Aménager l\'emplacement', cost, true, why,
+        () => this._fitOut(slotId, cost)));
+    } else {
+      for (const moduleId of SLOT_ACCEPTS[slot.type]) {
+        const def = MODULE_CONFIG[moduleId];
+        const cost = MODULE_COST[moduleId] || 0;
+        const isCur = current && current.defId === moduleId;
+        if (!app.knowsPlan(moduleId)) {
+          // PLAN INCONNU : on ne l'achète pas, on le trouve. Le montrer quand même,
+          // grisé, pour qu'on sache ce qui existe et qu'on ait quelque chose à espérer.
+          const row = this._menuRow(`${def.name}`, null, false, 'plan non récupéré', null);
+          menu.appendChild(row);
+          continue;
+        }
+        const why = isCur ? 'déjà monté'
+          : app.works <= 0 ? 'plus de chantier ce saut-ci'
+            : app.salvage < cost ? 'matériel insuffisant' : null;
+        menu.appendChild(this._menuRow(`${isCur ? '● ' : ''}${def.name}`, cost, true, why,
+          () => this._mount(slotId, moduleId, cost)));
+      }
+
+      if (current) {
+        if (current.canUpgrade()) {
+          const up = upgradeCost(current.level);
+          const why = app.works <= 0 ? 'plus de chantier ce saut-ci'
+            : app.salvage < up ? 'matériel insuffisant' : null;
+          menu.appendChild(this._menuRow(`Améliorer → Nv ${current.level + 1}`, up, true, why,
+            () => this._upgrade(slotId)));
+        }
+        // Démonter ne consomme PAS de chantier : on dévisse, on ne fabrique rien.
+        const refund = Math.floor((MODULE_COST[current.defId] || 0) * 0.5);
+        const rm = document.createElement('button');
+        rm.className = 'dk-act back';
+        rm.innerHTML = `<span class="da-lab">✕ Démonter</span><span class="da-cost">+⛭ ${refund}</span>`;
+        rm.addEventListener('click', () => this._unmount(slotId));
+        menu.appendChild(rm);
+      }
     }
 
-    if (current) {
-      const rm = document.createElement('button');
-      rm.textContent = '✕ Retirer le module';
-      rm.addEventListener('click', () => this._unmount(slotId));
-      menu.appendChild(rm);
-    }
-
-    // position + clamp
-    menu.style.left = Math.min(x, window.innerWidth - 200) + 'px';
-    menu.style.top = Math.min(y, window.innerHeight - 220) + 'px';
+    menu.style.left = Math.min(x, window.innerWidth - 240) + 'px';
+    menu.style.top = Math.min(y, window.innerHeight - 260) + 'px';
     document.body.appendChild(menu);
     this.equipMenu = menu;
+    this._refreshMarkers();
 
     setTimeout(() => {
       this._outside = (e) => { if (!menu.contains(e.target)) this._closeMenu(); };
@@ -147,24 +240,39 @@ export class Hangar {
   _closeMenu() {
     if (this.equipMenu) { this.equipMenu.remove(); this.equipMenu = null; }
     if (this._outside) { window.removeEventListener('mousedown', this._outside); this._outside = null; }
+    this.selected = null;
   }
 
   // ---------- actions ----------
+
+  /** Chaque travail coûte du matériel ET un chantier : c'est le second qui décide. */
+  _pay(cost) {
+    if (this.app.works <= 0 || this.app.salvage < cost) return false;
+    if (!this.app.spend(cost)) return false;
+    this.app.useWork();
+    return true;
+  }
+
+  _fitOut(slotId, cost) {
+    if (!this._pay(cost)) return;
+    this.app.fitOut(slotId);
+    this._afterChange();
+  }
   _mount(slotId, moduleId, cost) {
-    if (!this.app.spend(cost)) return; // crédits insuffisants
+    if (!this._pay(cost)) return;
     this.ship.mount(slotId, moduleId, 1);
     this._afterChange();
   }
   _unmount(slotId) {
     const mod = this.ship.slots[slotId];
-    if (mod) this.app.addCredits(Math.floor((MODULE_COST[mod.defId] || 0) * 0.5)); // remboursement 50%
+    if (mod) this.app.addSalvage(Math.floor((MODULE_COST[mod.defId] || 0) * 0.5)); // on récupère la moitié
     this.ship.unmount(slotId);
     this._afterChange();
   }
   _upgrade(slotId) {
     const mod = this.ship.slots[slotId];
     if (!mod || !mod.canUpgrade()) return;
-    if (!this.app.spend(upgradeCost(mod.level))) return;
+    if (!this._pay(upgradeCost(mod.level))) return;
     this.ship.upgrade(slotId);
     this._afterChange();
   }
@@ -176,9 +284,16 @@ export class Hangar {
     this.app.requestRender();
   }
 
+  /**
+   * Marqueurs 3D sur la coque. Un emplacement NON AMÉNAGÉ doit se distinguer d'un
+   * emplacement libre : sinon on clique dessus en croyant pouvoir équiper.
+   */
   _refreshMarkers() {
     for (const slot of HULL_CONFIG.slots) {
-      this.ship.hull.setSlotState(slot.id, this.ship.slots[slot.id] ? 'filled' : 'empty');
+      const state = this.selected === slot.id ? 'hover'
+        : !this.app.isFitted(slot.id) ? 'locked'
+          : this.ship.slots[slot.id] ? 'filled' : 'empty';
+      this.ship.hull.setSlotState(slot.id, state);
     }
   }
 
@@ -206,10 +321,8 @@ export class Hangar {
     const hoverId = hits.length ? hits[0].object.userData.slotId : null;
     if (hoverId === this._lastHover) return; // rien n'a changé → pas de re-rendu
     this._lastHover = hoverId;
-    for (const slot of HULL_CONFIG.slots) {
-      if (slot.id === hoverId) this.ship.hull.setSlotState(slot.id, 'hover');
-      else this.ship.hull.setSlotState(slot.id, this.ship.slots[slot.id] ? 'filled' : 'empty');
-    }
+    this.selected = hoverId || null;
+    this._refreshMarkers();
     this.canvas.style.cursor = hoverId ? 'pointer' : 'crosshair';
     this.app.requestRender();
   }

@@ -109,7 +109,7 @@ export const TUNE = {
   // ===== ENNEMIS & RÉCOMPENSES =====
   enemyHpMul: 1,        // PV des ennemis (×)
   enemyDmgMul: 1,       // dégâts des ennemis (×)
-  rewardMul: 1,         // crédits gagnés par ennemi détruit (×)
+  rewardMul: 1,         // matériel récupéré par ennemi détruit (×)
 };
 
 /**
@@ -180,7 +180,7 @@ export const TUNE_SPECS = [
   ['fleetSpreadMul', 'DISPERSER : étalement (×)', 0.2, 2.5, 0.1, 'Flotte civile', 'Étalement des ordres DISPERSER et FORCER. Grand = pertes diluées mais flotte incouvrable, et il faudra rallier avant de sauter.'],
   ['jumpRepairHull', 'Saut : coque rendue', 0, 100, 5, 'Flotte civile', 'Coque rendue à chaque saut, remorqueur vivant. C\'est ce qui décide si la traversée est une usure ou une suite de matchs.'],
   ['jumpRepairNoWorkshop', 'Saut sans atelier : coque', 0, 60, 2, 'Flotte civile', 'Coque rendue si le remorqueur (l\'atelier) est perdu. L\'écart avec la valeur ci-dessus est le prix réel de cette coque.'],
-  ['jumpRepairCredits', 'Saut : prime (crédits)', 0, 800, 20, 'Flotte civile', 'Prime encaissée à chaque saut. Monter = on peut s\'équiper au pont hangar plus tôt dans la traversée.'],
+  ['jumpRepairCredits', 'Saut : matériel récupéré', 0, 800, 20, 'Flotte civile', 'Matériel ramassé à chaque saut. Monter = on peut aménager et équiper plus tôt dans la traversée.'],
 
   // --- Dénouement ---
   ['signalFixCost', 'Relevé : coût en calcul (%)', 0, 30, 1, 'Dénouement', 'Coût en calcul de saut d\'un relevé au dernier secteur. Il faut 5 relevés pour être certain : à 11 %, la certitude coûte 55 % du calcul. LE réglage dont dépend le dénouement.'],
@@ -218,7 +218,7 @@ export const TUNE_SPECS = [
   ['enemyFireMul', 'Intervalle tir ennemi (×)', 0.4, 3, 0.1, 'Ennemis', 'Intervalle entre leurs tirs (>1 = ils tirent MOINS souvent).'],
   ['spawnDist', 'Distance d\'apparition', 40, 130, 2, 'Ennemis', 'Distance d\'apparition. Grand = approche longue et lisible, on a le temps de préparer.'],
   ['cylonPlayerAggro', 'Distance d\'agressivité', 8, 60, 2, 'Ennemis', 'En dessous de cette distance, un Cylon s\'occupe de toi plutôt que des civils. Grand = ils te suivent, donc « escorter » perd son sens.'],
-  ['rewardMul', 'Crédits par ennemi (×)', 0, 4, 0.1, 'Ennemis', 'Crédits gagnés par ennemi détruit. Monter = pont hangar accessible plus tôt.'],
+  ['rewardMul', 'Matériel par ennemi (×)', 0, 4, 0.1, 'Ennemis', 'Matériel récupéré par ennemi détruit. Monter = on aménage et on équipe plus tôt.'],
   ['waveBreak', 'Respiration entre vagues (s)', 1, 20, 0.5, 'Ennemis', 'Respiration entre deux vagues (hérité de l\'ancienne boucle, peu utilisé depuis les assauts continus).'],
 
   // --- Vaisseau ---

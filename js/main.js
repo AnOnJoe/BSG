@@ -12,6 +12,7 @@ import { TunePanel } from './game/TunePanel.js';
 import { loadTune, TUNE } from './core/Tune.js';
 import { viewport } from './core/Viewport.js';
 import { PALETTE } from './core/NeonMaterials.js';
+import { START_SLOTS, START_PLANS, START_SALVAGE, WORKS } from './data/progression.js';
 
 /**
  * Point d'entrée : monte la scène Three.js, le vaisseau, et bascule entre
@@ -32,11 +33,23 @@ class App {
     // Audio synthétisé (partagé)
     this.audio = new Audio();
 
-    // Sauvegarde : build + crédits
+    // Sauvegarde : build, matériel, emplacements aménagés, plans acquis.
     const save = SaveManager.load();
-    this.credits = save && save.credits > 0 ? save.credits : 800;
+    // MATÉRIEL — pas de l'argent : on ne paie personne, c'est notre flotte et nos
+    // ingénieurs. Voir `data/progression.js` pour le raisonnement complet.
+    this.salvage = save && save.salvage > 0 ? save.salvage : START_SALVAGE;
     this.ship = Ship.create(save ? save.build : null);
     this.scene.add(this.ship.group);
+    // Emplacements AMÉNAGÉS. Un slot occupé l'est forcément — sinon une sauvegarde
+    // d'avant la progression rendrait inaccessibles des modules déjà montés.
+    this.fitted = new Set(save?.fitted || START_SLOTS);
+    for (const it of this.ship.serialize()) this.fitted.add(it.slotId);
+    // PLANS des modules connus. Idem : ce qui est monté est forcément connu.
+    this.plans = new Set(save?.plans || START_PLANS);
+    for (const it of this.ship.serialize()) this.plans.add(it.moduleId);
+    // CHANTIERS : capacité de l'équipe de pont pour l'escale en cours. Ils ne
+    // s'accumulent pas — c'est ce qui force à choisir quoi faire en premier.
+    this.works = WORKS.withWorkshop;
 
     // Écrans. Le HANGAR n'est plus l'accueil : on démarre sur le MENU, et le
     // hangar est devenu une escale (« pont hangar ») entre deux sauts.
@@ -200,11 +213,38 @@ class App {
   }
 
   save() {
-    SaveManager.save({ build: this.ship.serialize(), credits: this.credits });
+    SaveManager.save({
+      build: this.ship.serialize(),
+      salvage: this.salvage,
+      fitted: [...this.fitted],
+      plans: [...this.plans],
+    });
   }
 
-  addCredits(n) { this.credits = Math.max(0, this.credits + n); }
-  spend(n) { if (this.credits >= n) { this.credits -= n; return true; } return false; }
+  // --- MATÉRIEL (récupération) ---
+  addSalvage(n) { this.salvage = Math.max(0, this.salvage + n); }
+  spend(n) { if (this.salvage >= n) { this.salvage -= n; return true; } return false; }
+
+  // --- CHANTIERS (capacité de l'équipe de pont, par escale) ---
+  /**
+   * Renouvelle les chantiers à chaque saut. Sans le remorqueur — l'atelier — on
+   * n'en mène plus qu'un : c'est le prix réel de cette coque de 900 âmes.
+   */
+  refillWorks(hasWorkshop) {
+    this.works = hasWorkshop ? WORKS.withWorkshop : WORKS.withoutWorkshop;
+  }
+  useWork() { if (this.works <= 0) return false; this.works--; return true; }
+
+  // --- PROGRESSION ---
+  isFitted(slotId) { return this.fitted.has(slotId); }
+  fitOut(slotId) { this.fitted.add(slotId); }
+  knowsPlan(moduleId) { return this.plans.has(moduleId); }
+  /** Acquiert un plan. Renvoie false s'il était déjà connu (pour n'annoncer qu'une fois). */
+  learnPlan(moduleId) {
+    if (this.plans.has(moduleId)) return false;
+    this.plans.add(moduleId);
+    return true;
+  }
 
   /** Bascule le faux écran de travail (boss key) : gèle le jeu et coupe le son. */
   _toggleWorkMode() {

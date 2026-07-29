@@ -87,11 +87,16 @@ export class StartMenu {
 
           <div class="mn-actions">
             <button id="mn-start" class="btn-primary">COMMENCER LA TRAVERSÉE <b>G</b></button>
-            <button id="mn-hangar">PONT HANGAR — armer la baleine <b>H</b></button>
+            <button id="mn-hangar">PONT HANGAR — ⛭ ${Math.floor(this.app.salvage)} de matériel <b>H</b></button>
           </div>
 
+          <p class="mn-note">Trois emplacements sont aménagés et trois plans connus : le reste
+          s'aménage et se récupère en route. On ne paie personne — c'est notre flotte et nos
+          ingénieurs. Le <b>matériel</b> s'arrache aux épaves, et l'équipe de pont ne mène que
+          quelques <b>chantiers</b> par escale.</p>
+
           ${hof.length ? `<div class="mn-hof"><span class="mn-hof-label">TRAVERSÉES PRÉCÉDENTES</span>${
-            hof.map((e) => `<span class="mn-hof-row">secteur ${e.wave} · ◈${e.credits} · ${e.date}</span>`).join('')
+            hof.map((e) => `<span class="mn-hof-row">secteur ${e.wave} · ⛭${e.credits} · ${e.date}</span>`).join('')
           }</div>` : ''}
 
           <div class="mn-keys">

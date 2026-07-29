@@ -195,14 +195,20 @@ export class Hull {
 
   setSlotsVisible(v) { this.slotGroup.visible = v; }
 
+  /**
+   * États : `hover` (survolé), `filled` (module monté), `empty` (aménagé et libre),
+   * `locked` (NON AMÉNAGÉ — coque nue). Ce dernier doit se distinguer nettement de
+   * `empty`, sinon on clique dessus en croyant pouvoir équiper.
+   */
   setSlotState(slotId, state) {
     const m = this.markers[slotId];
     if (!m) return;
     const col = state === 'hover' ? PALETTE.slotHover
       : state === 'filled' ? PALETTE.hull
-      : PALETTE.slot;
+        : state === 'locked' ? 0x3a4a56
+          : PALETTE.slot;
     m.ring.material.color.set(col);
-    m.ring.material.opacity = state === 'empty' ? 0.55 : 0.95;
+    m.ring.material.opacity = state === 'locked' ? 0.22 : state === 'empty' ? 0.55 : 0.95;
   }
 
   getSlotDef(id) { return this.config.slots.find((s) => s.id === id); }
