@@ -235,6 +235,18 @@ class App {
   }
   useWork() { if (this.works <= 0) return false; this.works--; return true; }
 
+  /**
+   * REPARTIR DE ZÉRO. Nécessaire depuis que la progression existe : une sauvegarde
+   * d'avant l'économie de matériel migre ses anciens crédits, donc on démarre riche
+   * et on ne voit pas le début sobre du jeu. On recharge la page plutôt que de
+   * remonter l'état à la main — c'est le seul moyen sûr de tout réinitialiser
+   * (vaisseau, modules montés, sections, hall of fame exclu).
+   */
+  wipeSave() {
+    SaveManager.clear();
+    location.reload();
+  }
+
   // --- PROGRESSION ---
   isFitted(slotId) { return this.fitted.has(slotId); }
   fitOut(slotId) { this.fitted.add(slotId); }

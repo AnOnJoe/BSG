@@ -1841,3 +1841,18 @@ body.expanded #cockpit-shell .shell-glare { opacity: 0; }
   border-left: 2px solid rgba(102,255,153,0.35); padding-left: 10px;
 }
 .mn-note b { color: var(--neon-green); }
+
+/* Repartir de zéro : discret, et armé en deux temps (voir StartMenu). */
+.mn-wipe { display: flex; }
+.mn-reset {
+  font-family: var(--font); font-size: 10px; letter-spacing: 1px;
+  color: var(--dim); background: transparent;
+  border: 1px solid rgba(75,106,122,0.35); border-radius: 4px;
+  padding: 5px 10px; cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+.mn-reset:hover { color: var(--neon-amber); border-color: rgba(255,170,51,0.5); }
+.mn-reset.armed {
+  color: var(--neon-magenta); border-color: var(--neon-magenta);
+  background: rgba(255,51,136,0.1);
+}

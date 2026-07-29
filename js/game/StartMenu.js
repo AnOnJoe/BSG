@@ -90,6 +90,14 @@ export class StartMenu {
             <button id="mn-hangar">PONT HANGAR — ⛭ ${Math.floor(this.app.salvage)} de matériel <b>H</b></button>
           </div>
 
+          <!-- Repartir de zéro. Nécessaire depuis que la progression existe : une
+               sauvegarde d'avant migre ses anciens crédits en matériel, donc on
+               démarre riche et on ne voit pas le début sobre du jeu. Deux temps :
+               un bouton discret ne doit pas effacer un vaisseau sur un clic. -->
+          <div class="mn-wipe">
+            <button id="mn-reset" class="mn-reset">Repartir de zéro — effacer vaisseau, matériel et plans</button>
+          </div>
+
           <p class="mn-note">Trois emplacements sont aménagés et trois plans connus : le reste
           s'aménage et se récupère en route. On ne paie personne — c'est notre flotte et nos
           ingénieurs. Le <b>matériel</b> s'arrache aux épaves, et l'équipe de pont ne mène que
@@ -108,5 +116,22 @@ export class StartMenu {
 
     this.ui.querySelector('#mn-start').addEventListener('click', () => this.app.startCampaign());
     this.ui.querySelector('#mn-hangar').addEventListener('click', () => this.app.toHangar('menu'));
+
+    // Effacer une progression demande DEUX clics : le premier ne fait que demander
+    // confirmation. Un bouton destructeur qui agit au premier clic est un piège.
+    const reset = this.ui.querySelector('#mn-reset');
+    reset.addEventListener('click', () => {
+      if (!reset.classList.contains('armed')) {
+        reset.classList.add('armed');
+        reset.textContent = 'Confirmer : tout effacer et repartir à trois emplacements';
+        setTimeout(() => {
+          if (!reset.isConnected) return;
+          reset.classList.remove('armed');
+          reset.textContent = 'Repartir de zéro — effacer vaisseau, matériel et plans';
+        }, 4000);
+        return;
+      }
+      this.app.wipeSave();
+    });
   }
 }
