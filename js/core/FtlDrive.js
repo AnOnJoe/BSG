@@ -45,6 +45,7 @@ export class FtlDrive {
     this.ready = false;
     this.jumping = false;
     this.starved = false;   // forcé mais plus d'énergie : le calcul patine
+    this.clarity = 1;       // qualité du calcul selon l'éloignement du point d'arrivée
   }
 
   get mode() { return FTL_MODES.find((m) => m.id === this.modeId) || FTL_MODES[1]; }
@@ -60,7 +61,7 @@ export class FtlDrive {
 
   /** Secondes restantes au rythme courant (pour le HUD). */
   eta() {
-    const r = this.mode.rate * this.baseRate * TUNE.ftlChargeRate;
+    const r = this.mode.rate * this.baseRate * TUNE.ftlChargeRate * (this.clarity ?? 1);
     if (r <= 0) return Infinity;
     return Math.max(0, (100 - this.charge) / r);
   }
@@ -70,7 +71,19 @@ export class FtlDrive {
    * vaisseau : s'il n'y en a plus, le calcul retombe au rythme normal (`starved`)
    * plutôt que de se bloquer — un blocage silencieux serait incompréhensible.
    */
-  update(dt, ship) {
+  /**
+   * Qualité du calcul selon la position dans le couloir. Le saut précédent laisse
+   * une PERTURBATION derrière soi : on débarque dans une zone où les coordonnées
+   * ne se stabilisent pas. S'en éloigner accélère le calcul — et c'est ce qui
+   * donne enfin une raison mécanique d'avancer de gauche à droite, maintenant que
+   * le saut se fait sur place et qu'aucune porte n'est à atteindre.
+   * @param t 0 = à l'entrée du couloir, 1 = à l'autre bout
+   */
+  static clarity(t) {
+    return TUNE.ftlMinClarity + (1 - TUNE.ftlMinClarity) * Math.max(0, Math.min(1, t));
+  }
+
+  update(dt, ship, clarity = 1) {
     if (this.jumping || this.charge >= 100) {
       this.charge = Math.min(100, this.charge);
       this.ready = this.charge >= 100;
@@ -84,7 +97,8 @@ export class FtlDrive {
       if (ship.energy >= need) ship.energy -= need;
       else { rate = FTL_MODES[1].rate; this.starved = true; }
     }
-    this.charge = Math.min(100, this.charge + rate * this.baseRate * TUNE.ftlChargeRate * dt);
+    this.clarity = clarity;
+    this.charge = Math.min(100, this.charge + rate * this.baseRate * TUNE.ftlChargeRate * clarity * dt);
     this.ready = this.charge >= 100;
   }
 }

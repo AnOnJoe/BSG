@@ -82,9 +82,15 @@ Et déclencher n'est pas partir : l'**amorçage** immobilise tout le monde penda
 Des cibles fixes. Le bon moment pour sauter, c'est quand tu as dégagé les environs — pas dès que
 le calcul est prêt.
 
-Tu commandes aussi la flotte elle-même : **SERRER** (tous couvrables et prêts à sauter, mais une
-cible dense et une allure molle), **DISPERSER** (les pertes se diluent, mais il faudra les
-rappeler avant de partir), **FORCER** (on sort vite, les moteurs s'abîment). Et un transport
+**Pourquoi traverser, alors, si l'on saute sur place ?** Parce que le saut précédent laisse une
+perturbation : à l'endroit où vous débarquez, les coordonnées ne se stabilisent pas. Le calcul y
+tourne à **moins de la moitié** de son rythme. S'en éloigner le fait plus que doubler — voilà
+pourquoi la flotte pousse vers la sortie du secteur.
+
+Tu commandes aussi la flotte elle-même : **RALLIEMENT** (ils convergent sur toi et te suivent —
+tous couvrables et prêts à sauter, mais une cible dense, et on ne progresse plus donc le calcul
+reste perturbé), **DISPERSER** (les pertes se diluent et ils poussent vers la sortie, mais il
+faudra les rallier avant de partir), **FORCER** (on sort vite, les moteurs s'abîment). Et un transport
 descendu sous 40 % de coque perd sa propulsion : **il décroche**. Ton retardataire, c'est celui
 qu'ils ont mordu.
 

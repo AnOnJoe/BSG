@@ -92,18 +92,32 @@ que la citerne saine (4,0) et ne décrochait donc jamais. À 20-50 % d'allure, m
 **24 unités de retard en 14 s**. `laggardFrom()` désigne en priorité les éclopés — c'est celui qui
 ne suivra pas qu'il faut montrer, pas celui qui se trouve au bord de la formation.
 
+### Pourquoi le couloir ? (le calcul est perturbé au point d'arrivée)
+Question légitime de l'utilisateur : depuis que le saut se fait sur place, **avancer ne servait
+plus à rien** — le couloir de 860 unités était un vestige de la porte supprimée.
+
+Il a donc une fonction mécanique : le saut précédent laisse une **perturbation**, on débarque là
+où les coordonnées ne se stabilisent pas. `FtlDrive.clarity(progress)` va de `TUNE.ftlMinClarity`
+(0,42) à l'entrée jusqu'à 1 à l'autre bout, calculée sur la position **moyenne de la flotte**.
+Mesuré : **0,099 %/s à l'entrée contre 0,235 %/s à la sortie, soit ×2,38**. Traverser paie.
+
+Le HUD dit **pourquoi** ça rame (« PERTURBÉ 55 % · éloignez-vous du point d'arrivée ») : sans ça
+le joueur constate un calcul lent sans comprendre qu'il doit avancer.
+
 ## ORDRES À LA FLOTTE (`FLEET_ORDERS`, console du commandant)
 Trois consignes qui forment un triangle : chacune est bonne contre une situation et mauvaise
 contre les autres, **aucune n'est le bon choix par défaut**. Mesuré :
 
 | Ordre | Étalement | Dans la bulle | Effet |
 |---|---|---|---|
-| SERRER | 36 | **6/6** | couvrable et saut garanti, mais cible dense et allure ×0,85 |
+| RALLIEMENT | 36 | **6/6** | ils convergent sur la baleine et **la suivent** — le joueur mène. Couvrables et prêts à sauter, mais cible dense, et ils ne progressent plus vers la sortie (donc le calcul reste perturbé si l'on traîne) |
 | DISPERSER | 206 | **4/6** | pertes diluées, mais il faudra rappeler avant de sauter |
 | FORCER | 88 | 6/6 | ×1,35 en allure, mais les moteurs s'usent (−1,7 PV/s) |
 
-Le nerf : **on ne saute qu'en étant serré**. Disperser oblige donc à rappeler et à attendre, sous
-le feu. Seul le commandant les donne (`setOrder('fleet', …)` exige `manned('command')`).
+Le nerf : **on ne saute qu'en étant rassemblé**. Disperser oblige donc à rallier puis à attendre,
+sous le feu. Et RALLIEMENT immobilise la progression, donc laisse le calcul perturbé : les deux
+ordres s'opposent vraiment. Seul le commandant les donne (`setOrder('fleet', …)` exige
+`manned('command')`).
 
 ### DEUX HORLOGES, à ne jamais confondre
 C'était une incohérence de conception, relevée par l'utilisateur :

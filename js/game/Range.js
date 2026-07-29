@@ -1394,6 +1394,8 @@ export class Range {
         this.ship.group.position.x, this.ship.group.position.y, GATHER_RADIUS
       ),
       spool: Math.max(0, this.spoolT || 0),
+      clarity: this.ftl.clarity ?? 1,
+      progress: this.corridorProgress ?? 0,
     });
     this.hud.setWave(this.assaultNo, this.aliveEnemies.length, {
       sector: this.sector, index: this.sectorIndex + 1, total: SECTOR_COUNT,
@@ -1693,7 +1695,14 @@ export class Range {
       this.convoy.update(dt, CONVOY_LIMIT, this.terrain, this.fleetOrder,
         this.ship.group.position, ARENA);
     }
-    this.ftl.update(dt, this.ship);
+    // Position moyenne de la flotte dans le couloir → qualité du calcul.
+    const alive = this.convoy.alive;
+    const avgX = alive.length
+      ? alive.reduce((a, t) => a + t.position.x, 0) / alive.length
+      : this.ship.group.position.x;
+    const progress = (avgX - ENTRY_X) / Math.max(1, CONVOY_LIMIT - ENTRY_X);
+    this.ftl.update(dt, this.ship, FtlDrive.clarity(progress));
+    this.corridorProgress = Math.max(0, Math.min(1, progress));
 
     // La flotte anéantie, il n'y a plus rien à sauver.
     if (!this.convoy.alive.length) { this._end('lost-fleet'); this._updateHud(dt); this.shake.applyShake(dt); return; }

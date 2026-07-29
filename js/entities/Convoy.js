@@ -314,9 +314,18 @@ export class Convoy {
       const wantY = centerY + slot * span;
       t.position.y += (wantY - t.position.y) * Math.min(1, dt * 0.55);
 
-      if (t.position.x < limitX) {
-        // Un valide suit l'allure ; un éclopé fait ce qu'il peut et décroche.
-        t.position.x += Math.min(v, t.effSpeed * order.speedMul) * dt;
+      const step = Math.min(v, t.effSpeed * order.speedMul) * dt;
+      if (order.follow && gather) {
+        // RALLIEMENT : ils rejoignent la baleine et la suivent — c'est le joueur
+        // qui mène la flotte, ce qui est le comportement naturel d'une escorte.
+        // Ils gardent un léger étagement pour ne pas s'empiler sur elle.
+        const wantX = gather.x - 18 - (i % 2) * 22;
+        const dx = wantX - t.position.x;
+        t.position.x += Math.sign(dx) * Math.min(Math.abs(dx), step * 1.25);
+      } else if (t.position.x < limitX) {
+        // Sinon ils poussent vers la sortie du secteur, à leur allure. Un éclopé
+        // fait ce qu'il peut et décroche.
+        t.position.x += step;
       }
 
       // FORCER : les moteurs s'usent, et ça se paie en coque.

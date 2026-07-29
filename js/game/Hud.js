@@ -128,7 +128,12 @@ export class Hud {
     if (!this.ftlPanel) return;
     this.ftlFill.style.width = `${ftl.charge}%`;
     this.ftlPct.textContent = `${Math.floor(ftl.charge)}%`;
-    this.ftlMode.textContent = ftl.starved ? 'FORCÉ — ÉNERGIE INSUFFISANTE' : ftl.mode.name;
+    // La perturbation du saut précédent : dire POURQUOI le calcul rame, sinon on
+    // ne comprend pas qu'il faut avancer.
+    const cl = info.clarity ?? 1;
+    this.ftlMode.textContent = ftl.starved ? 'FORCÉ — ÉNERGIE INSUFFISANTE'
+      : cl < 0.85 ? `${ftl.mode.name} — PERTURBÉ ${Math.round(cl * 100)} %`
+        : ftl.mode.name;
     this.ftlMode.className = `ftl-mode ${ftl.starved ? 'starved' : ftl.modeId}`;
     this.ftlFill.className = `ftl-fill ${ftl.ready ? 'ready' : ftl.modeId}`;
     const eta = ftl.eta();
