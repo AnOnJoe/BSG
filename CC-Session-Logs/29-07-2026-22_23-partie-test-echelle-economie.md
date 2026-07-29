@@ -238,7 +238,7 @@ inliner ~1,6 Mo (52 modules + Three.js) ; `localStorage` incertain en iframe. Re
 
 **U :** « Rend le github public et active github page »
 **A :** Audit de sécurité avant publication : aucun secret, aucun contenu professionnel dans tout
-l'historique ; un chemin `/Users/joachim.henry/…` retiré du journal (`4adea4e`). Public + Pages actifs.
+l'historique ; un chemin `/Users/<nom>/…` retiré du journal (`4adea4e`). Public + Pages actifs.
 Vérifié en navigateur réel : 0 erreur, 0 requête en échec, MIME correct, `localStorage` OK, boucle
 hangar → passerelle → combat, 6 transports, 138 obstacles. Signalé les deux points : tout commit est
 public (journaux inclus) et les trailers `Claude-Session:` sont désormais visibles.
