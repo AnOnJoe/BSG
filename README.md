@@ -1,9 +1,9 @@
-# BSG — Chantier de vaisseaux
+# BSG — La fuite
 
-Jeu spatial WebGL au style **low-poly fil de fer néon**. On **construit et améliore**
-un vaisseau mère « baleine » (livrée **bleu & blanc**, dos foncé / ventre clair) dans
-un **hangar**, puis on **traverse cinq secteurs** hostiles jusqu'à un refuge, en
-commandant l'équipage depuis les postes de la passerelle.
+Jeu spatial WebGL au style **low-poly fil de fer néon**. On commande un vaisseau mère
+« baleine » (livrée **bleu & blanc**, dos foncé / ventre clair) et on **escorte six
+transports civils** à travers cinq secteurs hostiles jusqu'à un refuge, en circulant
+entre les **postes de la passerelle** — commandant, pilote, artilleur, drones.
 
 Rendu **Three.js** (chargé depuis un CDN via import map) + post-processing bloom.
 Aucun build ni dépendance : c'est un **site statique**.
@@ -37,6 +37,7 @@ python3 -m http.server 8000
 | **Clic gauche** | tir des lasers — *au poste d'artilleur* |
 | **Barre Espace** | tir des **missiles** (ordre du capitaine, depuis n'importe quel poste) |
 | **J** | **amorcer le saut** : ce qui est dans la bulle part, le reste est abandonné |
+| **H** | **pont hangar** — *depuis le CIC, si le Cargo lourd est vivant* |
 | **Clic droit** (maintenu) | **anneau de passerelle** : répartir l'énergie — *console du commandant* |
 | **E** | **IEM** (impulsion) — *console du commandant* |
 | **Clic sur un module** | l'activer / le couper — *console du commandant* |
@@ -48,7 +49,13 @@ Le **nez suit le cap** (proue directrice, la poupe balaie) ; les tourelles visen
 l'ennemi **indépendamment** du cap. La rotation est **lourde** (inertie) et pivote
 plutôt vers la proue.
 
-## Hangar
+## Pont hangar
+
+On ne **commence** plus au hangar : le jeu s'ouvre sur un **menu** qui présente la flotte et ce
+que chaque coque porte. Le hangar est devenu le **pont hangar**, une escale entre deux sauts —
+touche **H** depuis le CIC — et il n'est ouvert que si le **Cargo lourd** est encore en vie, parce
+que c'est lui qui transporte les pièces. Les crédits gagnés en route se dépensent donc **pendant**
+la traversée, et pas seulement après avoir perdu.
 
 - Clique un **emplacement** sur la baleine (ou dans le panneau) → menu des modules
   compatibles. La baleine a **12 slots** : armes dorsales/ventrales, 2 propulsions,
@@ -80,6 +87,13 @@ avec les préliminaires.
 
 Puis le décompte tombe, et la bataille commence : la flotte s'ébranle vers la sortie du secteur
 pendant que le calcul se termine.
+
+**Ta flotte est ton économie.** Chaque coque porte une fonction, et sa perte est définitive : la
+**Citerne à tylium** est ce qui permet de forcer le calcul, le **Cargo lourd** porte les pièces
+(donc le pont hangar), le **Remorqueur** l'atelier (sans lui la coque ne se répare plus qu'à peine
+entre deux sauts), le **Navire-hôpital** l'infirmerie — ton équipage épuisé tire beaucoup moins
+juste. Le **Paquebot** et le **Transport Gemenon** ne portent que des vies : 32 500 sur 50 000.
+Rien d'autre, et c'est voulu — sacrifier doit pouvoir être rationnel et coûter quand même.
 
 **On saute sur place** — il n'y a pas de portail, chaque vaisseau a son propre moteur. Ce qui
 compte, c'est la **bulle de rassemblement** autour de ta baleine : translucide pendant le calcul,
@@ -115,7 +129,7 @@ et le laisser. Les âmes perdues le sont pour de bon, jusqu'à la fin de la part
 Les Cylons ne viennent pas pour toi : **ils viennent pour eux**. Rester planté à côté du convoi
 ne suffit pas, il faut aller intercepter.
 
-Cinq secteurs jusqu'au refuge — Périphérie,
+Cinq secteurs jusqu'au refuge — Nébuleuse de Ragnar,
 la Ceinture, Cimetière de coques, le Blocus, la Porte. Chacun a son **décor** et son caractère :
 la Ceinture est un dédale de roches où le radar se brouille, le Blocus un vide dégagé où rien
 ne protège. Un **cuirassé** garde la sortie de deux d'entre eux. Entre deux secteurs, un

@@ -1,14 +1,15 @@
 # CLAUDE.md — BSG
 
-Jeu spatial WebGL **Three.js**, low-poly fil de fer néon. Baleine mère modulaire
-(livrée bleu & blanc) construite au **hangar**, puis combat par **vagues** vs CPU.
+Jeu spatial WebGL **Three.js**, low-poly fil de fer néon. On commande une baleine mère modulaire
+(livrée bleu & blanc) et on **escorte six transports civils** à travers cinq secteurs, en tenant
+chaque fois jusqu'à ce que le calcul de saut aboutisse.
 Voir `README.md` pour le détail gameplay. Ce fichier = conventions & pièges pour coder.
 
 ## Nature du projet
 - **Site statique** : pas de build, pas de npm, pas de bundler. Modules ES natifs.
 - Three.js + addons chargés par **import map** (CDN jsdelivr) dans `index.html`
   (`three@0.160.0`). Ne pas passer à un système de build sans raison.
-- Cible : hébergement local pour l'instant.
+- Publié tel quel sur **GitHub Pages** (cf. « Dépôt » en bas) : aucune étape de build.
 
 ## Lancer & vérifier
 ```bash
@@ -28,8 +29,10 @@ cd BSG && python3 -m http.server 8000   # http://localhost:8000
 - **Debug console** : `window.app` (l'App), `window.app.range` (combat), `window.TUNE`.
 
 ## Architecture (points d'entrée)
-- `js/main.js` — `App` : scène, caméra, renderer, boucle RAF, bascule Hangar↔Combat,
-  boss key (Entrée), panneau T, crédits, starfield/nébuleuses.
+- `js/main.js` — `App` : scène, caméra, renderer, boucle RAF, bascule entre les **quatre écrans**
+  (menu → CIC → combat, plus le pont hangar en escale), boss key (Entrée), panneau T, crédits,
+  starfield/nébuleuses.
+- `js/game/StartMenu.js` — **menu de départ** : le jeu ne s'ouvre plus sur le hangar.
 - `js/game/Range.js` — **cœur du combat** (déplacement, vagues, ennemis, drones,
   projectiles, bonus, IEM, HUD, caméra qui suit). C'est le plus gros fichier.
 - `js/game/Ship.js` — agrégat coque + modules ; défense (coque/bouclier) + énergie.
@@ -135,6 +138,57 @@ secteur : on arrive au combat à **84 %** avec **66 s à tenir sous le feu**.
 Le CIC **montre** les deux jauges côte à côte (`Bridge._render`) : le décompte du contact et le
 calcul qui progresse scène par scène, avec un repère des 100 % pour voir ce qui manquera. Sans cet
 affichage, l'incohérence resterait invisible au joueur.
+
+## LA FLOTTE EST L'ÉCONOMIE (`FLEET_ROLES`)
+Les âmes n'étaient qu'un compteur : perdre un transport ne coûtait **rien** mécaniquement,
+c'était même une coque de moins à défendre — et s'il s'agissait de la citerne (la plus lente,
+4,0) toute la flotte accélérait. **Perdre rendait le jeu plus facile**, l'inverse exact de ce
+que le jeu raconte. Chaque coque porte donc une fonction, perdue **définitivement** avec elle :
+
+| Transport | Fonction | Ce que sa perte coûte |
+|---|---|---|
+| Citerne à tylium | **FORCER** le calcul | le levier disparaît (refus explicite au HUD) |
+| Cargo lourd | les **pièces** | pont hangar fermé, les crédits ne servent plus |
+| Remorqueur | l'**atelier** | réparation au saut 40 → 12 PV, plus de munitions |
+| Navire-hôpital | l'**infirmerie** | dispersion ET retard de suivi ×`crewFatigueMul` |
+| Paquebot · Transport Gemenon | **des vies** | rien — et c'est délibéré (32 500 âmes) |
+
+Deux d'entre eux n'ont **aucun** effet mécanique : il faut que sacrifier puisse être rationnel
+et coûte quand même. C'est aussi ce qui rendra le **dénouement** mordant — détruire soi-même un
+transport compromis n'a de poids que si ça ampute vraiment.
+
+`crewFatigueMul` = **2,2**, calibré : fenêtre de tir 100 → 71 % sur cible qui manœuvre, 66 → 37 %
+à longue portée, mais **100 % maintenu** sur cible proche et immobile. L'insuffisance est donc
+visible et **située**, conformément à la règle du projet. À 1,7 l'écart n'était que de 9 points
+(invisible en jeu) ; à 2,8 la cible lointaine tombait à 24 %, donc punitif.
+
+⚠ `Range._watchFleetRoles()` compare les fonctions d'une frame à l'autre au lieu d'annoncer la
+perte à l'impact : c'est ce qui attrape **tous** les chemins de mort — un tir, l'usure de l'ordre
+FORCER, ou un traînard abandonné au saut.
+
+### Écrans : MENU → CIC → COMBAT, et le hangar est une escale
+Le jeu s'ouvrait sur le hangar, ce qui ne tenait plus : on n'est pas un chantier qui prépare une
+expédition, on est une flotte déjà en fuite. `game/StartMenu.js` accueille et **annonce les six
+coques et leur fonction** — il faut les connaître avant de les perdre, sinon la règle est punitive
+au lieu d'être tragique. Le hangar devient le **PONT HANGAR**, escale entre deux sauts (touche
+**H** depuis le CIC), **conditionnée au cargo**.
+
+**⚠ `Range.enter()` ne met plus la traversée en place.** Il appelait `_startGame()`, qui remet
+`sectorIndex` à 0 et reconstruit la flotte — or on repasse par le CIC entre chaque secteur, donc
+revenir au combat écrasait tout ce que `_arriveSector()` venait de préparer : **on rejouait
+éternellement le premier secteur**, et les crédits gagnés en route n'étaient dépensables qu'après
+avoir perdu. D'où `newCampaign()`, appelé par `App.startCampaign()` **avant le premier CIC** (la
+flotte doit exister dès la passerelle, sinon le pont hangar s'y croit fermé et le bandeau reste
+vide), puis `_resumeSector()` à chaque entrée en combat. Vérifié : progression stricte 0→1→2→3→4,
+coque et crédits conservés, `ftlPreCharge` par secteur appliqué (74 → 50 %).
+
+Le bouton de la barre est **contextuel et ne permet plus de quitter le combat** : c'est par là que
+passait la remise à zéro. Deux pièges rencontrés :
+- l'escale au pont hangar repasse par `Bridge.exit()`/`enter()` et **rejouait l'arc du CIC** depuis
+  le début en annulant les choix déjà faits (on pouvait même les repayer en boucle) ⇒ on ne
+  réinitialise que sur **changement de secteur** (`Bridge._lastSector`) ;
+- l'état de la barre était posé par `_show()`, jamais appelé pour l'écran initial ⇒ le bouton
+  restait visible sur le menu.
 
 ### PHASE PASSERELLE — les 33 minutes se jouent dans le CIC
 `game/Bridge.js` + `data/scenes.js`. Le répit se passait sur l'écran tactique : rien à voir, rien
@@ -510,35 +564,44 @@ intentions basse fréquence).
 (50 000 âmes) à travers cinq secteurs, en tenant chaque fois jusqu'à ce que le calcul de saut
 aboutisse. On ne nettoie plus des vagues.
 
-Fait : hangar + upgrades + crédits · **4 postes exclusifs** (commandant / pilote / artilleur /
+Fait : **menu de départ** puis boucle CIC ↔ combat, **pont hangar** en escale · **la flotte est
+l'économie** (six fonctions dont la perte se paie) · hangar + upgrades + crédits · **4 postes exclusifs** (commandant / pilote / artilleur /
 drones) avec équipage IA médiocre et lisible · **énergie répartie** en 3 bus + anneau de
 passerelle · conduite de tir humaine (retard, dispersion, renoncement) · modes de tir · ordres
 d'escadron **et de flotte** · désignation de cible · **cuirassé** démontable pièce par pièce ·
 canon anti-drone · **terrain** qui coupe les tirs · **cadrage cockpit** + plein écran ·
 **traversée de 5 secteurs** avec victoire · vagues à thème · **phase passerelle (CIC)** avec
-dialogues et choix à conséquences · **saut sur place** (bulle de rassemblement + amorçage
-vulnérable) · mise en scène (annonce radar, ralenti, saut FTL).
+dialogues et choix à conséquences (**un arc par secteur**, 42 scènes) · **saut sur place** (bulle
+de rassemblement + amorçage vulnérable) · mise en scène (annonce radar, ralenti, saut FTL).
 
 ## Prochaines pistes
-Par ordre d'utilité décroissante :
+Ordre décidé avec l'utilisateur : **2 → 4 → 3 → 6**, les chantiers 5 (scènes par secteur) et
+2 (économie de campagne) étant faits.
 
-1. **Jouer une traversée complète.** Rien n'a jamais été joué en entier : les tests headless
-   vérifient les mécanismes, pas l'équilibrage. Durée réelle d'un secteur, `ftlMinClarity` assez
-   incitatif pour risquer DISPERSER, temps de démontage du cuirassé.
-2. **Configurer un remote git** (perso). Demande une authentification interactive.
-3. **Poste d'INGÉNIEUR** — le seul des quatre métiers annoncés qui n'existe pas. Le lot ② (sections
-   de coque, dégâts localisés, modules HS jusqu'à réparation) n'est fait que **côté ennemi** : le
-   cuirassé a ses dix pièces, mais `hullConfig.js` n'a toujours pas de champ `section`. Toute la
-   mécanique est écrite, il s'agit de la transposer au joueur.
-4. **`radar.maxTargets` reste inutilisé** : le lot ④ n'est fait qu'à moitié — pas de désignation de
-   cible prioritaire persistante pour l'artillerie, alors que les drones l'ont.
-5. **Varier les scènes par secteur** : `data/scenes.js` sert les mêmes neuf scènes aux cinq sauts.
-6. **Le mystère narratif** — « on ne sait pas comment ils nous trouvent ». Traduction jeu : un
-   transport compromis à identifier puis détruire soi-même. C'est le ressort le plus fort de la
-   saison, et il n'est pas exploité.
-7. **Calibrage du libellé « solution de tir »** : annonce encore BONNE à ~40 % de touches sur cible
-   qui zigzague (seuils dans `WeaponControl._updateSolution`).
-8. **Décor du cockpit** volontairement sobre (liserés, équerres) : pas de matière (rivets, reflets,
-   hublots latéraux).
-9. Plus loin : **coop multi-postes** (l'architecture est prête, cf. `Stations.js`), autres coques,
-   boutique plus riche, menu de départ, sons d'ambiance.
+1. **Le DÉNOUEMENT** — « on ne sait pas comment ils nous trouvent ». Il vient **après** l'économie
+   de campagne, et ce n'est pas un hasard : la décision finale est « on élimine le navire
+   compromis », or détruire un de ses transports ne mordait rien tant que les âmes n'étaient qu'un
+   compteur. Deux issues voulues : le détruire ⇒ la boucle se rompt, victoire ; refuser ⇒ les
+   assauts ne s'arrêtent plus et la partie ne peut finir que par l'extinction de la flotte.
+   L'amorce est posée : l'émission détectée dans les dialogues du Cimetière et du Blocus, et le
+   jalon `trackSignal` (enregistré dans `App.signalTracked`, encore sans mécanique).
+2. **Jouer une traversée complète.** À faire **maintenant que l'économie existe** : combien vaut
+   un transport, est-ce que perdre la citerne se sent, le pont hangar arrive-t-il trop tard.
+   Les tests headless valident les mécanismes, jamais le dosage.
+   Signal relevé : un joueur qui ne touche à rien voit la flotte immobile (ordre RALLIEMENT par
+   défaut, elle suit une baleine à l'arrêt) et le calcul bloqué au minimum de clarté. Le premier
+   secteur devra pousser à avancer plus explicitement.
+3. **Poste d'INGÉNIEUR** — le seul métier annoncé qui n'existe pas. Les sections de coque ne sont
+   faites que côté ennemi (le cuirassé et ses dix pièces) ; `hullConfig.js` n'a toujours pas de
+   champ `section`. Il gagne à venir après l'économie, qui a installé pièces et atelier.
+4. **Finitions** : cible prioritaire persistante pour l'artillerie (`radar.maxTargets` reste
+   inutilisé), calibrage des seuils de `WeaponControl._updateSolution` (annonce encore BONNE à
+   ~40 % de touches sur cible qui zigzague), matière dans le décor du cockpit.
+5. Plus loin : **coop multi-postes** (l'architecture est prête, cf. `Stations.js`), autres coques,
+   boutique plus riche, sons d'ambiance.
+
+**Hors périmètre décidé : le tactile.** Mesuré en émulation iOS — aucun code tactile dans le
+projet, canvas à **0 px de large en portrait**, et une meurtrière de 380×137 en paysage sur
+iPhone. Sur iPad (canvas 708×564) il faut un clavier. Ça demanderait une couche de contrôles
+tactiles ET une mise en page mobile, or une sim de capitaine à quatre postes a besoin de surface
+d'écran. Décision : on ne le fait pas.
