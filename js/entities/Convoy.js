@@ -10,6 +10,24 @@ import { TUNE } from '../core/Tune.js';
  * VOIR ce qu'on escorte, sinon la consigne ne veut rien dire.
  */
 const FOLLOW_X = [-26, -8, 12, -18, 2, -30];
+
+/**
+ * PLAN DE PROFONDEUR DE LA FLOTTE CIVILE.
+ *
+ * ⚠ Signalé en partie test : « si je passe sur un navire civil il faut que tout le
+ * vaisseau soit sur le même axe z ; là on a des parties qui se retrouvent cachées
+ * par moi et d'autres devant moi ». Exact, et c'était mécanique : tout le monde était
+ * à z = 0, et les volumes sont extrudés de part et d'autre. La baleine occupe
+ * z ∈ [−0,8 ; +0,8] (coque de 1,6 d'épaisseur) tandis qu'une citerne occupe
+ * [−2,2 ; +2,2], plus ses réservoirs à +2,25. Une moitié du transport passait donc
+ * DEVANT la baleine et l'autre DERRIÈRE, ce qui est incohérent à l'œil.
+ *
+ * Les civils sont donc entièrement sur un plan en RETRAIT, choisi pour que le point
+ * le plus avancé du plus épais d'entre eux (+2,25) reste derrière le point le plus
+ * reculé de la baleine (−0,8). Les collisions et la bulle de saut ne travaillent
+ * qu'en X/Y : ce décalage ne change rien au jeu, seulement à la lecture.
+ */
+export const CONVOY_Z = -6;
 import { makeSolid, neonLineMat } from '../core/NeonMaterials.js';
 
 /**
@@ -227,7 +245,7 @@ export class Convoy {
       t.group.position.set(
         startX - col * 26 - row * 4,
         (row - (rows - 1) / 2) * (spanY / Math.max(1, rows)) * 1.1,
-        0
+        CONVOY_Z
       );
       this.transports.push(t);
       this.group.add(t.group);
@@ -522,7 +540,7 @@ export class Convoy {
       t.position.set(
         startX - col * 26 - row * 4,
         (row - (rows - 1) / 2) * (spanY / Math.max(1, rows)) * 1.1,
-        0
+        CONVOY_Z
       );
     });
     return keep.length;

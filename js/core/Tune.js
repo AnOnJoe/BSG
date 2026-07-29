@@ -9,7 +9,8 @@ export const TUNE = {
   laserCostMul: 1.0,   // multiplicateur du coût énergie du laser
   manualAimBonus: 1.15, // dégâts (×) quand le joueur tient la tourelle lui-même
   stationSwitchTime: 1.5, // temps d'installation à un nouveau poste (s)
-  helmStandoff: 24,     // distance de combat que tient le barreur IA
+  helmStandoff: 24,     // distance de combat MINIMALE du barreur IA (plancher)
+  helmStandoffRatio: 0.88, // part de la portée des armes qu'il tient (borné par le radar)
   helmEscortDist: 16,   // distance à laquelle il escorte un civil (plus serré)
   helmReactionTau: 0.8, // retard de réaction du barreur IA (s) : il barre mollement
   helmFleetLead: 26,    // avance (unités) au-delà de laquelle le barreur attend la flotte.
@@ -248,7 +249,8 @@ export const TUNE_SPECS = [
   // --- Postes ---
   ['stationSwitchTime', 'Transit entre postes (s)', 0, 4, 0.1, 'Postes', 'Temps d\'installation à un nouveau poste. Pendant ce transit, le poste rejoint est VACANT. À 0, tu es partout à la fois et l\'équipage ne sert plus à rien.'],
   ['slowMoScale', 'Ralenti de l\'anneau (×)', 0.1, 1, 0.05, 'Postes', 'Vitesse du temps quand un panneau de commandement est ouvert. Bas = on peut réfléchir sans être puni.'],
-  ['helmStandoff', 'Barreur IA : distance tenue', 10, 40, 1, 'Postes', 'Distance de combat que tient le barreur IA.'],
+  ['helmStandoff', 'Barreur IA : distance minimale', 10, 40, 1, 'Postes', 'Distance de combat que tient le barreur IA.'],
+  ['helmStandoffRatio', 'Barreur IA : part de la portée tenue', 0.4, 1, 0.02, 'Postes', 'Le barreur tient cette fraction de la portée de tes armes, plafonnée par la portée radar (au-delà, l\'équipage tire mal). À 0,88 avec un laser de 40 il reste à 35 au lieu de foncer au contact. Améliorer le radar permet donc de combattre de plus loin.'],
   ['helmEscortDist', 'Barreur IA : distance d\'escorte', 6, 40, 1, 'Postes', 'Distance à laquelle le barreur IA escorte un civil (plus serré qu\'une distance de combat).'],
   ['helmReactionTau', 'Barreur IA : mollesse (s)', 0.1, 2, 0.1, 'Postes', 'Mollesse du barreur IA. Haut = il barre approximativement, donc prendre la barre soi-même compte.'],
   ['helmFleetLead', 'Barreur IA : avance tolérée sur la flotte', 20, 200, 5, 'Postes', 'Au-delà de cette avance sur la flotte, le barreur IA lève le pied et attend — mais seulement si la flotte est en RALLIEMENT. Sans ça la baleine distance le convoi et la bulle de saut se vide, donc ordonner le saut abandonne tout le monde.'],

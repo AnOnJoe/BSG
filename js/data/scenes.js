@@ -496,6 +496,31 @@ export const SECTOR_SCENES = {
 };
 
 /**
+ * Transports dont une scène a BESOIN, déduits de ses effets.
+ *
+ * ⚠ Signalé en partie test : « j'ai perdu l'hôpital et ça me dit que je peux donner
+ * +180 de coque à l'hôpital si je donne du personnel ». Les scènes étaient servies
+ * sans regarder l'état de la flotte : on payait un coût réel pour un bénéfice qui ne
+ * pouvait pas s'appliquer, et le texte parlait d'une épave.
+ *
+ * La dépendance est DÉDUITE des effets plutôt qu'annotée à la main : une annotation
+ * finit toujours par se désynchroniser du contenu, alors qu'un effet qui cite
+ * `['hospital', +180]` dit de lui-même qu'il faut un hôpital.
+ */
+export function sceneNeeds(scene) {
+  const ids = new Set();
+  for (const c of scene.choices || []) {
+    for (const key of ['transportHp', 'transportSpeed']) {
+      const spec = c.effect?.[key];
+      if (!spec) continue;
+      const pairs = Array.isArray(spec[0]) ? spec : [spec];
+      for (const [id] of pairs) ids.add(id);
+    }
+  }
+  return ids;
+}
+
+/**
  * Les scènes d'un secteur (repli sur le premier arc si l'id est inconnu).
  * `loop` > 0 = on repasse à la Porte sans avoir rompu la boucle : l'arc du refus.
  */

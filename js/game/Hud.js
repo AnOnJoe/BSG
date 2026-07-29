@@ -210,7 +210,13 @@ export class Hud {
         if (spool) { cls = 'spool'; txt = `AMORÇAGE ${info.spool.toFixed(1)} s`; }
         else if (!ftl.ready) { txt = `calcul ${Math.floor(ftl.charge)} %`; }
         else if (!inside) { cls = 'nope'; txt = 'aucun transport dans la bulle'; }
-        else { cls = 'ready'; txt = outside ? `${inside} partent · ${outside} restent` : `${inside} partent`; }
+        else {
+          // « 5/6 partent » et non « 5 partent » : sans le total on ne sait pas si
+          // l'on abandonne quelqu'un. Demandé en partie test.
+          cls = outside ? 'part' : 'ready';
+          txt = `${inside}/${inside + outside} partent`
+            + (outside ? ` · ${outside} restent` : '');
+        }
         this.rjState.textContent = txt;
         this.rbJump.className = `rb-jump ${cls}`;
         this.rbJump.disabled = spool;
@@ -328,10 +334,13 @@ export class Hud {
     this.outcome.className = 'hidden';
     this.container.appendChild(this.outcome);
 
+    // Rappel des touches, en bas de l'écran tactique. ⚠ Son style avait disparu en
+    // même temps que l'ancien bloc CSS du hangar : il se retrouvait en haut à gauche
+    // par-dessus le logo. Il porte maintenant son propre identifiant.
     this.hint = document.createElement('div');
-    this.hint.className = 'hint';
-    this.hint.textContent =
-      'Tab : poste · chiffres : commandes · J : ordre de saut · Clic : tir · Espace : missiles · ↑↓/←→ : barre';
+    this.hint.id = 'hud-hint';
+    this.hint.textContent = 'Tab : poste · chiffres : commandes du poste · J : saut · '
+      + 'X : cible prioritaire · Clic : tir · Espace : missiles · ↑↓ ←→ : barre · V : plein écran';
     this.container.appendChild(this.hint);
   }
 
@@ -892,6 +901,40 @@ export class Hud {
       el.style.transform = `translate(-50%,-50%) rotate(${angle}rad)`;
     }
     for (let i = list.length; i < this._indicators.length; i++) this._indicators[i].style.display = 'none';
+  }
+
+  /**
+   * ÉTIQUETTES DES CIVILS dans la zone de jeu. « On ne sait pas quel navire est qui »
+   * — les six silhouettes sont distinctes mais rien ne les nomme, et surtout rien ne
+   * dit CE QU'ELLES PORTENT, alors que perdre la citerne interdit de forcer le calcul.
+   * L'étiquette porte donc l'icône de fonction, le nom court et l'état de la coque.
+   */
+  setFleetTags(list) {
+    if (!this._tags) this._tags = [];
+    for (let i = 0; i < list.length; i++) {
+      let el = this._tags[i];
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'fleet-tag';
+        this.container.appendChild(el);
+        this._tags[i] = el;
+      }
+      const t = list[i];
+      el.style.display = 'block';
+      el.style.left = `${t.x}px`;
+      el.style.top = `${t.y}px`;
+      el.className = `fleet-tag${t.hurt ? ' hurt' : ''}${t.laggard ? ' laggard' : ''}`
+        + `${t.inBubble ? ' inb' : ''}`;
+      const txt = `${t.icon} ${t.tag}`;
+      if (el.dataset.k !== txt + t.pct) {
+        el.dataset.k = txt + t.pct;
+        el.innerHTML = `<span class="ft-n">${txt}</span><span class="ft-b">` +
+          `<span class="ft-f" style="width:${t.pct}%"></span></span>`;
+      } else {
+        el.querySelector('.ft-f').style.width = `${t.pct}%`;
+      }
+    }
+    for (let i = list.length; i < this._tags.length; i++) this._tags[i].style.display = 'none';
   }
 
   setEnemy(present, hp, max) {

@@ -1,4 +1,4 @@
-import { scenesFor, crewFor } from '../data/scenes.js';
+import { scenesFor, crewFor, sceneNeeds } from '../data/scenes.js';
 import { FLEET_ROLES } from '../data/convoyConfig.js';
 
 /**
@@ -49,7 +49,18 @@ export class Bridge {
       this.effects = [];
       this._lastSector = key;
     }
-    this._scenes = scenesFor(sectorId, loop);
+    // ⚠ On ÉCARTE les scènes qui parlent d'un transport détruit. Sans ce filtre, le
+    // CIC proposait « +180 de coque au Navire-hôpital » alors qu'il n'en restait
+    // qu'une épave : coût réel, bénéfice nul, et un dialogue absurde.
+    const dead = new Set(this.app.range.convoy.transports
+      .filter((t) => !t.alive).map((t) => t.def.id));
+    const all = scenesFor(sectorId, loop);
+    this._scenes = dead.size
+      ? all.filter((sc) => ![...sceneNeeds(sc)].some((id) => dead.has(id)))
+      : all;
+    // Garde-fou : on ne vide jamais l'arc (il faut au moins l'ouverture et le contact).
+    if (this._scenes.length < 2) this._scenes = [all[0], all[all.length - 1]];
+    this.index = Math.min(this.index, this._scenes.length - 1);
     this._crew = crewFor(sectorId, loop);
     this._build();
     this._render();

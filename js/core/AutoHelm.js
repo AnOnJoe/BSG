@@ -18,7 +18,8 @@ const _v = new THREE.Vector3();
  *    encerclement — c'est au capitaine d'en décider, depuis n'importe quel poste.
  *
  * Consignes :
- *  - ENGAGER   : tient `TUNE.helmStandoff` face au plus proche hostile, et à défaut
+ *  - ENGAGER   : tient la PORTÉE DE SES ARMES face au plus proche hostile (bornée
+ *                par la portée radar), et à défaut
  *                MÈNE vers la sortie du secteur ;
  *  - TENIR     : moteurs coupés, on ne bouge plus (mais on esquive si l'on dérive
  *                vers un rocher) ;
@@ -90,8 +91,24 @@ export class AutoHelm {
     const leading = !!ctx.fleetFollows;
     const escortTo = (!leading && ctx.escort) ? ctx.escort : null;
     const target = goal || ctx.target || escortTo;
-    // On colle de plus près un civil qu'un ennemi (on le couvre, on ne l'affronte pas)
-    const standoff = (!goal && !ctx.target && escortTo) ? TUNE.helmEscortDist : TUNE.helmStandoff;
+    // DISTANCE TENUE. ⚠ Elle était fixe (`helmStandoff`, 24) alors que le laser porte
+    // à 40 : le barreur allait donc au contact sans raison. Signalé en partie test :
+    // « notre vaisseau en mode attaque doit rester le plus loin possible tout en
+    // permettant d'attaquer ». Elle est maintenant DÉRIVÉE de la portée réelle des
+    // armes, et bornée par la portée RADAR — au-delà, l'équipage piste mal et sa
+    // dispersion explose (cf. `crewNoRadarMul`), donc tenir plus loin serait tirer
+    // pour rien. Corollaire : améliorer le radar permet de combattre de plus loin.
+    let standoff;
+    if (!goal && !ctx.target && escortTo) {
+      // On colle de plus près un civil qu'un ennemi : on le couvre, on ne l'affronte pas.
+      standoff = TUNE.helmEscortDist;
+    } else {
+      const reach = ctx.weaponReach || 0;
+      const radar = ctx.radarRange || 0;
+      let d = reach > 0 ? reach * TUNE.helmStandoffRatio : TUNE.helmStandoff;
+      if (radar > 0) d = Math.min(d, radar);
+      standoff = Math.max(TUNE.helmStandoff, d);
+    }
 
     // Écarter des bords : priorité absolue, sinon il s'y colle bêtement.
     const margin = 22;

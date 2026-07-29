@@ -211,21 +211,45 @@ export class CapitalShip {
   update(dt, ctx) {
     if (!this.alive) return null;
 
-    // Déplacement : il avance vers sa distance de bombardement, très lentement,
-    // et s'arrête net si on lui a arraché ses moteurs.
+    // ⚠ IL BARRE LA ROUTE, IL NE CHASSE PAS.
+    //
+    // Signalé en partie test : « le cuirassé ennemi, il vient vers nous ? on est en
+    // mode fuir, pas chasse comme avant ». Juste, et c'était un vestige de l'ancienne
+    // boucle par vagues : il fonçait sur le JOUEUR pour tenir sa distance de
+    // bombardement, et reculait même si l'on s'approchait trop. Un bâtiment qui vous
+    // court après n'a aucun sens dans un jeu de fuite — et `data/campaign.js` dit
+    // depuis le début « un basestar coupe la route ».
+    //
+    // Il tient donc une LIGNE DE BARRAGE : il reste sur son X et ne se déplace
+    // latéralement que pour rester dans l'axe de la flotte. C'est un mur à franchir,
+    // pas un poursuivant. Et si la flotte le DÉPASSE, il se lance en chasse arrière —
+    // le blocus est rompu, il n'a plus qu'à tirer dans le dos.
     if (this.enginesAlive) {
-      _v.copy(ctx.playerPos).sub(this.group.position);
-      _v.z = 0;
-      const dist = _v.length() || 0.0001;
-      const err = dist - this.config.standoff;
-      if (Math.abs(err) > 3) {
-        const sp = this.config.speed * TUNE.enemySpeedMul * Math.sign(err);
-        const step = (sp * dt) / dist;
-        this.group.position.x += _v.x * step;
-        this.group.position.y += _v.y * step;
+      const fleetX = ctx.fleetPos ? ctx.fleetPos.x : ctx.playerPos.x;
+      const fleetY = ctx.fleetPos ? ctx.fleetPos.y : ctx.playerPos.y;
+      if (this._line === undefined) this._line = this.group.position.x;
+      const passed = fleetX > this._line + 10;
+      const sp = this.config.speed * TUNE.enemySpeedMul;
+
+      if (passed) {
+        // Blocus rompu : poursuite, mais il est lourd et ne rattrapera pas vite.
+        _v.set(fleetX - this.group.position.x, fleetY - this.group.position.y, 0);
+        const d2 = _v.length() || 0.0001;
+        this.group.position.x += (_v.x / d2) * sp * dt;
+        this.group.position.y += (_v.y / d2) * sp * dt;
+      } else {
+        // Barrage : on ne bouge qu'en Y, pour rester en travers de leur route.
+        const dy = fleetY - this.group.position.y;
+        if (Math.abs(dy) > 4) this.group.position.y += Math.sign(dy) * sp * dt;
+        // Et on se recale doucement sur sa ligne si un choc l'en a écarté.
+        const dx = this._line - this.group.position.x;
+        if (Math.abs(dx) > 2) this.group.position.x += Math.sign(dx) * sp * 0.5 * dt;
       }
-      // Il présente le flanc (il ne pointe pas sa proue : ses bordées sont latérales)
-      const want = Math.atan2(_v.y, _v.x) + Math.PI / 2;
+
+      // Il présente le FLANC à la flotte : ses bordées sont latérales, il ne pointe
+      // pas sa proue.
+      const want = Math.atan2(fleetY - this.group.position.y,
+        fleetX - this.group.position.x) + Math.PI / 2;
       let d = ((want - this.group.rotation.z + Math.PI) % (Math.PI * 2)) - Math.PI;
       if (d < -Math.PI) d += Math.PI * 2;
       this.group.rotation.z += d * Math.min(1, dt * 0.25); // manœuvre pesante

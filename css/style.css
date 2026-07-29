@@ -1936,3 +1936,53 @@ body.expanded #cockpit-shell .shell-glare { opacity: 0; }
   margin-left: 10px;
   text-shadow: 0 0 4px rgba(0,0,0,0.9);
 }
+
+/* ÉTIQUETTES DES CIVILS — « on ne sait pas quel navire est qui dans la zone de jeu ».
+   Elles portent l'icône de FONCTION (tylium, pièces, atelier, infirmerie) autant que
+   le nom : ce qu'un transport porte compte plus que son nom. */
+.fleet-tag {
+  position: fixed; z-index: 16;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  text-align: center;
+  font-size: 9px; letter-spacing: 1.2px; white-space: nowrap;
+  color: rgba(159,196,255,0.9);
+  text-shadow: 0 0 5px rgba(0,0,0,0.95), 0 0 3px rgba(0,0,0,0.95);
+}
+.ft-n { display: block; }
+.ft-b {
+  display: block; width: 46px; height: 2px; margin: 2px auto 0;
+  background: rgba(0,0,0,0.6); border: 1px solid rgba(75,106,122,0.5);
+}
+.ft-f { display: block; height: 100%; background: currentColor; }
+/* Sous 50 % de coque : c'est celui-là qu'il faut couvrir */
+.fleet-tag.hurt { color: var(--neon-amber); }
+/* Le retardataire : c'est lui qui commande le départ */
+.fleet-tag.laggard { color: var(--neon-magenta); font-weight: 600; }
+/* Dans la bulle de saut : il partira. Discret mais lisible d'un coup d'œil. */
+.fleet-tag.inb .ft-n::after { content: ' ◈'; color: var(--neon-green); }
+
+/* Le bouton de saut quand on laisserait quelqu'un derrière : ambre, pas vert. */
+.rb-jump.part {
+  color: var(--neon-amber); border-color: var(--neon-amber);
+  background: rgba(255,170,51,0.12);
+}
+.rb-jump.part .rj-key { background: var(--neon-amber); }
+
+/* Rappel des touches, cadré sur l'ÉCRAN TACTIQUE et non sur la fenêtre — sinon il
+   déborde sur le décor du cockpit. Il avait perdu son style avec l'ancien bloc du
+   hangar et se retrouvait en haut à gauche, par-dessus le logo. */
+#hud-hint {
+  position: fixed; z-index: 16;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--bay-b) + 8px);
+  padding: 4px 12px;
+  font-size: 9px; letter-spacing: 1px; white-space: nowrap;
+  color: var(--dim);
+  background: rgba(6, 12, 20, 0.6);
+  border: 1px solid rgba(75,106,122,0.28);
+  border-radius: 20px;
+  pointer-events: none;
+}
+body.expanded #hud-hint { bottom: 10px; }

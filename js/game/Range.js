@@ -915,14 +915,17 @@ export class Range {
     const list = this.app.pendingEffects || [];
     this.modulesOffline = 0;
     for (const { label, effect } of list) {
+      // ⚠ `t.alive` : on ne soigne pas une épave. Le CIC n'offre plus ces choix quand
+      // le transport est perdu (cf. `sceneNeeds`), mais la garde reste ici — un effet
+      // appliqué à un mort passerait totalement inaperçu.
       for (const [type, amount] of _pairs(effect.transportHp)) {
         for (const t of this.convoy.transports) {
-          if (t.def.id === type) { t.maxHp += amount; t.hp = Math.min(t.maxHp, t.hp + amount); }
+          if (t.def.id === type && t.alive) { t.maxHp += amount; t.hp = Math.min(t.maxHp, t.hp + amount); }
         }
       }
       for (const [type, amount] of _pairs(effect.transportSpeed)) {
         for (const t of this.convoy.transports) {
-          if (t.def.id === type) t.def = { ...t.def, speed: Math.max(1.5, t.def.speed + amount) };
+          if (t.def.id === type && t.alive) t.def = { ...t.def, speed: Math.max(1.5, t.def.speed + amount) };
         }
       }
       if (effect.modulesOffline) this.modulesOffline += effect.modulesOffline;
@@ -1883,6 +1886,32 @@ export class Range {
       bubble: this.gatherR,
     });
     this._updateIndicators();
+    this._updateFleetTags();
+  }
+
+  /**
+   * Étiquettes projetées sur les transports : qui est qui, et ce qu'il porte.
+   * ⚠ `.project()` mute le vecteur → on clone (piège déjà rencontré ici), et la
+   * conversion écran passe par `viewport` et non `window.innerWidth`, sinon les
+   * étiquettes se décalent silencieusement du rendu dans le cadrage cockpit.
+   */
+  _updateFleetTags() {
+    const list = [];
+    const lag = this.convoy.laggard;
+    const inside = new Set(this.convoy.splitByBubble(
+      this.ship.group.position.x, this.ship.group.position.y, this.gatherR).inside);
+    for (const t of this.convoy.alive) {
+      const v = t.position.clone().project(this.camera);
+      if (v.z > 1 || v.x < -1 || v.x > 1 || v.y < -1 || v.y > 1) continue;
+      const role = FLEET_ROLES[t.def.role];
+      list.push({
+        x: viewport.pageX(v.x), y: viewport.pageY(v.y) - (t.radius * 2.6) - 10,
+        tag: t.def.tag || t.name, icon: role?.icon || '·',
+        pct: Math.max(0, Math.round((t.hp / t.maxHp) * 100)),
+        hurt: t.hp / t.maxHp < 0.5, laggard: t === lag, inBubble: inside.has(t),
+      });
+    }
+    this.hud.setFleetTags(list);
   }
 
   /**
@@ -2009,6 +2038,16 @@ export class Range {
         speed: Math.hypot(this.shipVel.x, this.shipVel.y),  // la sienne
         terrain: this.terrain,   // pour esquiver le décor au lieu de le percuter
         radius: this.ship.collisionRadius,  // on sonde à la largeur de la coque
+        // Portée utile de l'armement principal (la défense rapprochée ne compte pas :
+        // elle ne sert qu'aux drones collés à la coque) et portée radar. C'est ce qui
+        // décide de la distance tenue : rester le plus loin possible en pouvant tirer.
+        weaponReach: this.ship.weaponModules
+          .filter((m) => m.active && m.def.targets !== 'small')
+          .reduce((mx, m) => Math.max(mx, m.stats.range || 0), 0),
+        radarRange: (() => {
+          const rd = this.ship.getActiveRadar();
+          return rd ? rd.range * TUNE.radarRangeMul : 0;
+        })(),
         order: this.helmOrder,
         bounds: ARENA,
       });
@@ -2146,6 +2185,11 @@ export class Range {
       const wasAlive = this.capital.parts.map((p) => p.alive);
       this.capital.update(dt, {
         playerPos: this.ship.group.position,
+        // Il barre la route de la FLOTTE, ce n'est pas le joueur qu'il poursuit.
+        fleetPos: this.convoy.alive.length ? {
+          x: this.convoy.alive.reduce((a, t) => a + t.position.x, 0) / this.convoy.alive.length,
+          y: this.convoy.alive.reduce((a, t) => a + t.position.y, 0) / this.convoy.alive.length,
+        } : null,
         bounds: ARENA,
         spawnBolt: enemyCtx.spawnBolt,
       });
