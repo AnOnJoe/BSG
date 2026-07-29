@@ -68,8 +68,13 @@ export const SECTORS = [
   },
 ];
 
-/** Remise en état après un saut : on répare avec ce qu'on a, jamais tout. */
-export const JUMP_REPAIR = { structure: 40, ammo: true, credits: 240 };
+/**
+ * Remise en état après un saut : on répare avec ce qu'on a, jamais tout.
+ * `noWorkshop` s'applique si le REMORQUEUR est perdu — c'est lui qui porte
+ * l'atelier (cf. `FLEET_ROLES` dans `data/convoyConfig.js`). Les munitions, elles,
+ * ne se rechargent plus du tout : sans atelier on ne fabrique rien.
+ */
+export const JUMP_REPAIR = { structure: 40, noWorkshop: 12, ammo: true, credits: 240 };
 
 export function sectorAt(i) { return SECTORS[Math.min(i, SECTORS.length - 1)]; }
 export const SECTOR_COUNT = SECTORS.length;

@@ -8,13 +8,56 @@
  *    traînards sous le feu ;
  *  - un transport perdu, ce sont des survivants perdus **définitivement** ⇒
  *    l'échec est partiel et cumulatif, pas un simple game over.
+ *
+ * ⚠ LA FLOTTE EST L'ÉCONOMIE DE LA PARTIE (`role`). Les âmes n'étaient qu'un
+ * compteur : perdre un transport ne coûtait RIEN mécaniquement, et comme c'était
+ * une coque de moins à défendre — voire la plus lente, celle qui bride toute la
+ * flotte — **perdre rendait le jeu plus facile**. L'inverse exact de ce que le
+ * jeu raconte.
+ *
+ * Chaque transport porte donc une fonction dont la perte se paie, et elle est
+ * DÉFINITIVE pour le reste de la traversée. Deux d'entre eux ne portent que des
+ * vies, et c'est délibéré : il faut que sacrifier soit parfois rationnel et
+ * coûte quand même. C'est aussi ce qui rendra le dénouement mordant — détruire
+ * soi-même un transport compromis n'a de poids que si ça ampute vraiment.
  */
+/**
+ * Les FONCTIONS portées par la flotte. `lost` doit être lisible d'une phrase :
+ * le joueur découvre la conséquence au moment où il perd le vaisseau, pas dans
+ * une table de règles.
+ */
+export const FLEET_ROLES = {
+  fuel: {
+    id: 'fuel', name: 'TYLIUM', icon: '⛽',
+    gives: 'permet de FORCER le calcul de saut',
+    lost: 'Plus de tylium : le calcul ne peut plus être forcé.',
+  },
+  parts: {
+    id: 'parts', name: 'PIÈCES', icon: '⚙',
+    gives: 'ouvre le pont hangar entre deux sauts',
+    lost: 'Plus de pièces : le pont hangar est fermé, les crédits ne servent plus.',
+  },
+  workshop: {
+    id: 'workshop', name: 'ATELIER', icon: '⚒',
+    gives: 'réparation complète de la coque à chaque saut',
+    lost: 'Plus d\'atelier : la coque ne se répare presque plus entre deux sauts.',
+  },
+  infirmary: {
+    id: 'infirmary', name: 'INFIRMERIE', icon: '✚',
+    gives: 'l\'équipage récupère : conduite de tir nette',
+    lost: 'Plus d\'infirmerie : l\'équipage épuisé tire beaucoup moins juste.',
+  },
+  // Volontairement sans effet mécanique : ces deux-là ne portent que des vies.
+  // Sacrifier doit pouvoir être rationnel — et coûter quand même 32 500 âmes.
+  souls: { id: 'souls', name: 'CIVILS', icon: '☍', gives: 'des vies, rien de plus', lost: null },
+};
+
 export const TRANSPORT_TYPES = {
   // PAQUEBOT — le plus grand : très long, effilé, superstructure à étages sur le
   // dos et longues rangées de hublots. C'est le vaisseau à 20 000 âmes, il doit
   // se lire comme une ville qui flotte.
   liner: {
-    id: 'liner', name: 'Paquebot Cloud 9', souls: 20400, kind: 'liner',
+    id: 'liner', name: 'Paquebot Cloud 9', souls: 20400, kind: 'liner', role: 'souls',
     hp: 300, radius: 7.2, speed: 4.6, color: 0xbfe9ff, fill: 0x152a3a, depth: 2.6,
     profile: [[15, 0.5], [13, 1.9], [4, 2.7], [-9, 2.5], [-13, 1.6], [-14, 0.6],
               [-14, -0.6], [-13, -1.6], [-9, -2.5], [4, -2.7], [13, -1.9]],
@@ -23,21 +66,21 @@ export const TRANSPORT_TYPES = {
   // CITERNE — trapue et bombée : deux gros réservoirs cylindriques accolés, une
   // passerelle minuscule à l'arrière. Silhouette large et courte.
   tanker: {
-    id: 'tanker', name: 'Citerne à tylium', souls: 2600, kind: 'tanker',
+    id: 'tanker', name: 'Citerne à tylium', souls: 2600, kind: 'tanker', role: 'fuel',
     hp: 420, radius: 6.4, speed: 4.0, color: 0xffd08a, fill: 0x2e2214, depth: 4.4,
     profile: [[6, 1.0], [5, 4.2], [-5, 4.6], [-8, 3.0], [-8, -3.0], [-5, -4.6], [5, -4.2], [6, -1.0]],
     tanks: 2, windows: 3,
   },
   // CARGO — plate-forme nue avec des CONTENEURS empilés dessus, très anguleux.
   freighter: {
-    id: 'freighter', name: 'Cargo lourd', souls: 4800, kind: 'freighter',
+    id: 'freighter', name: 'Cargo lourd', souls: 4800, kind: 'freighter', role: 'parts',
     hp: 340, radius: 6.0, speed: 5.2, color: 0x9fd6b0, fill: 0x16281d, depth: 2.0,
     profile: [[11, 0.8], [9, 1.6], [-9, 1.8], [-11, 0.8], [-11, -0.8], [-9, -1.8], [9, -1.6]],
     crates: 7, windows: 2,
   },
   // NAVIRE-HÔPITAL — large, pâle, avec une CROIX lumineuse sur le flanc.
   hospital: {
-    id: 'hospital', name: 'Navire-hôpital', souls: 9200, kind: 'hospital',
+    id: 'hospital', name: 'Navire-hôpital', souls: 9200, kind: 'hospital', role: 'infirmary',
     hp: 240, radius: 6.6, speed: 4.4, color: 0xffe8ee, fill: 0x2c1520, depth: 3.0,
     profile: [[10, 0.6], [8.5, 3.2], [0, 3.8], [-8, 3.4], [-11, 1.8], [-11, -1.8],
               [-8, -3.4], [0, -3.8], [8.5, -3.2]],
@@ -45,14 +88,14 @@ export const TRANSPORT_TYPES = {
   },
   // REMORQUEUR — petit, râblé, tout en moteurs. Le plus rapide, le plus fragile.
   tug: {
-    id: 'tug', name: 'Remorqueur', souls: 900, kind: 'tug',
+    id: 'tug', name: 'Remorqueur', souls: 900, kind: 'tug', role: 'workshop',
     hp: 180, radius: 4.2, speed: 5.6, color: 0xc9b6ff, fill: 0x1d1830, depth: 2.2,
     profile: [[6, 0.6], [4.5, 2.0], [-3, 2.2], [-5.5, 1.2], [-5.5, -1.2], [-3, -2.2], [4.5, -2.0]],
     windows: 2, nozzles: 3,
   },
   // TRANSPORT DE PASSAGERS — moyen, allongé, deux nacelles latérales.
   ferry: {
-    id: 'ferry', name: 'Transport Gemenon', souls: 12100, kind: 'ferry',
+    id: 'ferry', name: 'Transport Gemenon', souls: 12100, kind: 'ferry', role: 'souls',
     hp: 280, radius: 6.2, speed: 4.8, color: 0x9fc4ff, fill: 0x141f33, depth: 2.4,
     profile: [[12, 0.5], [10, 1.7], [-8, 2.0], [-11, 1.0], [-11, -1.0], [-8, -2.0], [10, -1.7]],
     pods: true, windows: 11,

@@ -1,4 +1,5 @@
 import { scenesFor, crewFor } from '../data/scenes.js';
+import { FLEET_ROLES } from '../data/convoyConfig.js';
 
 /**
  * PHASE PASSERELLE — les « 33 minutes » avant le contact, vécues dans le CIC.
@@ -30,10 +31,20 @@ export class Bridge {
   get scenes() { return this._scenes; }
   get scene() { return this._scenes[Math.min(this.index, this._scenes.length - 1)]; }
 
+  /** Nouvelle traversée : l'arc du prochain CIC doit repartir du début. */
+  reset() { this._lastSector = null; this.index = 0; this.effects = []; }
+
   enter() {
-    this.index = 0;
-    this.effects = [];
     const sectorId = this.app.range.sector.id;
+    // ⚠ Une ESCALE au pont hangar repasse par `exit()`/`enter()`. Sans ce test, y
+    // descendre puis remonter rejouait l'arc depuis la première réplique et
+    // ANNULAIT les choix déjà faits — on pouvait même les repayer en boucle.
+    // On ne repart de zéro que si l'on entre dans un NOUVEAU secteur.
+    if (sectorId !== this._lastSector) {
+      this.index = 0;
+      this.effects = [];
+      this._lastSector = sectorId;
+    }
     this._scenes = scenesFor(sectorId);
     this._crew = crewFor(sectorId);
     this._build();
@@ -79,6 +90,10 @@ export class Bridge {
             </div>
             <div class="cic-console right">${this._consoleSvg()}</div>
           </div>
+          <!-- ÉTAT DE LA FLOTTE : c'est l'économie de la partie, elle doit être
+               sous les yeux au moment où l'on prend les décisions. -->
+          <div class="cic-fleet"></div>
+          <div class="cic-notice"></div>
           <div class="cic-dialogue">
             <div class="dlg-who"><span class="dlg-name"></span><span class="dlg-role"></span></div>
             <div class="dlg-text"></div>
@@ -86,6 +101,7 @@ export class Bridge {
             <div class="dlg-keys">
               <span class="k"><b>Espace</b> continuer</span>
               <span class="k"><b>1-3</b> choisir</span>
+              <span class="k"><b>H</b> pont hangar</span>
               <span class="k skip"><b>N</b> passer à l'action</span>
             </div>
           </div>
@@ -99,11 +115,14 @@ export class Bridge {
       calcPct: this.ui.querySelector('.cc-pct'),
       calcFill: this.ui.querySelector('.cc-fill'),
       calcNote: this.ui.querySelector('.cc-note'),
+      fleet: this.ui.querySelector('.cic-fleet'),
+      notice: this.ui.querySelector('.cic-notice'),
       name: this.ui.querySelector('.dlg-name'),
       role: this.ui.querySelector('.dlg-role'),
       text: this.ui.querySelector('.dlg-text'),
       choices: this.ui.querySelector('.dlg-choices'),
     };
+    this._renderFleet();
     this.ui.querySelector('#cic').addEventListener('click', (e) => {
       if (e.target.closest('.dlg-choice')) return; // les choix ont leur propre clic
       this._next();
@@ -138,6 +157,32 @@ export class Bridge {
       <circle cx="20" cy="12" r="7" fill="none" stroke-width="1.4"/>
       <path d="M8 54 C8 34 14 24 20 24 C26 24 32 34 32 54" fill="none" stroke-width="1.4"/>
       <path d="M10 38 H30" fill="none" stroke-width="1"/></svg>`;
+  }
+
+  /**
+   * Les six coques et leur fonction, barrées quand elles sont perdues. C'est
+   * l'inventaire de ce qui reste, donc de ce qu'on peut encore faire — le pont
+   * hangar est fermé sans le cargo, le calcul n'est plus forçable sans la citerne.
+   * On lit `transports` en direct plutôt que `FLEET` : un transport peut avoir été
+   * abandonné à un saut précédent.
+   */
+  _renderFleet() {
+    const convoy = this.app.range.convoy;
+    const list = convoy.transports.length ? convoy.transports : null;
+    if (!list) { this.el.fleet.innerHTML = ''; return; }
+    const cells = list.map((t) => {
+      const role = FLEET_ROLES[t.def.role];
+      const dead = !t.alive;
+      const hurt = t.alive && t.hp / t.maxHp < 0.5;
+      return `<div class="cf-cell${dead ? ' dead' : ''}${hurt ? ' hurt' : ''}"
+                   title="${role.gives}">
+        <span class="cf-icon">${role.icon}</span>
+        <span class="cf-name">${t.def.name}</span>
+        <span class="cf-role">${dead ? 'PERDU' : role.name}</span>
+      </div>`;
+    }).join('');
+    this.el.fleet.innerHTML =
+      `<span class="cf-label">FLOTTE · ${convoy.souls.toLocaleString('fr-FR')} âmes</span>${cells}`;
   }
 
   // ---------- déroulé ----------
@@ -189,9 +234,21 @@ export class Bridge {
     }
   }
 
+  /** Message éphémère dans le bandeau du CIC (refus, information). */
+  notify(text) {
+    if (!this.el?.notice) return;
+    this.el.notice.textContent = text;
+    this.el.notice.classList.add('show');
+    clearTimeout(this._noticeT);
+    this._noticeT = setTimeout(() => this.el.notice.classList.remove('show'), 3800);
+  }
+
   _key(e) {
     const tag = e.target.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    // H : descendre au pont hangar. L'escale ne consomme pas de temps de fiction
+    // (le décompte avance par scène), donc elle ne punit pas la curiosité.
+    if (e.code === 'KeyH') { e.preventDefault(); this.app.toHangar('bridge'); return; }
     if (e.code === 'KeyN') { e.preventDefault(); this._toAction(); return; }
     if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); this._next(); return; }
     const digit = /^Digit([1-9])$/.exec(e.code);

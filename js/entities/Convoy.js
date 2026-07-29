@@ -240,6 +240,21 @@ export class Convoy {
   }
 
   /**
+   * LA FLOTTE EST L'ÉCONOMIE. Les fonctions encore assurées — on interroge
+   * `t.alive` et NON le getter `alive` (qui exclut les sautés) : un transport
+   * qui a franchi le saut continue évidemment de rendre ses services au secteur
+   * suivant. Une fonction perdue l'est pour toute la traversée.
+   */
+  get roles() {
+    return new Set(this.transports.filter((t) => t.alive).map((t) => t.def.role).filter(Boolean));
+  }
+
+  hasRole(role) { return this.roles.has(role); }
+
+  /** Le transport qui assure cette fonction, vivant ou non (pour l'affichage). */
+  bearerOf(role) { return this.transports.find((t) => t.def.role === role) || null; }
+
+  /**
    * Allure du convoi : celle du plus lent VALIDE. Les éclopés ne la commandent
    * pas — sinon toute la flotte se calerait sur le blessé et personne ne
    * décrocherait jamais, donc aucun dilemme.

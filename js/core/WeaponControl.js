@@ -51,6 +51,10 @@ export class WeaponControl {
   constructor(ship) {
     this.ship = ship;
     this.modeId = 'burst';
+    // Fatigue de l'équipage : 1 = reposé. `Range` la relève à `crewFatigueMul`
+    // quand le navire-hôpital est perdu — la flotte est l'économie de la partie,
+    // et l'infirmerie est ce qui garde les servants de tourelle opérationnels.
+    this.fatigue = 1;
     this.solution = { quality: 0, label: '—' };
     this._prevFiring = false;
     this.refresh();
@@ -110,7 +114,11 @@ export class WeaponControl {
       fc.lock = TUNE.crewAcquireTime;
       fc.biasT = 0;
     } else {
-      const tau = Math.max(0.01, TUNE.crewReactionTau);
+      // ÉPUISEMENT : sans navire-hôpital, l'équipage ne récupère plus. On dégrade
+      // le RETARD de suivi autant que la dispersion, parce que c'est le retard qui
+      // fait rater ce qui manœuvre — dégrader la seule dispersion se verrait à
+      // peine. Perdre l'infirmerie doit s'entendre à la tourelle.
+      const tau = Math.max(0.01, TUNE.crewReactionTau * this.fatigue);
       fc.perceived.lerp(target.position, Math.min(1, dt / tau));
       fc.lock = Math.max(0, fc.lock - dt);
     }
@@ -122,7 +130,7 @@ export class WeaponControl {
     // multipliée si la cible n'est pas dans la bulle radar.
     const reach = m.stats.range || 1;
     const blind = radarRange > 0 && dist <= radarRange ? 1 : TUNE.crewNoRadarMul;
-    const spread = TUNE.crewSpread * Math.min(1, dist / reach) * blind + modeSpread;
+    const spread = TUNE.crewSpread * Math.min(1, dist / reach) * blind * this.fatigue + modeSpread;
 
     fc.biasT -= dt;
     if (fc.biasT <= 0) {

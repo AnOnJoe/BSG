@@ -6,6 +6,7 @@ import { Ship } from './game/Ship.js';
 import { Hangar } from './game/Hangar.js';
 import { Range } from './game/Range.js';
 import { Bridge } from './game/Bridge.js';
+import { StartMenu } from './game/StartMenu.js';
 import { Audio } from './core/Audio.js';
 import { TunePanel } from './game/TunePanel.js';
 import { loadTune, TUNE } from './core/Tune.js';
@@ -37,14 +38,18 @@ class App {
     this.ship = Ship.create(save ? save.build : null);
     this.scene.add(this.ship.group);
 
-    // Écrans
+    // Écrans. Le HANGAR n'est plus l'accueil : on démarre sur le MENU, et le
+    // hangar est devenu une escale (« pont hangar ») entre deux sauts.
+    this.menu = new StartMenu(this);
     this.hangar = new Hangar(this);
     this.range = new Range(this);
     this.bridge = new Bridge(this);      // les « 33 minutes », dans le CIC
     this.pendingEffects = [];            // décisions de passerelle à honorer
-    this.screen = 'hangar';
+    this.hangarReturn = 'menu';          // d'où l'on vient, donc où l'on retourne
+    this.screen = 'menu';
 
     // UI commune
+    this.menuUI = document.getElementById('menu-ui');
     this.hangarUI = document.getElementById('hangar-ui');
     this.rangeUI = document.getElementById('range-ui');
     this.bridgeUI = document.getElementById('bridge-ui');
@@ -80,9 +85,14 @@ class App {
     this.canvas.addEventListener('transitionend', () => this._resize());
     this._resize(); // fixe la taille de rendu ET le viewport sur le canvas encadré
 
-    // Démarrage sur le hangar
+    // Démarrage sur le menu. On n'entre pas par `_show` (il refuse la transition
+    // vers l'écran courant), donc l'état de la barre doit être posé ici aussi :
+    // sans ça le bouton contextuel restait visible sur le menu.
     this.ship.fxLayer.visible = false;
-    this.hangar.enter();
+    this.menu.enter();
+    this.menuUI.classList.remove('hidden');
+    this.screenName.textContent = '';
+    this.btnSwitch.classList.add('hidden');
 
     document.getElementById('loading').style.display = 'none';
 
@@ -215,13 +225,45 @@ class App {
   }
 
   /**
-   * Bouton COMBAT/HANGAR. Le hangar mène désormais à la PASSERELLE (les 33
-   * minutes) et non directement au combat : c'est là qu'on prend ses décisions
-   * avant l'assaut. `startCombat()` fait le second saut, passerelle → action.
+   * Le bouton de la barre est CONTEXTUEL, et surtout il ne permet plus de quitter
+   * le combat. C'est par là que passait le pire défaut de la traversée : sortir
+   * vers le hangar puis revenir rappelait `Range.enter()`, qui remettait le
+   * secteur à zéro. On n'abandonne pas une bataille par un bouton de menu.
    */
   toggleScreen() {
-    if (this.screen === 'hangar') this._show('bridge');
-    else this._show('hangar');
+    if (this.screen === 'hangar') this._show(this.hangarReturn);
+    else if (this.screen === 'bridge') this.toHangar('bridge');
+  }
+
+  /** Nouvelle traversée depuis le menu : on entre par le CIC du premier saut. */
+  startCampaign() {
+    // La flotte est montée MAINTENANT, avant le premier CIC : la passerelle a
+    // besoin d'elle pour afficher le bandeau et savoir si le pont hangar est
+    // ouvert. La monter à l'entrée du combat était trop tard.
+    this.range.newCampaign();
+    this.bridge.reset();               // l'arc du CIC repart du début, lui aussi
+    this.pendingEffects = [];
+    if (this.screen === 'bridge') { this.bridge.exit(); this.bridge.enter(); return; }
+    this._show('bridge');
+  }
+
+  /** Retour au menu (fin de partie). */
+  toMenu() { this._show('menu'); }
+
+  /**
+   * PONT HANGAR. Depuis le menu on arme la baleine avant de partir ; depuis le
+   * CIC c'est une escale entre deux sauts — et elle exige que le CARGO soit
+   * vivant, puisque c'est lui qui porte les pièces. Le refus est explicite :
+   * un bouton muet se lit comme un bug.
+   */
+  toHangar(from = 'menu') {
+    if (from === 'bridge' && !this.range.convoy.hasRole('parts')) {
+      this.bridge.notify('Pont hangar fermé — le Cargo lourd est perdu, il n\'y a plus de pièces.');
+      return false;
+    }
+    this.hangarReturn = from;
+    this._show('hangar');
+    return true;
   }
 
   /** Fin de la phase passerelle : on passe à l'action. */
@@ -233,18 +275,28 @@ class App {
   _show(next) {
     if (next === this.screen) return;
     // sortie de l'écran courant
-    if (this.screen === 'hangar') { this.hangar.exit(); this.hangarUI.classList.add('hidden'); }
+    if (this.screen === 'menu') { this.menu.exit(); this.menuUI.classList.add('hidden'); }
+    else if (this.screen === 'hangar') { this.hangar.exit(); this.hangarUI.classList.add('hidden'); }
     else if (this.screen === 'range') { this.range.exit(); this.rangeUI.classList.add('hidden'); }
     else if (this.screen === 'bridge') { this.bridge.exit(); this.bridgeUI.classList.add('hidden'); }
 
     this.screen = next;
-    if (next === 'hangar') {
+    if (next === 'menu') {
+      this.ship.fxLayer.visible = false;
+      setHangarView(this.camera);
+      this.menu.enter();
+      this.menuUI.classList.remove('hidden');
+      this.screenName.textContent = '';
+      this.btnSwitch.classList.add('hidden');
+      this.needsRender = true;
+    } else if (next === 'hangar') {
       this.ship.fxLayer.visible = false;
       setHangarView(this.camera);
       this.hangar.enter();
       this.hangarUI.classList.remove('hidden');
-      this.screenName.textContent = 'HANGAR';
-      this.btnSwitch.textContent = 'DÉCOLLER →';
+      this.screenName.textContent = 'PONT HANGAR';
+      this.btnSwitch.classList.remove('hidden');
+      this.btnSwitch.textContent = this.hangarReturn === 'bridge' ? '← CIC' : '← MENU';
       this.needsRender = true;
     } else if (next === 'bridge') {
       // Le CIC couvre l'écran : on ne rend pas la 3D derrière
@@ -252,7 +304,8 @@ class App {
       this.bridge.enter();
       this.bridgeUI.classList.remove('hidden');
       this.screenName.textContent = 'PASSERELLE';
-      this.btnSwitch.textContent = '← HANGAR';
+      this.btnSwitch.classList.remove('hidden');
+      this.btnSwitch.textContent = 'PONT HANGAR →';
     } else {
       this.audio.resume();
       this.ship.fxLayer.visible = true;
@@ -260,7 +313,8 @@ class App {
       this.range.enter();
       this.rangeUI.classList.remove('hidden');
       this.screenName.textContent = 'CHAMP DE TIR';
-      this.btnSwitch.textContent = '← HANGAR';
+      // Pas de sortie de secours pendant la bataille (voir toggleScreen).
+      this.btnSwitch.classList.add('hidden');
     }
     this._resize();
   }
@@ -277,7 +331,8 @@ class App {
   _loop() {
     if (this.workMode) { requestAnimationFrame(this._loop); return; } // jeu gelé
     const dt = Math.min(this.clock.getDelta(), 0.05);
-    if (this.screen === 'bridge') { requestAnimationFrame(this._loop); return; }
+    // Menu et CIC sont du DOM plein écran : rien à rendre en 3D derrière.
+    if (this.screen === 'bridge' || this.screen === 'menu') { requestAnimationFrame(this._loop); return; }
     if (this.screen === 'range') {
       // timeScale < 1 quand l'anneau de passerelle est ouvert (le DOM de
       // l'anneau, lui, reste réactif : il ne dépend pas de dt).

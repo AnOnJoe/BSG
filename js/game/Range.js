@@ -16,7 +16,7 @@ import { CapitalShip } from '../entities/CapitalShip.js';
 import { Terrain } from '../entities/Terrain.js';
 import { Convoy } from '../entities/Convoy.js';
 import { FtlDrive, FTL_MODES } from '../core/FtlDrive.js';
-import { FLEET, totalSouls } from '../data/convoyConfig.js';
+import { FLEET, totalSouls, FLEET_ROLES } from '../data/convoyConfig.js';
 import { COMBAT_OFFSET } from '../core/Camera.js';
 import { Drone } from '../entities/Drone.js';
 import { Pickup } from '../entities/Pickup.js';
@@ -80,6 +80,9 @@ export class Range {
       () => this._requestJump()
     );
     this.weapons = new WeaponControl(this.ship);
+    // Une traversée est-elle en cours ? Décide si `enter()` recommence ou reprend.
+    this.campaignActive = false;
+    this._roles = null;         // fonctions de la flotte à la frame précédente
     // Anneau de passerelle (clic droit) : bascule de profil d'énergie
     this.ring = new CommandRing(
       (presetId) => this._setPowerPreset(presetId),
@@ -277,7 +280,18 @@ export class Range {
     this.aim.enable();
     this.input.enable();
     this.ring.enable(this.app.canvas);
-    this._startGame();
+    // ⚠ PIÈGE CENTRAL DE LA TRAVERSÉE. `enter()` appelait `_startGame()`, qui
+    // remet `sectorIndex` à 0 et reconstruit la flotte. Or on repasse par le CIC
+    // entre chaque secteur (`_arriveSector` → `toBridge`), donc revenir au combat
+    // écrasait tout ce que `_arriveSector` venait de préparer : on rejouait
+    // éternellement le premier secteur, et les crédits gagnés en route n'étaient
+    // dépensables qu'après avoir perdu.
+    // La mise en place d'une nouvelle traversée a donc quitté cet écran pour
+    // `newCampaign()`, appelé par `App.startCampaign()` AVANT le premier CIC —
+    // il faut d'ailleurs que la flotte existe dès la passerelle, sinon le pont
+    // hangar s'y croit fermé (aucun cargo) et le bandeau flotte reste vide.
+    if (!this.campaignActive) this.newCampaign();
+    this._resumeSector();
   }
 
   exit() {
@@ -300,19 +314,29 @@ export class Range {
     this.app.save(); // persiste les crédits gagnés
   }
 
-  _startGame() {
+  /**
+   * NOUVELLE TRAVERSÉE. Appelée par `App.startCampaign()` **avant** le premier
+   * CIC, et pas à l'entrée du combat : la flotte doit exister dès la passerelle
+   * pour que le bandeau la montre et que le pont hangar sache s'il est ouvert.
+   * Ne touche donc à rien qui exige l'écran de combat (HUD, entités) — c'est le
+   * rôle de `_resumeSector()`, qui suit toujours.
+   */
+  newCampaign() {
     this.over = false;
-    this.aim.firing = false;
+    this.campaignActive = true;
     this.wave = 0;
     this.assaultNo = 0;
     this.sectorIndex = 0;
     this.convoy.build(FLEET, ENTRY_X, ARENA.y * 1.2);
     this.convoy.lostSouls = 0;
+    this._roles = null;          // le veilleur de fonctions repart à neuf
+    this.weapons.fatigue = 1;
     this.ftl.reset(this.sector.ftlTime, this.sector.ftlPreCharge);
     this._resetDradis();
     this.jumping = false;
     this.jumpTimer = 0;
     this.waveTheme = null;
+    this.nextTheme = null;
     this.ship.group.visible = true;
     // On escorte : on démarre AVEC la flotte, à l'entrée du couloir
     this.ship.group.position.set(ENTRY_X + 26, 0, 0);
@@ -320,22 +344,49 @@ export class Range {
     this.shipVel.set(0, 0, 0);
     this.shipAngVel = 0;
     this.ship.resetDefense();
-    this.stations.reset();
-    this.autoHelm.reset();
+    // Consignes de départ. Elles PERSISTENT ensuite d'un secteur à l'autre : c'est
+    // le contrat du jeu, l'équipage applique jusqu'à contre-ordre.
     this.weapons.setFireMode('burst');
     this._setDroneOrder('attack'); // escadron déployé d'emblée : la baie est payée
-    this.terrain.build(this.sector.terrain, ARENA, { x: ENTRY_X, y: 0, r: 60 });
     this.helmOrder = 'engage';
+    this.fleetOrder = 'tighten';
+    this.terrain.build(this.sector.terrain, ARENA, { x: ENTRY_X, y: 0, r: 60 });
+  }
+
+  /**
+   * SECTEUR SUIVANT : `_arriveSector()` a déjà tout replacé (couloir, terrain,
+   * flotte redéployée, calcul remis à zéro) avant de rendre la main au CIC. On ne
+   * refait donc surtout PAS ce travail — on se contente de rebrancher l'écran et
+   * d'honorer les décisions prises en passerelle.
+   *
+   * Deux choses ne sont volontairement pas réinitialisées :
+   *  - la COQUE, qui garde ses dégâts moins ce que le saut a réparé (`_jumpRepair`)
+   *    — c'est ce qui fait de la traversée une usure et non cinq matchs ;
+   *  - les CONSIGNES (mode de tir, escadron, barre), parce que le principe du jeu
+   *    est qu'elles persistent tant que le joueur ne les change pas.
+   * Bouclier et réserve d'énergie, eux, repartent pleins : le répit a eu lieu.
+   */
+  _resumeSector() {
+    this.over = false;
+    this.aim.firing = false;
+    this.jumping = false;
+    this.jumpTimer = 0;
+    this.spoolT = 0;
+    this.ship.group.visible = true;
+    this.ship.shield = this.ship.shieldMax;
+    this.ship.shieldBroken = false;
+    this.ship.energy = this.ship.energyMax;
+    this.ship.power.reset();
+    this.stations.reset();
+    this.autoHelm.reset();
     this.camZoom = 1;
     this._camZoomWant = 1;
     this._prevShield = this.ship.shield;
     this._clearEntities();
     this.hud.hideOutcome();
+    this.hud.hideJump();
     this.hud.refreshStates();
     this._applyPendingEffects();
-    // AUCUN ennemi au départ : le répit des « 33 minutes » commence DRADIS vide,
-    // c'est tout son sens. Le premier assaut vient du décompte (_updateDradis),
-    // pas d'un spawn d'ouverture hérité de l'ancienne boucle par vagues.
     this.hud.pushLog(`${this.sector.name} — ${this.sector.subtitle}`);
   }
 
@@ -509,7 +560,7 @@ export class Range {
       // ponctionne l'énergie des armes et des boucliers — c'est l'arbitrage
       // central du jeu : gagner du temps contre la capacité à encaisser.
       const m = FTL_MODES[n - 1 - POWER_PRESETS.length];
-      if (m && this.ftl.setMode(m.id)) this.audio.relay();
+      if (m) this._setFtlMode(m.id);
     } else if (st === 'gunnery') {
       const mode = FIRE_MODES[n - 1];
       if (mode) this.setOrder('gunnery', mode.id);
@@ -521,6 +572,47 @@ export class Range {
       if (order) this.setOrder('helm', order.id);
     }
     this.hud.refreshStates();
+  }
+
+  /**
+   * Mode du moteur de saut. FORCER **consomme du tylium** : sans la citerne, le
+   * levier disparaît, et le refus doit être explicite au HUD — un bouton qui ne
+   * répond pas sans rien dire se lit comme un bug (piège déjà rencontré avec
+   * l'exclusivité de la console du commandant).
+   */
+  _setFtlMode(id) {
+    if (id === 'forced' && !this.convoy.hasRole('fuel')) {
+      this.hud.pushLog('FORCÉ impossible — la citerne à tylium est perdue.');
+      this.hud.showWaveBanner(0, '⛽ PLUS DE TYLIUM — CALCUL NON FORÇABLE');
+      return false;
+    }
+    if (!this.ftl.setMode(id)) return false;
+    this.audio.relay();
+    return true;
+  }
+
+  /**
+   * La flotte est l'économie : on surveille les FONCTIONS, pas les coques. On
+   * compare l'ensemble des rôles encore assurés à celui de la frame précédente,
+   * ce qui attrape TOUS les chemins de mort — un tir, l'usure de l'ordre FORCER,
+   * ou un traînard abandonné au saut — là où brancher l'annonce sur le seul
+   * impact de projectile en aurait raté la moitié.
+   */
+  _watchFleetRoles() {
+    const now = this.convoy.roles;
+    if (!this._roles) { this._roles = now; return; }
+    for (const role of this._roles) {
+      if (now.has(role)) continue;
+      const def = FLEET_ROLES[role];
+      if (def?.lost) {
+        this.hud.pushLog(def.lost);
+        this.hud.showWaveBanner(0, `${def.icon} ${def.name} PERDU`);
+      }
+    }
+    this._roles = now;
+    // Épuisement de l'équipage : sans infirmerie, la conduite de tir se dégrade
+    // pour le reste de la traversée.
+    this.weapons.fatigue = now.has('infirmary') ? 1 : TUNE.crewFatigueMul;
   }
 
   /**
@@ -1233,6 +1325,22 @@ export class Range {
     this.app.renderer.pulse(0.6);
   }
 
+  /**
+   * Ce que le saut remet en état, selon ce que la flotte porte encore. Sans
+   * remorqueur, la réparation tombe à `JUMP_REPAIR.noWorkshop` et le
+   * rechargement des munitions n'a plus lieu : la traversée devient une descente
+   * dont on ne remonte pas, ce qui est exactement l'enjeu.
+   */
+  _jumpRepair() {
+    if (this.convoy.hasRole('workshop')) return { ...JUMP_REPAIR, workshop: true };
+    return {
+      ...JUMP_REPAIR,
+      structure: JUMP_REPAIR.noWorkshop,
+      ammo: false,
+      workshop: false,
+    };
+  }
+
   _beginJump() {
     this.betweenWaves = false;
     this.ftl.jumping = true;
@@ -1243,9 +1351,14 @@ export class Range {
     this.jumping = true;
     this.jumpTimer = 4.6;
     this._clearEntities();
-    this.ship.structure = Math.min(this.ship.structureMax, this.ship.structure + JUMP_REPAIR.structure);
-    if (JUMP_REPAIR.ammo) for (const m of this.ship.modules) if (m.reload) m.reload();
-    this.app.addCredits(JUMP_REPAIR.credits);
+    // RÉPARATION CONDITIONNÉE À L'ATELIER. Le remorqueur porte les moyens de
+    // remise en état : sans lui on ne rafistole plus qu'à la marge. C'est le
+    // vaisseau le plus fragile de la flotte et le moins peuplé (900 âmes) — donc
+    // celui qu'on est le plus tenté d'abandonner, et le plus cher à perdre.
+    const repair = this._jumpRepair();
+    this.ship.structure = Math.min(this.ship.structureMax, this.ship.structure + repair.structure);
+    if (repair.ammo) for (const m of this.ship.modules) if (m.reload) m.reload();
+    this.app.addCredits(repair.credits);
     this.audio.pickup();
     this.app.renderer.pulse(1);
     this.shake.add(0.6);
@@ -1254,7 +1367,7 @@ export class Range {
 
     const last = this.sectorIndex + 1 >= SECTOR_COUNT;
     this.hud.showJump(this.sector, last ? null : sectorAt(this.sectorIndex + 1), {
-      ...JUMP_REPAIR,
+      ...repair,
       saved: out.saved.length,
       left: out.left,
       souls: this.convoy.souls,
@@ -1292,6 +1405,7 @@ export class Range {
   /** Traversée achevée : la victoire que `_end(type)` n'a jamais reçue. */
   _win() {
     this.over = true;
+    this.campaignActive = false;
     this.aim.firing = false;
     this.ring.cancel();
     this.stations.reset();
@@ -1301,7 +1415,7 @@ export class Range {
     const souls = this.convoy.souls;
     this.hud.showOutcome('victory',
       `Refuge atteint — ${souls.toLocaleString('fr-FR')} survivants sur ${this.soulsAtStart.toLocaleString('fr-FR')}`,
-      () => this._startGame(), () => this.app.toggleScreen(), hof);
+      () => this.app.startCampaign(), () => this.app.toMenu(), hof);
   }
 
   /** Le cuirassé n'a plus une seule pièce : il part en morceaux, longuement. */
@@ -1330,6 +1444,9 @@ export class Range {
 
   _end(type) {
     this.over = true;
+    // La traversée est finie : le prochain `enter()` doit repartir de zéro et non
+    // reprendre au secteur courant (cf. le piège commenté dans `enter`).
+    this.campaignActive = false;
     this.aim.firing = false;
     this.ring.cancel();
     this.stations.reset();
@@ -1347,7 +1464,7 @@ export class Range {
     const sub = type === 'lost-fleet'
       ? 'La flotte a été anéantie — il n\'y a plus personne à sauver'
       : `Perdu au secteur ${this.sectorIndex + 1} — ${this.convoy.souls.toLocaleString('fr-FR')} survivants abandonnés`;
-    this.hud.showOutcome('defeat', sub, () => this._startGame(), () => this.app.toggleScreen(), hof);
+    this.hud.showOutcome('defeat', sub, () => this.app.startCampaign(), () => this.app.toMenu(), hof);
   }
 
   _updateHud(dt = 0) {
@@ -1521,6 +1638,8 @@ export class Range {
 
     // Postes : le joueur en tient un, l'équipage tient les autres.
     this.stations.update(dt);
+    // Une fonction de la flotte vient-elle de disparaître ? (voir _watchFleetRoles)
+    this._watchFleetRoles();
     // Pendant un saut : plus d'ennemis, on laisse le vaisseau sur son erre.
     if (this.jumping) {
       this.jumpTimer -= dt;

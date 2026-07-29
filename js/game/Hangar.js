@@ -93,7 +93,11 @@ export class Hangar {
 
     const hint = document.createElement('div');
     hint.className = 'hint';
-    hint.textContent = 'Clique un emplacement sur la baleine ou dans la liste · puis “COMBAT →” pour tester';
+    // Le hangar n'est plus l'écran d'accueil mais une ESCALE : le texte doit dire
+    // où l'on est dans la traversée, sinon on ne sait pas ce qu'on est venu faire.
+    hint.textContent = this.app.hangarReturn === 'bridge'
+      ? 'Escale entre deux sauts — les pièces viennent du Cargo lourd · « ← CIC » pour remonter'
+      : 'Clique un emplacement sur la baleine ou dans la liste · « ← MENU » pour revenir';
     this.container.appendChild(hint);
   }
 

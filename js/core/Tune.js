@@ -17,6 +17,13 @@ export const TUNE = {
   crewAcquireTime: 0.5,  // temps de verrouillage avant le premier tir (s)
   crewSpread: 0.10,      // dispersion angulaire (rad) à la portée maximale
   crewNoRadarMul: 2.5,   // dispersion (×) sur une cible hors portée radar
+  // Dispersion ET retard (×) quand le navire-hôpital est perdu. Calibré à 2,2 :
+  // mesuré, la fenêtre de tir tombe de 100 → 71 % sur une cible qui manœuvre
+  // lentement et de 66 → 37 % sur une cible lointaine, mais reste à 100 % sur une
+  // cible proche et immobile. L'insuffisance est donc VISIBLE ET SITUÉE, ce qui est
+  // la règle du projet. À 1,7 l'écart n'était que de 9-10 points (invisible en jeu),
+  // à 2,8 la cible lointaine tombait à 24 % — punitif.
+  crewFatigueMul: 2.2,
   crewBiasTime: 0.5,     // durée d'un même biais de visée (s) : rafales cohérentes
   crewHoldFactor: 3,     // au-delà de ce ratio erreur/taille de cible, l'équipage ne tire plus
   powerOutputMul: 1.4, // débit total des réacteurs (×) réparti entre les 3 bus
@@ -104,6 +111,7 @@ export const TUNE_SPECS = [
   ['crewAcquireTime', 'Équipage : verrouillage (s)', 0, 2, 0.1],
   ['crewSpread', 'Équipage : dispersion (rad)', 0, 0.4, 0.01],
   ['crewNoRadarMul', 'Équipage : sans radar (×)', 1, 5, 0.25],
+  ['crewFatigueMul', 'Équipage : épuisé, sans hôpital (×)', 1, 4, 0.1],
   ['crewBiasTime', 'Équipage : durée du biais (s)', 0.1, 2, 0.1],
   ['crewHoldFactor', 'Équipage : seuil abandon tir', 1, 8, 0.5],
   ['powerOutputMul', 'Débit réacteurs (×)', 0.6, 2.5, 0.1],
