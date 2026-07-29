@@ -70,9 +70,23 @@ contre de l'énergie en moins, des condensateurs préchargés contre une réserv
 `Espace` fait avancer, `1-3` choisit, et **`N` passe directement à l'action** si tu veux en finir
 avec les préliminaires.
 
-Puis le décompte tombe, et la bataille commence : la flotte s'ébranle vers le point de saut
-pendant que le calcul FTL tourne. Il aboutira **avant** que le dernier traînard soit à la porte —
-c'est là que tout se joue.
+Puis le décompte tombe, et la bataille commence : la flotte s'ébranle vers la sortie du secteur
+pendant que le calcul se termine.
+
+**On saute sur place** — il n'y a pas de portail, chaque vaisseau a son propre moteur. Ce qui
+compte, c'est la **bulle de rassemblement** autour de ta baleine : translucide pendant le calcul,
+franche quand il aboutit. Ce qui est dedans part, ce qui est dehors reste. À toi de te placer au
+milieu des tiens.
+
+Et déclencher n'est pas partir : l'**amorçage** immobilise tout le monde pendant cinq secondes.
+Des cibles fixes. Le bon moment pour sauter, c'est quand tu as dégagé les environs — pas dès que
+le calcul est prêt.
+
+Tu commandes aussi la flotte elle-même : **SERRER** (tous couvrables et prêts à sauter, mais une
+cible dense et une allure molle), **DISPERSER** (les pertes se diluent, mais il faudra les
+rappeler avant de partir), **FORCER** (on sort vite, les moteurs s'abîment). Et un transport
+descendu sous 40 % de coque perd sa propulsion : **il décroche**. Ton retardataire, c'est celui
+qu'ils ont mordu.
 
 Un secteur n'est pas une arène à nettoyer, c'est un **saut à préparer** : tu entres par la
 gauche, la porte de saut est loin à droite, et le **moteur FTL calcule** pendant que la flotte

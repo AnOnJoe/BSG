@@ -7,7 +7,7 @@ import { Stations } from '../core/Stations.js';
 import { AutoHelm } from '../core/AutoHelm.js';
 import { FIRE_MODES } from '../core/WeaponControl.js';
 import { POWER_PRESETS } from '../core/PowerBus.js';
-import { HELM_ORDERS, DRONE_ORDERS } from '../data/orders.js';
+import { HELM_ORDERS, DRONE_ORDERS, FLEET_ORDERS } from '../data/orders.js';
 import { WAVE_THEMES, CAPITAL_THEME, pickTheme } from '../data/waves.js';
 import { SECTORS, sectorAt, SECTOR_COUNT, JUMP_REPAIR } from '../data/campaign.js';
 import { viewport } from '../core/Viewport.js';
@@ -31,8 +31,12 @@ import { HallOfFame } from '../core/HallOfFame.js';
 // C'est ce qui donne une direction au niveau — sans quoi on tourne en rond.
 const ARENA = { x: 430, y: 108 };
 const ENTRY_X = -ARENA.x + 60;      // là où la flotte débouche
-const JUMP_X = ARENA.x - 70;        // la porte de saut
-const JUMP_RADIUS = 62;             // rayon emporté par le saut
+// PAS DE PORTE : dans la série on saute SUR PLACE. La flotte fuit vers la sortie
+// du secteur, et le saut emporte ce qui se trouve dans la BULLE DE RASSEMBLEMENT
+// centrée sur la baleine — d'où le travail du pilote : se placer au milieu des
+// siens avant de déclencher.
+const CONVOY_LIMIT = ARENA.x - 40;  // là où la flotte cesse d'avancer
+const GATHER_RADIUS = 78;           // rayon de la bulle de saut
 // Dimensionné pour le plus gros thème (NUÉE : 7 chasseurs). Le pool est
 // pré-alloué une fois pour toutes et réutilisé de vague en vague.
 const MAX_ENEMIES = 8;
@@ -118,6 +122,8 @@ export class Range {
     this.waveTheme = null;
     this.jumping = false;   // saut inter-secteurs en cours
     this.jumpTimer = 0;
+    this.spoolT = 0;        // amorçage du saut restant (s) : immobile et vulnérable
+    this.fleetOrder = 'tighten';
     this.assaultNo = 0;     // numéro d'assaut dans le secteur courant
     this.dradisT = 0;       // décompte des « 33 minutes » (temps réel restant)
     this.contact = false;   // les Cylons sont arrivés : la bataille a commencé
@@ -179,24 +185,44 @@ export class Range {
     ];
   }
 
-  /** Porte de saut : le but du couloir, visible de loin. */
+  /**
+   * BULLE DE RASSEMBLEMENT : translucide pendant le calcul, franche quand il
+   * aboutit, pulsante pendant l'amorçage. Elle dit d'un coup d'œil qui partira
+   * et qui restera — c'est l'information de décision du jeu.
+   */
   _buildJumpGate() {
     this.jumpGate = new THREE.Group();
-    for (let i = 0; i < 3; i++) {
-      const r = JUMP_RADIUS - i * 16;
+    const ring = (r, op) => {
       const pts = [];
-      for (let k = 0; k <= 48; k++) {
-        const a = (k / 48) * Math.PI * 2;
-        pts.push(new THREE.Vector3(Math.cos(a) * r * 0.35, Math.sin(a) * r, -2));
+      for (let k = 0; k <= 72; k++) {
+        const a = (k / 72) * Math.PI * 2;
+        pts.push(new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r, -1));
       }
-      this.jumpGate.add(new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints(pts),
-        neonLineMat(0x8fdfff, 0.5 - i * 0.12)
-      ));
-    }
-    this.jumpGate.position.x = JUMP_X;
+      return new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), neonLineMat(0x8fdfff, op));
+    };
+    this.bubbleOuter = ring(GATHER_RADIUS, 0.18);
+    this.bubbleInner = ring(GATHER_RADIUS * 0.94, 0.1);
+    this.jumpGate.add(this.bubbleOuter, this.bubbleInner);
     this.jumpGate.visible = false;
     this.scene.add(this.jumpGate);
+  }
+
+  /** Suit la baleine et change d'aspect selon l'état du saut. */
+  _updateBubble(dt) {
+    const p = this.ship.group.position;
+    this.jumpGate.position.set(p.x, p.y, 0);
+    this.convoy.setGatherPoint(p.x, p.y);
+    const spooling = this.spoolT > 0;
+    const ready = this.ftl.ready;
+    const op = spooling
+      ? 0.55 + Math.abs(Math.sin(performance.now() / 90)) * 0.45   // amorçage : ça pulse
+      : ready ? 0.5 : 0.16;                                        // prêt : franche · sinon : translucide
+    const col = spooling ? 0xffffff : ready ? 0x8fdfff : 0x4a7f96;
+    for (const m of [this.bubbleOuter, this.bubbleInner]) {
+      m.material.opacity = op * (m === this.bubbleInner ? 0.6 : 1);
+      m.material.color.setHex(col);
+    }
+    this.jumpGate.rotation.z += dt * (spooling ? 1.6 : 0.15);
   }
 
   _buildFlames() {
@@ -496,7 +522,9 @@ export class Range {
    */
   setOrder(kind, id) {
     if (this.over) return false;
-    const post = kind === 'helm' ? 'helm' : kind === 'gunnery' ? 'gunnery' : 'drones';
+    // La flotte n'obéit qu'au commandant : aucun poste ne la commande en propre.
+    const post = kind === 'helm' ? 'helm' : kind === 'gunnery' ? 'gunnery'
+      : kind === 'fleet' ? 'command' : 'drones';
     if (!this.stations.manned('command') && !this.stations.manned(post)) {
       this.hud.showWaveBanner(this.wave, 'ORDRE — console du commandant');
       return false;
@@ -505,6 +533,11 @@ export class Range {
     if (kind === 'helm' && HELM_ORDERS.some((o) => o.id === id)) { this.helmOrder = id; ok = true; }
     else if (kind === 'gunnery') ok = this.weapons.setFireMode(id);
     else if (kind === 'drones' && DRONE_ORDERS.some((o) => o.id === id)) { this._setDroneOrder(id); ok = true; }
+    else if (kind === 'fleet' && FLEET_ORDERS.some((o) => o.id === id)) {
+      this.fleetOrder = id;
+      this.hud.pushLog(`Ordre à la flotte : ${FLEET_ORDERS.find((o) => o.id === id).name}.`);
+      ok = true;
+    }
     if (ok) this.audio.relay();
     return ok;
   }
@@ -555,19 +588,17 @@ export class Range {
     // GARDE-FOU. Sauter alors qu'AUCUN transport n'est à portée les détruisait
     // tous d'un coup — donc partie perdue en un appui, sans avertissement. Ce
     // n'est pas un dilemme, c'est un piège : on refuse et on dit pourquoi.
-    const inRange = this.convoy.alive.filter((t) => t.position.x >= JUMP_X - JUMP_RADIUS);
-    if (!inRange.length) {
-      const l = this.convoy.laggard;
-      const d = l ? Math.round((JUMP_X - JUMP_RADIUS) - l.position.x) : 0;
-      this.hud.showWaveBanner(0, `SAUT REFUSÉ — la flotte est encore à ${d} de la porte`);
-      this.hud.pushLog(`Saut refusé : aucun transport à portée du point de saut (${d} restants).`);
+    const p = this.ship.group.position;
+    const { inside, outside } = this.convoy.splitByBubble(p.x, p.y, GATHER_RADIUS);
+    if (!inside.length) {
+      this.hud.showWaveBanner(0, 'SAUT REFUSÉ — aucun transport dans la bulle');
+      this.hud.pushLog('Saut refusé : placez-vous au milieu de la flotte avant d\'amorcer.');
       return;
     }
-    const left = this.convoy.alive.length - inRange.length;
-    if (left > 0) {
-      this.hud.showWaveBanner(0, `⚠ SAUT EN ABANDONNANT ${left} TRANSPORT${left > 1 ? 'S' : ''}`);
+    if (outside.length) {
+      this.hud.showWaveBanner(0, `⚠ AMORÇAGE — ${outside.length} transport(s) hors de la bulle`);
     }
-    this._beginJump();
+    this._spoolJump();
   }
 
   /**
@@ -1168,12 +1199,27 @@ export class Range {
    * Fin de secteur : on saute. C'est la respiration de la traversée — l'équipage
    * répare, on encaisse la prime, et le secteur suivant a son propre caractère.
    */
+  /**
+   * AMORÇAGE. Déclencher n'est pas partir : pendant `TUNE.jumpSpoolTime` la
+   * flotte et la baleine sont IMMOBILES, donc des cibles fixes. Le « bon moment »
+   * pour sauter, c'est quand on a dégagé les environs — pas dès que le calcul
+   * est prêt.
+   */
+  _spoolJump() {
+    this.spoolT = TUNE.jumpSpoolTime;
+    this.hud.pushLog('Amorçage du moteur de saut — tout le monde immobile.');
+    this.hud.showWaveBanner(0, 'AMORÇAGE DU SAUT');
+    this.audio.relay?.();
+    this.app.renderer.pulse(0.6);
+  }
+
   _beginJump() {
     this.betweenWaves = false;
     this.ftl.jumping = true;
     // Le saut n'emporte que ce qui est dans son rayon : les traînards restent.
     // C'est la décision de la série — partir maintenant, ou attendre sous le feu.
-    const out = this.convoy.jump(JUMP_X, JUMP_RADIUS);
+    const p0 = this.ship.group.position;
+    const out = this.convoy.jump(p0.x, p0.y, GATHER_RADIUS);
     this.jumping = true;
     this.jumpTimer = 4.6;
     this._clearEntities();
@@ -1319,6 +1365,7 @@ export class Range {
       designated: dg ? (dg.name || (dg.faction === 'enemy' ? 'drone ennemi' : dg.type) || 'contact') : null,
     });
     this.hud.setOrders({
+      fleet: this.fleetOrder,
       helm: this.helmOrder,
       gunnery: this.weapons.modeId,
       drones: this.droneOrder,
@@ -1336,8 +1383,17 @@ export class Range {
       contact: this.contact,
       nextAssault: Math.max(0, this.assaultTimer),
       // Distance qui reste au traînard : c'est lui qui commande le départ
-      laggardToGate: this.convoy.laggard
-        ? Math.max(0, (JUMP_X - JUMP_RADIUS) - this.convoy.laggard.position.x) : 0,
+      // Distance restante avant que le retardataire entre dans la bulle
+      laggardToGate: (() => {
+        const l = this.convoy.laggard;
+        if (!l) return 0;
+        const q = this.ship.group.position;
+        return Math.max(0, Math.hypot(l.position.x - q.x, l.position.y - q.y) - GATHER_RADIUS);
+      })(),
+      inBubble: this.convoy.splitByBubble(
+        this.ship.group.position.x, this.ship.group.position.y, GATHER_RADIUS
+      ),
+      spool: Math.max(0, this.spoolT || 0),
     });
     this.hud.setWave(this.assaultNo, this.aliveEnemies.length, {
       sector: this.sector, index: this.sectorIndex + 1, total: SECTOR_COUNT,
@@ -1371,7 +1427,7 @@ export class Range {
         x: t.position.x, y: t.position.y, hurt: t.hp / t.maxHp < 0.5,
         laggard: t === this.convoy.laggard,
       })),
-      gate: { x: JUMP_X, y: 0 },
+      bubble: GATHER_RADIUS,
     });
     this._updateIndicators();
   }
@@ -1628,7 +1684,15 @@ export class Range {
 
     // --- ESCORTE : la flotte avance, le calcul de saut tourne, les Cylons
     // reviennent. On ne « finit » pas une vague : on tient une échéance. ---
-    this.convoy.update(dt, JUMP_X, this.terrain);
+    // Pendant l'amorçage, personne ne bouge : la flotte ET la baleine sont des
+    // cibles fixes. Sans cette immobilité, déclencher ne coûterait rien.
+    if (this.spoolT > 0) {
+      this.shipVel.multiplyScalar(Math.max(0, 1 - dt * 6));
+      this.shipAngVel *= Math.max(0, 1 - dt * 6);
+    } else {
+      this.convoy.update(dt, CONVOY_LIMIT, this.terrain, this.fleetOrder,
+        this.ship.group.position, ARENA);
+    }
     this.ftl.update(dt, this.ship);
 
     // La flotte anéantie, il n'y a plus rien à sauver.
@@ -1648,13 +1712,14 @@ export class Range {
     }
 
     // Prêt à sauter : il faut aussi que la flotte soit arrivée à la porte.
-    // Saut automatique dès que TOUTE la flotte est à la porte. Si un traînard
-    // manque, on attend — et c'est au commandant de décider de partir sans lui
-    // (touche J), sous le feu qui continue.
-    if (this.ftl.ready && !this.ftl.jumping) {
-      const laggard = this.convoy.laggard;
-      if (laggard && laggard.position.x >= JUMP_X - JUMP_RADIUS) this._beginJump();
+    // AUCUN saut automatique : choisir l'instant EST la décision du jeu. On
+    // amorce sur ordre (J), et l'amorçage court ici — il peut donc être subi
+    // sous le feu, ce qui est précisément le risque.
+    if (this.spoolT > 0) {
+      this.spoolT -= dt;
+      if (this.spoolT <= 0) { this.spoolT = 0; this._beginJump(); }
     }
+    this._updateBubble(dt);
 
 
     this._updateHud(dt);

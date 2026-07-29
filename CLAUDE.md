@@ -65,6 +65,46 @@ cd BSG && python3 -m http.server 8000   # http://localhost:8000
 - **Assauts continus** : le compteur ne s'arrête jamais, même si le précédent n'est pas nettoyé.
   La difficulté monte par la PRESSION (`ftlTime`, `assaultEvery`), pas par les PV.
 
+## SAUT SUR PLACE (il n'y a pas de porte dans la série)
+La « porte de saut » était une invention de game design, ajoutée pour donner une direction au
+couloir. Dans BSG le saut se fait **sur place** : chaque vaisseau a son moteur, calcule, et
+disparaît là où il est. Aucune infrastructure — et surtout, un portail que les Cylons pourraient
+emprunter détruirait le ressort central (sauter ne ferait plus fuir, les 33 minutes n'auraient
+plus de raison d'être).
+
+À la place, une **BULLE DE RASSEMBLEMENT** de rayon `GATHER_RADIUS` centrée sur la baleine :
+- **translucide** pendant le calcul, **franche** quand il aboutit, **pulsante** à l'amorçage —
+  l'idée « translucide → actif » de l'utilisateur, appliquée au rassemblement ;
+- elle donne un vrai travail au pilote : **se placer au milieu des siens** avant d'amorcer ;
+- `Convoy.splitByBubble()` dit qui partira et qui restera, affiché au HUD et sur le DRADIS.
+
+**AMORÇAGE (`TUNE.jumpSpoolTime`, 5,5 s).** Déclencher n'est pas partir : pendant l'amorçage la
+flotte ET la baleine sont **immobiles**, donc des cibles fixes. Le « bon moment » pour sauter,
+c'est quand on a dégagé les environs — pas dès que le calcul est prêt. **Aucun saut automatique** :
+choisir l'instant EST la décision du jeu.
+⚠ Piège rencontré : `_beginJump()` se rappelait lui-même en fin d'amorçage et relançait un
+amorçage sans fin. L'ordre (`_spoolJump`) et l'exécution (`_beginJump`) doivent rester séparés.
+
+### Le retardataire naît des DÉGÂTS
+Sous 40 % de coque, la propulsion est touchée et le transport décroche (`Transport.effSpeed`).
+La pénalité doit être **sévère** : à −55 % seulement, un cargo blessé (4,13) restait plus rapide
+que la citerne saine (4,0) et ne décrochait donc jamais. À 20-50 % d'allure, mesuré : 5,2 → 2,0 et
+**24 unités de retard en 14 s**. `laggardFrom()` désigne en priorité les éclopés — c'est celui qui
+ne suivra pas qu'il faut montrer, pas celui qui se trouve au bord de la formation.
+
+## ORDRES À LA FLOTTE (`FLEET_ORDERS`, console du commandant)
+Trois consignes qui forment un triangle : chacune est bonne contre une situation et mauvaise
+contre les autres, **aucune n'est le bon choix par défaut**. Mesuré :
+
+| Ordre | Étalement | Dans la bulle | Effet |
+|---|---|---|---|
+| SERRER | 36 | **6/6** | couvrable et saut garanti, mais cible dense et allure ×0,85 |
+| DISPERSER | 206 | **4/6** | pertes diluées, mais il faudra rappeler avant de sauter |
+| FORCER | 88 | 6/6 | ×1,35 en allure, mais les moteurs s'usent (−1,7 PV/s) |
+
+Le nerf : **on ne saute qu'en étant serré**. Disperser oblige donc à rappeler et à attendre, sous
+le feu. Seul le commandant les donne (`setOrder('fleet', …)` exige `manned('command')`).
+
 ### DEUX HORLOGES, à ne jamais confondre
 C'était une incohérence de conception, relevée par l'utilisateur :
 - **les 33 minutes** = le délai avant que les Cylons ne retrouvent la flotte. **Rien d'autre.**

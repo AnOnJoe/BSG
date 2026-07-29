@@ -1,6 +1,6 @@
 import { STATION_DEFS } from '../core/Stations.js';
 import { FIRE_MODES } from '../core/WeaponControl.js';
-import { HELM_ORDERS, DRONE_ORDERS } from '../data/orders.js';
+import { HELM_ORDERS, DRONE_ORDERS, FLEET_ORDERS } from '../data/orders.js';
 import { viewport } from '../core/Viewport.js';
 
 /**
@@ -133,10 +133,25 @@ export class Hud {
     this.ftlFill.className = `ftl-fill ${ftl.ready ? 'ready' : ftl.modeId}`;
     const eta = ftl.eta();
     this.ftlEta = this.ftlEta || this.ftlPanel.querySelector('.ftl-eta');
+    // Combien partiront, combien resteront : c'est l'information sur laquelle on
+    // décide d'amorcer ou d'attendre.
+    if (info.inBubble) {
+      const { inside, outside } = info.inBubble;
+      const n = convoy.alive.length;
+      this.ftlSouls.title = `${inside.length}/${n} dans la bulle`;
+      if (info.spool > 0) {
+        this.ftlWarn.textContent = `AMORÇAGE ${info.spool.toFixed(1)}s — IMMOBILES`;
+        this.ftlWarn.className = 'ftl-warn on';
+      } else if (outside.length && ftl.ready) {
+        this.ftlWarn.textContent = `⚠ ${outside.length} hors de la bulle`;
+        this.ftlWarn.className = 'ftl-warn on';
+      }
+    }
     this.ftlEta.textContent = ftl.ready
-      ? (info.laggardToGate > 0
-        ? `PRÊT — on attend ${info.laggardName || 'un retardataire'} (${Math.round(info.laggardToGate)})`
-        : 'SAUT IMMINENT — J')
+      ? (info.spool > 0 ? `AMORÇAGE — ${info.spool.toFixed(1)}s`
+        : info.laggardToGate > 0
+          ? `PRÊT — ${info.laggardName || 'un retardataire'} à ${Math.round(info.laggardToGate)} de la bulle`
+          : 'PRÊT — J pour amorcer')
       : (eta === Infinity ? 'calcul à l\'arrêt' : `~${Math.ceil(eta)}s`);
 
     const souls = convoy.souls;
@@ -328,6 +343,7 @@ export class Hud {
        </div>
        <div class="ck-group ck-orders">
          <div class="ck-label">ORDRES À L'ÉQUIPAGE <span class="ck-sub">clic</span></div>
+         ${this._orderRowHtml('fleet', 'FLOTTE', FLEET_ORDERS)}
          ${this._orderRowHtml('helm', 'PILOTE', HELM_ORDERS)}
          ${this._orderRowHtml('gunnery', 'ARTILLEUR', FIRE_MODES)}
          ${this._orderRowHtml('drones', 'DRONES', DRONE_ORDERS)}
@@ -339,7 +355,7 @@ export class Hud {
 
     // Console d'ordres : le commandant pose les consignes des autres postes sans
     // quitter la sienne. Il ne peut pas pour autant barrer ni viser à leur place.
-    this.orderBtns = { helm: [], gunnery: [], drones: [] };
+    this.orderBtns = { fleet: [], helm: [], gunnery: [], drones: [] };
     for (const kind of Object.keys(this.orderBtns)) {
       for (const btn of body.querySelectorAll(`.ord-btn[data-kind="${kind}"]`)) {
         btn.addEventListener('click', () => this.onOrder?.(kind, btn.dataset.id));
@@ -771,11 +787,12 @@ export class Hud {
         ctx.fillStyle = color;
         ctx.beginPath(); ctx.arc(cx + dx, cy + dy, size, 0, 6.2832); ctx.fill();
       };
-      // La porte de saut : le but, il faut savoir où il est
-      if (data.gate && Math.hypot(data.gate.x - data.player.x, data.gate.y - data.player.y) <= data.range) {
-        const gx = cx + (data.gate.x - data.player.x) * scale;
-        ctx.strokeStyle = 'rgba(143,223,255,0.9)';
-        ctx.beginPath(); ctx.moveTo(gx, cy - R * 0.55); ctx.lineTo(gx, cy + R * 0.55); ctx.stroke();
+      // La bulle de rassemblement, centrée sur nous : ce qui est dedans partira
+      if (data.bubble) {
+        ctx.strokeStyle = 'rgba(143,223,255,0.55)';
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.arc(cx, cy, data.bubble * scale, 0, 6.2832); ctx.stroke();
+        ctx.setLineDash([]);
       }
       // Les CIVILS : on escorte, il faut voir qui se fait mordre à l'autre bout
       for (const c of (data.civils || [])) {

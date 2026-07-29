@@ -41,6 +41,7 @@ export const TUNE = {
   // ce décompte en temps FICTION, comprimé par ce facteur pour tenir dans une
   // partie (33 min / 16.5 ≈ 2 min de répit réel avant le premier contact).
   dradisCompress: 16.5,
+  jumpSpoolTime: 5.5,  // amorçage du saut : durée d'immobilité vulnérable (s)
   contactDelay: 12,    // sursis à l'arrivée dans le couloir avant le contact (s)
                        // — les 33 minutes sont jouées au CIC, pas ici
   cylonPlayerAggro: 26, // en dessous de cette distance, un Cylon traite la baleine
@@ -118,6 +119,7 @@ export const TUNE_SPECS = [
   ['ftlChargeRate', 'Calcul de saut (×)', 0.3, 3, 0.05],
   ['dradisCompress', 'Compression des 33 min (×)', 4, 40, 0.5],
   ['contactDelay', 'Sursis avant contact (s)', 2, 40, 1],
+  ['jumpSpoolTime', 'Amorçage du saut (s)', 1, 15, 0.5],
   ['cylonPlayerAggro', 'Cylons : distance d\'agressivité', 8, 60, 2],
   ['capitalCamZoom', 'Recul caméra cuirassé (×)', 1, 2.5, 0.05],
   ['viewZoom', 'Recul caméra général (×)', 0.8, 2.2, 0.05],

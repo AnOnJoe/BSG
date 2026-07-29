@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { TRANSPORT_TYPES, FLEET } from '../data/convoyConfig.js';
+import { FLEET_ORDERS } from '../data/orders.js';
 import { makeSolid, neonLineMat } from '../core/NeonMaterials.js';
 
 /**
@@ -135,6 +136,24 @@ class Transport {
   get position() { return this.group.position; }
   isAlive() { return this.alive; }
 
+  /**
+   * Vitesse réelle. Sous `HURT_AT` de coque, la propulsion est touchée et le
+   * transport DÉCROCHE du convoi. C'est de là que doit naître le retardataire :
+   * on le perd parce qu'il s'est fait mordre, pas à cause d'un décalage arbitraire
+   * décidé au départ.
+   */
+  get effSpeed() {
+    const ratio = this.hp / this.maxHp;
+    if (ratio >= 0.4) return this.def.speed;
+    // La pénalité doit être SÉVÈRE : à −55 % seulement, un cargo blessé (4,13)
+    // restait plus rapide que la citerne saine (4,0), donc il ne décrochait
+    // jamais et le dilemme n'existait pas. 40 % de coque → 50 % d'allure,
+    // 0 % → 20 %.
+    return this.def.speed * (0.2 + (ratio / 0.4) * 0.3);
+  }
+
+  get crippled() { return this.hp / this.maxHp < 0.4; }
+
   /** Halo « en retard » : ambre, et rouge pulsant quand le saut n'attend plus que lui. */
   setLaggard(on, urgent) {
     if (on && !this.halo) {
@@ -220,18 +239,45 @@ export class Convoy {
     return this.transports.filter((t) => t.alive).reduce((s, t) => s + t.souls, 0);
   }
 
-  /** Vitesse du convoi = celle du plus lent encore en route. */
+  /**
+   * Allure du convoi : celle du plus lent VALIDE. Les éclopés ne la commandent
+   * pas — sinon toute la flotte se calerait sur le blessé et personne ne
+   * décrocherait jamais, donc aucun dilemme.
+   */
   get speed() {
-    const list = this.alive;
-    if (!list.length) return 0;
-    return Math.min(...list.map((t) => t.def.speed));
+    const list = this.alive.filter((t) => !t.crippled);
+    const pool = list.length ? list : this.alive;
+    if (!pool.length) return 0;
+    return Math.min(...pool.map((t) => t.def.speed));
   }
 
-  /** Le transport le plus en retard : celui qu'il faut couvrir. */
-  get laggard() {
+  /**
+   * Celui qu'il faut couvrir : le plus éloigné du point de rassemblement (la
+   * baleine). Sans centre fourni, on retombe sur « le plus en arrière ».
+   */
+  laggardFrom(cx, cy) {
     const list = this.alive;
     if (!list.length) return null;
-    return list.reduce((a, b) => (b.position.x < a.position.x ? b : a));
+    // Priorité aux ÉCLOPÉS : c'est celui qui ne suivra pas qu'il faut désigner,
+    // pas simplement celui qui se trouve au bord de la formation.
+    const pool = list.some((t) => t.crippled) ? list.filter((t) => t.crippled) : list;
+    if (cx === undefined) return pool.reduce((a, b) => (b.position.x < a.position.x ? b : a));
+    const d2 = (t) => (t.position.x - cx) ** 2 + (t.position.y - cy) ** 2;
+    return pool.reduce((a, b) => (d2(b) > d2(a) ? b : a));
+  }
+
+  get laggard() { return this.laggardFrom(this._cx, this._cy); }
+
+  /** Mémorise le point de rassemblement courant (la baleine). */
+  setGatherPoint(x, y) { this._cx = x; this._cy = y; }
+
+  /** Transports dans / hors de la bulle de saut. */
+  splitByBubble(cx, cy, radius) {
+    const inside = [], outside = [];
+    for (const t of this.alive) {
+      (Math.hypot(t.position.x - cx, t.position.y - cy) <= radius ? inside : outside).push(t);
+    }
+    return { inside, outside };
   }
 
   /** N'allume le halo que sur le retardataire, l'éteint sur les autres. */
@@ -255,34 +301,47 @@ export class Convoy {
    * Avance vers le point de saut, tout le monde à la vitesse du plus lent, et
    * s'arrête à la porte : la flotte attend là que le calcul aboutisse.
    */
-  update(dt, jumpX, terrain) {
-    const v = this.speed;
-    for (const t of this.alive) {
-      if (t.position.x >= jumpX) continue;
-      t.position.x += v * dt;
+  update(dt, limitX, terrain, orderId, gather, arena) {
+    const order = FLEET_ORDERS.find((o) => o.id === orderId) || FLEET_ORDERS[0];
+    const v = this.speed * order.speedMul;   // allure du convoi selon la consigne
+    const span = (arena ? arena.y : 108) * order.spread;
+    const list = this.alive;
+
+    list.forEach((t, i) => {
+      // Formation en Y visée par la consigne : serrée sur la baleine, ou étalée
+      const slot = list.length > 1 ? (i / (list.length - 1)) * 2 - 1 : 0;
+      const centerY = gather ? gather.y : 0;
+      const wantY = centerY + slot * span;
+      t.position.y += (wantY - t.position.y) * Math.min(1, dt * 0.55);
+
+      if (t.position.x < limitX) {
+        // Un valide suit l'allure ; un éclopé fait ce qu'il peut et décroche.
+        t.position.x += Math.min(v, t.effSpeed * order.speedMul) * dt;
+      }
+
+      // FORCER : les moteurs s'usent, et ça se paie en coque.
+      if (order.wear) t.takeDamage(order.wear * dt);
 
       // ÉVITEMENT. Les transports traversaient les astéroïdes : `Terrain.push`
       // n'était appliqué qu'au joueur et aux ennemis. Ils regardent maintenant
       // devant eux et se décalent latéralement — un pathfinding minimal, mais
       // suffisant pour un convoi qui ne fait qu'aller tout droit.
-      if (!terrain) continue;
+      if (!terrain) return;
       const look = t.radius + 26;
       const hit = terrain.rayHit(t.position.x, t.position.y, 1, 0, look);
       if (hit) {
-        // On contourne du côté où l'obstacle laisse le plus de place
         const side = t.position.y >= hit.obstacle.y ? 1 : -1;
-        t.position.y += side * v * 1.15 * dt;
+        t.position.y += side * Math.max(2, v) * 1.15 * dt;
       }
-      // Et on ne reste jamais encastré, quoi qu'il arrive
       terrain.push(t.position, t.radius);
-    }
+    });
   }
 
   /** Marque comme sauvés les transports arrivés dans le rayon du saut. */
-  jump(jumpX, radius) {
+  jump(cx, cy, radius) {
     const out = { saved: [], left: [] };
     for (const t of this.alive) {
-      if (t.position.x >= jumpX - radius) {
+      if (Math.hypot(t.position.x - cx, t.position.y - cy) <= radius) {
         t.jumped = true;
         t.group.visible = false;
         out.saved.push(t);
