@@ -74,6 +74,27 @@ export class Terrain {
     this.id = def.id;
     this.name = def.name;
 
+    // ⚠ COULOIRS GARANTIS — le décor était INFRANCHISSABLE EN LIGNE DROITE.
+    // Mesuré avant correction : sur 51 lignes horizontales échantillonnées, ZÉRO
+    // n'était libre pour un corps de rayon 10 (la baleine et sa marge), et dans
+    // TOUS les terrains sauf le vide. Aucune consigne de pilotage ne peut donner un
+    // résultat propre là-dedans : le barreur zigzaguait en permanence, la flotte
+    // s'encastrait, et « aller tout droit » était littéralement impossible — c'est
+    // le grief de fond, et il n'était pas dans le code de pilotage.
+    //
+    // On réserve donc quelques VOIES horizontales où rien de bloquant n'est posé.
+    // Elles ne sont pas visibles en tant que telles (pas de marquage) : ça reste un
+    // champ d'astéroïdes, mais un champ qu'on peut traverser.
+    this.lanes = [];
+    const laneCount = def.lanes ?? 3;
+    for (let i = 0; i < laneCount; i++) {
+      // Réparties sur la hauteur, avec un décalage aléatoire pour ne pas retrouver
+      // les mêmes voies d'un secteur à l'autre.
+      const t = laneCount === 1 ? 0.5 : i / (laneCount - 1);
+      const y = (t * 2 - 1) * arena.y * 0.72 + (Math.random() * 2 - 1) * arena.y * 0.1;
+      this.lanes.push({ y, half: def.laneHalf ?? 13 });
+    }
+
     for (const cl of def.clusters) {
       const kind = OBSTACLE_KINDS[cl.kind];
       for (let i = 0; i < cl.count; i++) {
@@ -85,6 +106,9 @@ export class Terrain {
           x = (Math.random() * 2 - 1) * arena.x * cl.spread;
           y = (Math.random() * 2 - 1) * arena.y * cl.spread;
           if (Math.hypot(x - clearAt.x, y - clearAt.y) < clearAt.r + r) continue;
+          // Un obstacle BLOQUANT ne se pose pas dans une voie réservée (les débris
+          // et la poussière, eux, peuvent : ils n'arrêtent rien).
+          if (kind.blocks && this.lanes.some((L) => Math.abs(y - L.y) < L.half + r)) continue;
           // Les menus débris peuvent se serrer : seuls les obstacles qui bloquent
           // ont besoin d'être bien séparés pour rester lisibles.
           const gap = kind.blocks ? 6 : -r;
@@ -156,18 +180,29 @@ export class Terrain {
    * (hitscan) : sans ça on tirerait à travers les rochers.
    * Renvoie { obstacle, t } avec `t` la distance parcourue, ou null.
    */
-  rayHit(ox, oy, dx, dy, range) {
+  /**
+   * Premier obstacle bloquant sur un segment.
+   *
+   * ⚠ `pad` est le RAYON DU CORPS qui sonde, et il est indispensable pour piloter :
+   * sans lui on teste un rayon d'épaisseur nulle, donc un tir qui passe à trois
+   * unités du caillou est déclaré « libre » alors qu'une coque de rayon 4,2 le
+   * racle. C'est une des causes des dégâts pris par le barreur IA et des
+   * transports encastrés. Laisser `pad = 0` pour la LIGNE DE VUE (un tir n'a pas
+   * d'épaisseur), le passer pour une trajectoire.
+   */
+  rayHit(ox, oy, dx, dy, range, pad = 0) {
     let best = null, bt = range;
     for (const o of this.blockers) {
       const cx = o.x - ox, cy = o.y - oy;
       const tca = cx * dx + cy * dy;
       if (tca < 0) continue;                       // derrière nous
       const d2 = cx * cx + cy * cy - tca * tca;
-      const rr = o.r * o.r;
+      const r = o.r + pad;
+      const rr = r * r;
       if (d2 > rr) continue;                       // le rayon passe à côté
       const t = tca - Math.sqrt(rr - d2);
-      if (t < 0 || t > bt) continue;
-      bt = t;
+      if (t > bt) continue;
+      bt = Math.max(0, t);
       best = o;
     }
     return best ? { obstacle: best, t: bt } : null;

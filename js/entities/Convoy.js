@@ -321,51 +321,150 @@ export class Convoy {
   }
 
   /**
-   * Avance vers le point de saut, tout le monde à la vitesse du plus lent, et
-   * s'arrête à la porte : la flotte attend là que le calcul aboutisse.
+   * Déplacement de la flotte.
+   *
+   * ⚠ RÉÉCRIT après une partie test. L'ancienne version avait trois défauts, tous
+   * signalés par l'utilisateur d'une phrase chacun :
+   *
+   * 1. « la flotte se déplace comme un bloc où on aurait regroupé tous les
+   *    vaisseaux ». C'était littéral : un même `wantY` lissé au même taux pour
+   *    tous, et tous à la vitesse du plus lent. Chaque transport a maintenant sa
+   *    propre inertie, sa propre allure de croisière (jitter par vaisseau, stable
+   *    d'une frame à l'autre) et son propre retard à rejoindre sa station.
+   * 2. « la baleine arrive très loin en avant de la flotte ». En RALLIEMENT, la
+   *    station visée se déplaçait avec la baleine mais la flotte ne pouvait jamais
+   *    dépasser son allure nominale : dès que la baleine allait plus vite, l'écart
+   *    croissait SANS BORNE. Un convoi qui rattrape son escorte pousse ses moteurs :
+   *    d'où `CATCHUP`, un facteur d'allure autorisé quand on est distancé.
+   * 3. Les transports finissaient DANS la roche : la sonde regardait toujours vers
+   *    +X (même quand ils manœuvraient vers la baleine, dans une autre direction),
+   *    ne tenait pas compte de leur propre rayon, et se battait contre le lissage
+   *    de formation. Elle suit désormais la direction réelle de marche, sonde à la
+   *    largeur de la coque, et l'esquive PRIME sur la formation le temps de dégager.
    */
-  update(dt, limitX, terrain, orderId, gather, arena) {
+  update(dt, limitX, terrain, orderId, gather, arena, holding = false) {
     const order = FLEET_ORDERS.find((o) => o.id === orderId) || FLEET_ORDERS[0];
-    const v = this.speed * order.speedMul;   // allure du convoi selon la consigne
     const span = (arena ? arena.y : 108) * order.spread;
     const list = this.alive;
+    // Jusqu'où un transport distancé peut pousser ses moteurs pour recoller.
+    // Réglable : à 1 l'écart croît sans borne dès que la baleine va plus vite, trop
+    // haut et « le plus lent commande le départ » ne veut plus rien dire.
+    const CATCHUP = TUNE.convoyCatchup;
 
     list.forEach((t, i) => {
-      // Formation en Y visée par la consigne : serrée sur la baleine, ou étalée
+      // --- une vie propre ---------------------------------------------------
+      // Traits stables tirés une fois par vaisseau : sans eux ils bougent tous
+      // exactement pareil, et six coques distinctes se lisent comme un bloc.
+      if (t._trait === undefined) {
+        t._trait = {
+          pace: 0.9 + ((i * 0.173) % 1) * 0.22,   // allure de croisière propre
+          lag: 0.35 + ((i * 0.317) % 1) * 0.5,    // mollesse à rejoindre sa station
+          drift: ((i * 0.611) % 1) * Math.PI * 2, // phase de son balancement
+          off: (((i * 0.437) % 1) * 2 - 1) * 9,   // décalage de station personnel
+        };
+        t._vx = 0; t._vy = 0;
+        t._side = 0; t._hold = 0;
+      }
+      const tr = t._trait;
+      tr.drift += dt * 0.35;
+
+      // --- station visée ----------------------------------------------------
       const slot = list.length > 1 ? (i / (list.length - 1)) * 2 - 1 : 0;
       const centerY = gather ? gather.y : 0;
-      const wantY = centerY + slot * span;
-      t.position.y += (wantY - t.position.y) * Math.min(1, dt * 0.55);
-
-      const step = Math.min(v, t.effSpeed * order.speedMul) * dt;
-      if (order.follow && gather) {
-        // RALLIEMENT : ils rejoignent la baleine et la suivent — c'est le joueur
-        // qui mène la flotte, ce qui est le comportement naturel d'une escorte.
-        // Ils gardent un léger étagement pour ne pas s'empiler sur elle.
-        const wantX = gather.x - 18 - (i % 2) * 22;
-        const dx = wantX - t.position.x;
-        t.position.x += Math.sign(dx) * Math.min(Math.abs(dx), step * 1.25);
-      } else if (t.position.x < limitX) {
-        // Sinon ils poussent vers la sortie du secteur, à leur allure. Un éclopé
-        // fait ce qu'il peut et décroche.
-        t.position.x += step;
+      // Le balancement propre évite la formation au cordeau, qui est ce qui donnait
+      // l'impression d'un seul objet rigide.
+      const wantY = centerY + slot * span + tr.off * 0.35 + Math.sin(tr.drift) * 2.6;
+      let wantX;
+      if (holding && order.follow && gather) {
+        // Consigne TENIR + RALLIEMENT : la flotte se pose autour de la baleine et
+        // ne pousse plus vers la sortie. C'est l'usage principal de TENIR —
+        // regrouper tout le monde dans la bulle avant d'amorcer le saut.
+        wantX = gather.x - 20 - (i % 3) * 16 + tr.off * 0.5;
+      } else if (order.follow && gather) {
+        // RALLIEMENT : ils tiennent leur station DERRIÈRE la baleine et la suivent.
+        wantX = gather.x - 20 - (i % 3) * 16 + tr.off * 0.5;
+      } else {
+        // Sinon ils poussent vers la sortie du secteur, chacun à son allure.
+        wantX = Math.min(limitX, t.position.x + 60);
       }
+
+      // --- cap et allure ----------------------------------------------------
+      let dx = wantX - t.position.x;
+      let dy = wantY - t.position.y;
+      const dist = Math.hypot(dx, dy);
+      // Allure : la sienne, bridée par celle du convoi… sauf s'il est distancé,
+      // auquel cas il pousse ses moteurs pour recoller (sinon l'écart explose).
+      const behind = order.follow && gather ? Math.max(0, gather.x - 40 - t.position.x) : 0;
+      const urge = 1 + Math.min(CATCHUP - 1, behind / 70);
+      // ⚠ Le plafond doit être appliqué APRÈS `urge`, sinon ce n'est pas un plafond :
+      // en le multipliant ensuite on mesurait des transports à 10,9 alors qu'ils
+      // plafonnent nominalement à 5,6 — plus rapides que la baleine, et « le plus
+      // lent commande le départ » ne voulait plus rien dire.
+      const cruise = Math.min(t.effSpeed * tr.pace * urge, t.effSpeed * CATCHUP) * order.speedMul;
+
+      let ux = dist > 0.01 ? dx / dist : 1;
+      let uy = dist > 0.01 ? dy / dist : 0;
+
+      // --- esquive (prime sur la formation) ---------------------------------
+      if (terrain) {
+        const pad = t.radius + 2;
+        const look = t.radius + 20;
+        t._hold = Math.max(0, t._hold - dt);
+        const clearAt = (ax, ay) => !terrain.rayHit(t.position.x, t.position.y, ax, ay, look, pad);
+        if (!clearAt(ux, uy)) {
+          const base = Math.atan2(uy, ux);
+          const first = t._hold > 0 && t._side ? t._side : (t.position.y >= centerY ? 1 : -1);
+          let found = null;
+          for (const step of [0.4, 0.8, 1.2, 1.7, 2.4]) {
+            for (const side of [first, -first]) {
+              const a = base + side * step;
+              if (clearAt(Math.cos(a), Math.sin(a))) { found = { a, side }; break; }
+            }
+            if (found) break;
+          }
+          if (found) {
+            ux = Math.cos(found.a); uy = Math.sin(found.a);
+            if (found.side !== t._side) t._hold = 0.9;
+            t._side = found.side;
+          } else {
+            ux = 0; uy = 0;   // enfermé : on attend plutôt que de forcer dans la masse
+          }
+        }
+      }
+
+      // --- SÉPARATION MUTUELLE ---------------------------------------------
+      // Les voies libres du décor étant les seuls passages, les six coques
+      // convergeaient toutes dans la même et se chevauchaient (étalement mesuré à
+      // 9,9 unités pour six vaisseaux de rayon 6). Elles se repoussent donc entre
+      // elles : c'est ce qui fait une FLOTTE plutôt qu'un tas.
+      for (const o of list) {
+        if (o === t) continue;
+        const sx = t.position.x - o.position.x;
+        const sy = t.position.y - o.position.y;
+        const d = Math.hypot(sx, sy);
+        const min = t.radius + o.radius + 4;
+        if (d > min || d < 0.01) continue;
+        const push = (min - d) / min;
+        ux += (sx / d) * push * 3.2;
+        uy += (sy / d) * push * 3.2;
+      }
+      { const n = Math.hypot(ux, uy); if (n > 0.01) { ux /= n; uy /= n; } }
+
+      // --- intégration : de l'inertie, chacun la sienne ---------------------
+      const want = dist < 3 ? 0 : cruise;
+      const k = Math.min(1, dt / Math.max(0.05, tr.lag));
+      t._vx += (ux * want - t._vx) * k;
+      t._vy += (uy * want - t._vy) * k;
+      t.position.x += t._vx * dt;
+      t.position.y += t._vy * dt;
+      if (!order.follow) t.position.x = Math.min(t.position.x, limitX);
 
       // FORCER : les moteurs s'usent, et ça se paie en coque.
       if (order.wear) t.takeDamage(order.wear * dt);
 
-      // ÉVITEMENT. Les transports traversaient les astéroïdes : `Terrain.push`
-      // n'était appliqué qu'au joueur et aux ennemis. Ils regardent maintenant
-      // devant eux et se décalent latéralement — un pathfinding minimal, mais
-      // suffisant pour un convoi qui ne fait qu'aller tout droit.
-      if (!terrain) return;
-      const look = t.radius + 26;
-      const hit = terrain.rayHit(t.position.x, t.position.y, 1, 0, look);
-      if (hit) {
-        const side = t.position.y >= hit.obstacle.y ? 1 : -1;
-        t.position.y += side * Math.max(2, v) * 1.15 * dt;
-      }
-      terrain.push(t.position, t.radius);
+      // Garde-fou de dernier recours : on ne laisse JAMAIS un transport dans la
+      // roche, même si l'esquive a échoué.
+      if (terrain) terrain.push(t.position, t.radius);
     });
   }
 

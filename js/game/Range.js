@@ -1946,9 +1946,23 @@ export class Range {
         rot: this.ship.group.rotation.z,
         target: atPost ? this._nearestEnemy() : null,
         pickup: atPost ? this._nearestPickup() : null,
-        // Sans ennemi, il escorte le retardataire au lieu de rester planté
+        // Sans ennemi, il escorte le retardataire au lieu de rester planté — mais
+        // SEULEMENT si la flotte avance par elle-même (cf. `fleetFollows`).
         escort: atPost ? this.convoy.laggard : null,
+        // La flotte est-elle en RALLIEMENT (elle suit la baleine) ? Alors la
+        // baleine MÈNE : elle met le cap sur la sortie et ne va pas chercher un
+        // traînard qui, par construction, est derrière elle.
+        fleetFollows: !!(FLEET_ORDERS.find((o) => o.id === this.fleetOrder)?.follow),
+        // Position moyenne de la flotte : une escorte règle son allure sur elle,
+        // sinon la bulle de saut se vide et l'ordre de saut abandonne tout le monde.
+        fleetX: this.convoy.alive.length
+          ? this.convoy.alive.reduce((a, t) => a + t.position.x, 0) / this.convoy.alive.length
+          : undefined,
+        fleetLead: TUNE.helmFleetLead,
+        fleetPace: this.convoy.speed,                       // allure à tenir
+        speed: Math.hypot(this.shipVel.x, this.shipVel.y),  // la sienne
         terrain: this.terrain,   // pour esquiver le décor au lieu de le percuter
+        radius: this.ship.collisionRadius,  // on sonde à la largeur de la coque
         order: this.helmOrder,
         bounds: ARENA,
       });
@@ -2121,8 +2135,10 @@ export class Range {
       this.shipVel.multiplyScalar(Math.max(0, 1 - dt * 6));
       this.shipAngVel *= Math.max(0, 1 - dt * 6);
     } else {
+      // La consigne TENIR immobilise aussi la flotte quand elle suit la baleine :
+      // c'est l'usage principal, regrouper tout le monde avant d'amorcer le saut.
       this.convoy.update(dt, CONVOY_LIMIT, this.terrain, this.fleetOrder,
-        this.ship.group.position, ARENA);
+        this.ship.group.position, ARENA, this.helmOrder === 'hold');
     }
     // Position moyenne de la flotte dans le couloir → qualité du calcul.
     const alive = this.convoy.alive;

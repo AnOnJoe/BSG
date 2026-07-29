@@ -106,7 +106,7 @@ export class Bridge {
               <span class="k"><b>Espace</b> continuer</span>
               <span class="k"><b>1-3</b> choisir</span>
               <span class="k"><b>H</b> pont hangar</span>
-              <span class="k skip"><b>N</b> passer à l'action</span>
+              <span class="k skip"><b>N</b> <span class="skip-lab">passer les dialogues</span></span>
             </div>
           </div>
         </div>
@@ -121,6 +121,7 @@ export class Bridge {
       calcNote: this.ui.querySelector('.cc-note'),
       fleet: this.ui.querySelector('.cic-fleet'),
       notice: this.ui.querySelector('.cic-notice'),
+      skipLab: this.ui.querySelector('.skip-lab'),
       name: this.ui.querySelector('.dlg-name'),
       role: this.ui.querySelector('.dlg-role'),
       text: this.ui.querySelector('.dlg-text'),
@@ -218,6 +219,14 @@ export class Bridge {
       ? `Il manque ${Math.round(100 - pre)} % — il faudra les tenir sous le feu.`
       : `Coordonnées en cours · ${Math.round(pre)} % seront acquis à leur arrivée`;
 
+    // Dire ce que « N » fait vraiment, et combien de décisions restent : sans ça on
+    // croit encore pouvoir expédier la phase entière.
+    if (this.el.skipLab) {
+      const n = this.pendingChoices;
+      this.el.skipLab.textContent = n
+        ? `passer les dialogues (${n} décision${n > 1 ? 's' : ''} à prendre)`
+        : 'passer à l\'action';
+    }
     this.el.name.textContent = s.speaker;
     this.el.role.textContent = s.role;
     this.el.text.textContent = `« ${s.text} »`;
@@ -252,13 +261,48 @@ export class Bridge {
     this._noticeT = setTimeout(() => this.el.notice.classList.remove('show'), 3800);
   }
 
+  /**
+   * ⚠ « N » NE SAUTE PLUS LES DÉCISIONS.
+   *
+   * Signalé en partie test : « ce n'est pas logique de pouvoir passer toute la
+   * partie RPG, car dans ce cas no décision no impact ». C'était exact — la touche
+   * expédiait l'arc entier, donc on entrait au combat sans qu'aucun choix n'ait été
+   * fait, et la phase ne servait plus à rien.
+   *
+   * Mais la supprimer serait revenir au grief d'origine (« fade et juste très
+   * long »). Elle saute donc les RÉPLIQUES et s'arrête à chaque choix : on peut
+   * expédier la prose, jamais un arbitrage. Quand il ne reste plus de choix, elle
+   * mène au combat.
+   */
+  _skipTalk() {
+    // ⚠ La scène COURANTE d'abord. Une première version ne regardait que devant
+    // (`index + 1`) : si l'on était déjà sur un choix, « N » sautait par-dessus, et
+    // marteler la touche menait au combat avec ZÉRO décision prise. Le trou qu'on
+    // voulait fermer était donc toujours ouvert. Sur un choix, la touche refuse et
+    // le dit — un refus muet se lit comme une touche cassée.
+    if (this.scene.choices) {
+      this.notify('Cette décision vous revient — choisissez (1-3) avant de passer.');
+      this.app.audio.relay?.();
+      return;
+    }
+    for (let i = this.index + 1; i < this._scenes.length; i++) {
+      if (this._scenes[i].choices) { this.index = i; this._render(); return; }
+    }
+    this._toAction();
+  }
+
+  /** Combien de décisions restent à prendre (affiché : « N » doit être compris). */
+  get pendingChoices() {
+    return this._scenes.slice(this.index).filter((s) => s.choices).length;
+  }
+
   _key(e) {
     const tag = e.target.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     // H : descendre au pont hangar. L'escale ne consomme pas de temps de fiction
     // (le décompte avance par scène), donc elle ne punit pas la curiosité.
     if (e.code === 'KeyH') { e.preventDefault(); this.app.toHangar('bridge'); return; }
-    if (e.code === 'KeyN') { e.preventDefault(); this._toAction(); return; }
+    if (e.code === 'KeyN') { e.preventDefault(); this._skipTalk(); return; }
     if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); this._next(); return; }
     const digit = /^Digit([1-9])$/.exec(e.code);
     if (digit) { e.preventDefault(); this._choose(+digit[1] - 1); }

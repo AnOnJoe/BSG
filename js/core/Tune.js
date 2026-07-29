@@ -12,6 +12,8 @@ export const TUNE = {
   helmStandoff: 24,     // distance de combat que tient le barreur IA
   helmEscortDist: 16,   // distance à laquelle il escorte un civil (plus serré)
   helmReactionTau: 0.8, // retard de réaction du barreur IA (s) : il barre mollement
+  helmFleetLead: 45,    // avance (unités) au-delà de laquelle le barreur attend la flotte
+                        // (bien sous le rayon de la bulle, sinon elle se vide)
   // --- Conduite de tir de l'ÉQUIPAGE (il n'est pas une machine : il rate) ---
   crewReactionTau: 0.35, // retard de suivi de la cible (s) : rate ce qui manœuvre
   crewAcquireTime: 0.5,  // temps de verrouillage avant le premier tir (s)
@@ -88,6 +90,7 @@ export const TUNE = {
   convoyHpMul: 1,      // PV de tous les transports (×) — appliqué au montage
   crippledAt: 0.4,     // part de coque sous laquelle un transport DÉCROCHE
   crippledSpeedMin: 0.2, // allure d'un transport à 0 % de coque (× la nominale)
+  convoyCatchup: 1.45, // allure (×) qu'un transport distancé s'autorise pour recoller
   jumpRepairHull: 40,  // coque rendue par un saut (avec l'atelier)
   jumpRepairNoWorkshop: 12, // ... sans le remorqueur
   jumpRepairCredits: 240,   // prime de saut
@@ -171,6 +174,7 @@ export const TUNE_SPECS = [
   ['convoyHpMul', 'PV des transports (×)', 0.3, 3, 0.1, 'Flotte civile', 'PV de tous les transports. Appliqué au montage de la flotte, donc au prochain départ — pas en pleine bataille.'],
   ['crippledAt', 'Décrochage sous (part de coque)', 0.1, 0.9, 0.05, 'Flotte civile', 'Part de coque sous laquelle un transport perd sa propulsion et DÉCROCHE. Monter = des traînards plus tôt et plus souvent.'],
   ['crippledSpeedMin', 'Allure d\'un éclopé à 0 % (×)', 0.05, 0.5, 0.05, 'Flotte civile', 'Allure d\'un transport à 0 % de coque. Bas = un éclopé est vraiment perdu ; haut = il suit encore et le dilemme disparaît.'],
+  ['convoyCatchup', 'Rattrapage d\'un distancé (×)', 1, 2.5, 0.05, 'Flotte civile', 'Allure qu\'un transport distancé s\'autorise pour recoller sur la baleine. À 1, l\'écart croît sans borne dès que tu vas plus vite qu\'eux. Trop haut, « le plus lent commande le départ » ne veut plus rien dire.'],
   ['fleetPushSpeed', 'FORCER : allure (×)', 1, 2.5, 0.05, 'Flotte civile', 'Ordre FORCER : gain d\'allure. C\'est ce qui rend l\'ordre tentant.'],
   ['fleetPushWear', 'FORCER : usure (PV/s)', 0, 6, 0.1, 'Flotte civile', 'Ordre FORCER : usure de coque des transports. C\'est ce qui le rend coûteux. À 0, FORCER devient le choix évident et le triangle d\'ordres s\'effondre.'],
   ['fleetSpreadMul', 'DISPERSER : étalement (×)', 0.2, 2.5, 0.1, 'Flotte civile', 'Étalement des ordres DISPERSER et FORCER. Grand = pertes diluées mais flotte incouvrable, et il faudra rallier avant de sauter.'],
@@ -239,6 +243,7 @@ export const TUNE_SPECS = [
   ['helmStandoff', 'Barreur IA : distance tenue', 10, 40, 1, 'Postes', 'Distance de combat que tient le barreur IA.'],
   ['helmEscortDist', 'Barreur IA : distance d\'escorte', 6, 40, 1, 'Postes', 'Distance à laquelle le barreur IA escorte un civil (plus serré qu\'une distance de combat).'],
   ['helmReactionTau', 'Barreur IA : mollesse (s)', 0.1, 2, 0.1, 'Postes', 'Mollesse du barreur IA. Haut = il barre approximativement, donc prendre la barre soi-même compte.'],
+  ['helmFleetLead', 'Barreur IA : avance tolérée sur la flotte', 20, 200, 5, 'Postes', 'Au-delà de cette avance sur la flotte, le barreur IA lève le pied et attend — mais seulement si la flotte est en RALLIEMENT. Sans ça la baleine distance le convoi et la bulle de saut se vide, donc ordonner le saut abandonne tout le monde.'],
 
   // --- Vue ---
   ['viewZoom', 'Recul caméra général (×)', 0.8, 2.2, 0.05, 'Vue', 'Recul général de la caméra, donc largeur de vue. Décide de ce qu\'on voit arriver.'],

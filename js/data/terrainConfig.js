@@ -20,7 +20,8 @@ export const TERRAINS = {
   },
 
   asteroids: {
-    id: 'asteroids', name: 'CHAMP D\'ASTÉROÏDES',
+    id: 'asteroids',
+    lanes: 3, laneHalf: 14, name: 'CHAMP D\'ASTÉROÏDES',
     clusters: [
       // Volontairement CLAIRSEMÉ : le champ dense est réservé à « belt », sinon
       // le même motif se répète à chaque secteur.
@@ -31,6 +32,7 @@ export const TERRAINS = {
 
   belt: {
     id: 'belt', name: 'CEINTURE DENSE',
+    lanes: 3, laneHalf: 13,
     clusters: [
       { kind: 'rock', count: 86, rMin: 3, rMax: 11, spread: 0.94 },
       { kind: 'debris', count: 150, rMin: 0.5, rMax: 2.6, spread: 0.96 },
@@ -39,7 +41,8 @@ export const TERRAINS = {
   },
 
   hulks: {
-    id: 'hulks', name: 'ÉPAVES DE GUERRE',
+    id: 'hulks',
+    lanes: 2, laneHalf: 16, name: 'ÉPAVES DE GUERRE',
     clusters: [
       { kind: 'wreckage', count: 22, rMin: 13, rMax: 24, spread: 0.92 },
       { kind: 'debris', count: 190, rMin: 0.5, rMax: 3.0, spread: 0.96 },
@@ -49,6 +52,7 @@ export const TERRAINS = {
 
   wreck: {
     id: 'wreck', name: 'CIMETIÈRE DE COQUES',
+    lanes: 3, laneHalf: 15,
     clusters: [
       { kind: 'wreckage', count: 16, rMin: 11, rMax: 22, spread: 0.9 },
       { kind: 'hulk', count: 10, rMin: 8, rMax: 15, spread: 0.9 },

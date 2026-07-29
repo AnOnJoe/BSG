@@ -13,9 +13,22 @@ import { TUNE } from '../core/Tune.js';
  * L'équipage applique la consigne sans jamais l'adapter ; le joueur juge du moment.
  */
 
-/** Poste PILOTE — conduite du vaisseau. */
+/**
+ * Poste PILOTE — conduite du vaisseau.
+ *
+ * TENIR est né d'une partie test : « quand je suis capitaine je voudrais pouvoir
+ * ordonner au pilote de ne pas bouger ». Il manquait, et son absence était une
+ * vraie gêne — les trois autres consignes *font* toutes quelque chose, il n'y avait
+ * aucun moyen de dire « reste là ». C'est pourtant la consigne qu'on veut pour
+ * couvrir un point, attendre un traînard, ou tenir la flotte groupée dans la bulle
+ * avant d'amorcer.
+ *
+ * ⚠ Elle immobilise aussi la flotte quand celle-ci est en RALLIEMENT (elle suit la
+ * baleine) : c'est justement l'usage principal.
+ */
 export const HELM_ORDERS = [
   { id: 'engage', name: 'ENGAGER' },
+  { id: 'hold', name: 'TENIR' },
   { id: 'salvage', name: 'RÉCUPÉRER' },
   { id: 'break', name: 'ROMPRE' },
 ];
