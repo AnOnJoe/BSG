@@ -1969,6 +1969,40 @@ body.expanded #cockpit-shell .shell-glare { opacity: 0; }
 }
 .rb-jump.part .rj-key { background: var(--neon-amber); }
 
+/* ROUTE (poste de pilote) — ce que l'équipage IA ne juge jamais : le couvert et la
+   bulle. Sans ces deux lignes, la valeur ajoutée du poste restait invisible et il
+   paraissait vide dès lors que le clic donnait le cap. */
+.ck-nav { min-width: 210px; }
+.nav-cover, .nav-bubble { font-size: 10px; letter-spacing: 0.5px; color: var(--dim); }
+.nav-cover { margin-bottom: 2px; }
+.nav-cover.good, .nav-bubble.good { color: var(--neon-green); }
+.nav-cover.bad, .nav-bubble.bad { color: var(--neon-magenta); }
+.nav-bubble.warn { color: var(--neon-amber); }
+.nav-wp {
+  margin-top: 3px; font-size: 9px; letter-spacing: 1px; color: var(--neon-cyan);
+  opacity: 0; transition: opacity 0.2s;
+}
+.nav-wp.on { opacity: 1; }
+
+/* Niveau de zoom personnel (molette) : annoncé brièvement à chaque cran. Sans ce
+   retour on ne sait ni où l'on en est ni comment revenir au cadrage d'origine. */
+#zoom-tag {
+  position: fixed; z-index: 19;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--bay-b) + 34px);
+  padding: 3px 12px;
+  font-size: 10px; letter-spacing: 2px; white-space: nowrap;
+  color: var(--neon-cyan);
+  background: rgba(6, 12, 20, 0.75);
+  border: 1px solid rgba(51,255,255,0.35);
+  border-radius: 20px;
+  pointer-events: none;
+  opacity: 0; transition: opacity 0.25s;
+}
+#zoom-tag.show { opacity: 1; }
+body.expanded #zoom-tag { bottom: 36px; }
+
 /* Rappel des touches, cadré sur l'ÉCRAN TACTIQUE et non sur la fenêtre — sinon il
    déborde sur le décor du cockpit. Il avait perdu son style avec l'ancien bloc du
    hangar et se retrouvait en haut à gauche, par-dessus le logo. */

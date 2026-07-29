@@ -31,8 +31,10 @@ python3 -m http.server 8000
 |---|---|
 | **Tab** ou clic sur une icône | **changer de poste** (commandant · pilote · artilleur · drones · ingénieur) |
 | **Chiffres** | **commandes du poste courant** (énergie · conduite · mode de tir · escadron) |
-| **← / →** (ou A/D · Q/D) | virer sur place — *au poste de pilote* (inertie de navire) |
+| **Clic gauche** | **poser un point de route** : le barreur y mène — *au poste de pilote* |
+| **← / →** (ou A/D · Q/D) | virer sur place — *au poste de pilote* (annule le point de route) |
 | **↑ / ↓** (ou W/S · Z/S) | avancer / reculer dans l'axe du nez — *au poste de pilote* |
+| **Molette** | **zoomer / dézoomer** la vue (confort personnel, aucun effet de jeu) |
 | **Souris** | viser — *au poste d'artilleur* |
 | **Clic gauche** | tir des lasers — *au poste d'artilleur* |
 | **Barre Espace** | tir des **missiles** (ordre du capitaine, depuis n'importe quel poste) |
@@ -50,6 +52,16 @@ python3 -m http.server 8000
 Le **nez suit le cap** (proue directrice, la poupe balaie) ; les tourelles visent
 l'ennemi **indépendamment** du cap. La rotation est **lourde** (inertie) et pivote
 plutôt vers la proue.
+
+On commande un vaisseau capital : **on lui ordonne un point, on ne le conduit pas.** Un clic
+au poste de pilote pose une destination et c'est le barreur qui l'atteint, avec la même inertie
+et la même esquive du décor que lorsqu'il navigue seul. Les flèches restent là pour qui veut
+barrer à la main — et reprennent la main dès qu'on y touche.
+
+Le poste de pilote ne devient pas décoratif pour autant : le clic donne le cap, mais le
+**routage** se juge sur deux choses que l'équipage ne saura jamais peser — se mettre **à
+couvert** (les rochers coupent les tirs, elle n'en tient aucun compte) et tenir la flotte
+**dans la bulle de saut** avant d'amorcer. Le cockpit du pilote affiche les deux.
 
 ## Pont hangar
 

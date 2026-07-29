@@ -9,7 +9,13 @@ import { TUNE } from '../core/Tune.js';
  * autour et derrière. Une escorte encadre ce qu'elle protège — et surtout, on doit
  * VOIR ce qu'on escorte, sinon la consigne ne veut rien dire.
  */
-const FOLLOW_X = [-26, -8, 12, -18, 2, -30];
+/**
+ * Stations en RALLIEMENT, en PART DE LA DEMI-LARGEUR VISIBLE (et non en unités
+ * absolues, sinon changer le zoom sort la flotte du champ). Deux devant, quatre
+ * autour et derrière : une escorte encadre ce qu'elle protège — et surtout, on doit
+ * VOIR ce qu'on escorte.
+ */
+const FOLLOW_X = [-0.63, -0.20, 0.29, -0.44, 0.05, -0.73];
 
 /**
  * PLAN DE PROFONDEUR DE LA FLOTTE CIVILE.
@@ -243,7 +249,7 @@ export class Convoy {
       const rows = Math.ceil(fleet.length / 2);
       const col = i % 2, row = Math.floor(i / 2);
       t.group.position.set(
-        startX - col * 26 - row * 4,
+        startX - col * 55 - row * 8,
         (row - (rows - 1) / 2) * (spanY / Math.max(1, rows)) * 1.1,
         CONVOY_Z
       );
@@ -368,9 +374,13 @@ export class Convoy {
    *    de formation. Elle suit désormais la direction réelle de marche, sonde à la
    *    largeur de la coque, et l'esquive PRIME sur la formation le temps de dégager.
    */
-  update(dt, limitX, terrain, orderId, gather, arena, holding = false) {
+  update(dt, limitX, terrain, orderId, gather, arena, holding = false, viewHalfW = 41) {
     const order = FLEET_ORDERS.find((o) => o.id === orderId) || FLEET_ORDERS[0];
-    const span = (arena ? arena.y : 108) * order.spread;
+    // Étalement : sur la HAUTEUR VISIBLE (≈ demi-largeur / aspect) pour RALLIEMENT,
+    // sur l'arène pour DISPERSER — disperser doit justement sortir du champ.
+    const span = order.follow
+      ? viewHalfW * 0.62 * order.spread * 4
+      : (arena ? arena.y : 108) * order.spread;
     const list = this.alive;
     // Jusqu'où un transport distancé peut pousser ses moteurs pour recoller.
     // Réglable : à 1 l'écart croît sans borne dès que la baleine va plus vite, trop
@@ -409,7 +419,7 @@ export class Convoy {
         // réparties de part et d'autre — une escorte encadre ce qu'elle protège.
         // (Le cas TENIR est identique : la station suit la baleine, qui ne bouge
         // plus. Pas besoin d'une branche séparée.)
-        wantX = gather.x + FOLLOW_X[i % FOLLOW_X.length] + tr.off * 0.3;
+        wantX = gather.x + FOLLOW_X[i % FOLLOW_X.length] * viewHalfW + tr.off * 0.3;
       } else {
         // Sinon ils poussent vers la sortie du secteur, chacun à son allure.
         wantX = Math.min(limitX, t.position.x + 60);
@@ -538,7 +548,7 @@ export class Convoy {
     keep.forEach((t, i) => {
       const col = i % 2, row = Math.floor(i / 2);
       t.position.set(
-        startX - col * 26 - row * 4,
+        startX - col * 55 - row * 8,
         (row - (rows - 1) / 2) * (spanY / Math.max(1, rows)) * 1.1,
         CONVOY_Z
       );

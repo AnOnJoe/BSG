@@ -15,7 +15,7 @@ export const TERRAINS = {
     // « Rien pour se cacher » ne veut pas dire un écran vide : des débris
     // lointains donnent l'échelle et le mouvement, sans offrir de couvert.
     clusters: [
-      { kind: 'debris', count: 130, rMin: 0.5, rMax: 2.0, spread: 0.96 },
+      { kind: 'debris', count: 290, rMin: 0.7, rMax: 2.8, spread: 0.96 },
     ],
   },
 
@@ -25,8 +25,11 @@ export const TERRAINS = {
     clusters: [
       // Volontairement CLAIRSEMÉ : le champ dense est réservé à « belt », sinon
       // le même motif se répète à chaque secteur.
-      { kind: 'rock', count: 18, rMin: 4, rMax: 12, spread: 0.92 },
-      { kind: 'debris', count: 120, rMin: 0.6, rMax: 2.4, spread: 0.96 },
+      // ⚠ Comptes remontés avec le rescale : l'aire du couloir a été multipliée par
+      // 4,4 (430×108 → 900×226), donc les valeurs d'avant vidaient le champ. Les
+      // TAILLES ne bougent pas — c'est justement ce qui rend l'espace grand.
+      { kind: 'rock', count: 34, rMin: 5, rMax: 16, spread: 0.92 },
+      { kind: 'debris', count: 260, rMin: 0.8, rMax: 3.2, spread: 0.96 },
     ],
   },
 
@@ -34,9 +37,9 @@ export const TERRAINS = {
     id: 'belt', name: 'CEINTURE DENSE',
     lanes: 3, laneHalf: 13,
     clusters: [
-      { kind: 'rock', count: 86, rMin: 3, rMax: 11, spread: 0.94 },
-      { kind: 'debris', count: 150, rMin: 0.5, rMax: 2.6, spread: 0.96 },
-      { kind: 'dust', count: 14, rMin: 16, rMax: 30, spread: 0.9 },
+      { kind: 'rock', count: 120, rMin: 4, rMax: 15, spread: 0.94 },
+      { kind: 'debris', count: 320, rMin: 0.7, rMax: 3.4, spread: 0.96 },
+      { kind: 'dust', count: 26, rMin: 24, rMax: 48, spread: 0.9 },
     ],
   },
 
@@ -44,9 +47,9 @@ export const TERRAINS = {
     id: 'hulks',
     lanes: 2, laneHalf: 16, name: 'ÉPAVES DE GUERRE',
     clusters: [
-      { kind: 'wreckage', count: 22, rMin: 13, rMax: 24, spread: 0.92 },
-      { kind: 'debris', count: 190, rMin: 0.5, rMax: 3.0, spread: 0.96 },
-      { kind: 'dust', count: 6, rMin: 20, rMax: 34, spread: 0.88 },
+      { kind: 'wreckage', count: 48, rMin: 13, rMax: 24, spread: 0.92 },
+      { kind: 'debris', count: 400, rMin: 0.7, rMax: 3.8, spread: 0.96 },
+      { kind: 'dust', count: 12, rMin: 28, rMax: 52, spread: 0.88 },
     ],
   },
 
@@ -54,11 +57,11 @@ export const TERRAINS = {
     id: 'wreck', name: 'CIMETIÈRE DE COQUES',
     lanes: 3, laneHalf: 15,
     clusters: [
-      { kind: 'wreckage', count: 16, rMin: 11, rMax: 22, spread: 0.9 },
-      { kind: 'hulk', count: 10, rMin: 8, rMax: 15, spread: 0.9 },
-      { kind: 'rock', count: 26, rMin: 3, rMax: 8, spread: 0.92 },
-      { kind: 'debris', count: 170, rMin: 0.5, rMax: 2.8, spread: 0.96 },
-      { kind: 'dust', count: 9, rMin: 18, rMax: 32, spread: 0.88 },
+      { kind: 'wreckage', count: 36, rMin: 11, rMax: 22, spread: 0.9 },
+      { kind: 'hulk', count: 22, rMin: 8, rMax: 15, spread: 0.9 },
+      { kind: 'rock', count: 58, rMin: 3, rMax: 8, spread: 0.92 },
+      { kind: 'debris', count: 370, rMin: 0.7, rMax: 3.4, spread: 0.96 },
+      { kind: 'dust', count: 18, rMin: 26, rMax: 48, spread: 0.88 },
     ],
   },
 };

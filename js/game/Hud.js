@@ -340,7 +340,8 @@ export class Hud {
     this.hint = document.createElement('div');
     this.hint.id = 'hud-hint';
     this.hint.textContent = 'Tab : poste · chiffres : commandes du poste · J : saut · '
-      + 'X : cible prioritaire · Clic : tir · Espace : missiles · ↑↓ ←→ : barre · V : plein écran';
+      + 'X : cible prioritaire · Clic : tir · Espace : missiles · ↑↓ ←→ : barre · '
+      + 'Molette : zoom · V : plein écran';
     this.container.appendChild(this.hint);
   }
 
@@ -578,6 +579,19 @@ export class Hud {
          ${this._gaugeHtml('spd', 'VITESSE')}
          ${this._gaugeHtml('dist', 'MENACE À')}
          <div class="ck-warn"></div>
+       </div>
+       <!-- LA VALEUR AJOUTÉE DU PILOTE, RENDUE LISIBLE.
+            Objection légitime : si le clic donne le cap, à quoi sert le poste ? À
+            router — et le routage se juge sur deux choses que l'équipage IA ignore
+            complètement : se mettre à COUVERT (le décor coupe les tirs, elle n'en
+            tient aucun compte) et tenir la flotte DANS LA BULLE avant d'amorcer.
+            Sans ces deux instruments, cette valeur restait invisible et le poste
+            paraissait vide. -->
+       <div class="ck-group ck-nav">
+         <div class="ck-label">ROUTE <span class="ck-sub">clic = point de route</span></div>
+         <div class="nav-cover">—</div>
+         <div class="nav-bubble">—</div>
+         <div class="nav-wp"></div>
        </div>`;
     const b = this.cockpits.helm.body;
     this.helmNeedle = b.querySelector('.dial-needle');
@@ -585,6 +599,9 @@ export class Hud {
     this.helmSpd = b.querySelector('.g-spd .g-val');
     this.helmDist = b.querySelector('.g-dist .g-val');
     this.helmWarn = b.querySelector('.ck-warn');
+    this.navCover = b.querySelector('.nav-cover');
+    this.navBubble = b.querySelector('.nav-bubble');
+    this.navWp = b.querySelector('.nav-wp');
   }
 
   /** ARTILLEUR : solution de tir, cible, mode, munitions. */
@@ -795,6 +812,21 @@ export class Hud {
     this.helmDist.textContent = data.threat === null ? '—' : Math.round(data.threat);
     this.helmWarn.textContent = data.nearEdge ? '⚠ LIMITE DE ZONE' : '';
     this.helmWarn.classList.toggle('on', !!data.nearEdge);
+
+    // Ce que l'équipage IA ne saura jamais juger : le couvert et la bulle.
+    if (this.navCover) {
+      const c = data.cover;
+      this.navCover.textContent = c === null ? 'aucune menace'
+        : c ? '✔ À COUVERT — ils ne peuvent pas tirer' : '✖ à découvert';
+      this.navCover.className = `nav-cover${c ? ' good' : c === null ? '' : ' bad'}`;
+      const { inside = 0, total = 0 } = data.bubble || {};
+      this.navBubble.textContent = `flotte dans la bulle : ${inside}/${total}`;
+      this.navBubble.className = `nav-bubble${total && inside === total ? ' good'
+        : inside ? ' warn' : ' bad'}`;
+      this.navWp.textContent = data.waypointDist === null || data.waypointDist === undefined
+        ? '' : `point de route à ${Math.round(data.waypointDist)}`;
+      this.navWp.classList.toggle('on', data.waypointDist != null);
+    }
   }
 
   /** Instruments du poste de drones. */
@@ -935,6 +967,23 @@ export class Hud {
       }
     }
     for (let i = list.length; i < this._tags.length; i++) this._tags[i].style.display = 'none';
+  }
+
+  /**
+   * Niveau de zoom personnel. Affiché brièvement à chaque cran : sans retour, on ne
+   * sait ni où l'on en est ni comment revenir au cadrage d'origine.
+   */
+  setZoom(z) {
+    if (!this._zoomEl) {
+      this._zoomEl = document.createElement('div');
+      this._zoomEl.id = 'zoom-tag';
+      this.container.appendChild(this._zoomEl);
+    }
+    const pct = Math.round(100 / z);
+    this._zoomEl.textContent = `VUE ${pct} %${Math.abs(z - 1) < 0.01 ? '' : ' · molette'}`;
+    this._zoomEl.classList.add('show');
+    clearTimeout(this._zoomT);
+    this._zoomT = setTimeout(() => this._zoomEl.classList.remove('show'), 1400);
   }
 
   setEnemy(present, hp, max) {

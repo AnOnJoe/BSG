@@ -19,8 +19,8 @@ export class Drone {
     this.fireCd = 0.3 + Math.random() * 0.6;
     this.orbitDir = Math.random() < 0.5 ? 1 : -1;
     this.orbitRadius = 3.6 + Math.random() * 1.5;
-    this.speed = 17;
-    this.fireRange = 12;
+    this.speed = 36;   // à l'échelle du monde agrandi (×2,1) : sinon ils traînent
+    this.fireRange = 25; // idem — voir aussi le plancher lié à la barrière dans update()
     this.radius = 1.3; // hitbox généreuse pour pouvoir les abattre
 
     const s = 0.5;
@@ -73,11 +73,20 @@ export class Drone {
       }
     }
 
-    // Tir sur la cible si à portée
+    // Tir sur la cible si à portée.
+    //
+    // ⚠ LA BARRIÈRE NE DOIT PAS DÉSARMER LE DRONE. Bug rencontré au rescale : le rayon
+    // du bouclier est passé de 9 à 19, donc l'orbite forcée à 20,5, très au-delà d'une
+    // portée de 12 — les drones ennemis devenaient **totalement inoffensifs** contre
+    // une baleine bouclier levé, sans un seul message, et le canon anti-drone perdait
+    // sa raison d'être. La portée est donc plancher-née sur la distance d'orbite : si
+    // le bouclier les repousse, ils tirent d'aussi loin qu'il les repousse. C'est le
+    // rôle du bouclier d'ARRÊTER LES TIRS, pas d'empêcher qu'ils partent.
     if (ctx.targetPos && ctx.targetAlive) {
       const dist = this.group.position.distanceTo(ctx.targetPos);
+      const reach = Math.max(this.fireRange, orbitR + 3);
       this.fireCd -= dt;
-      if (dist < this.fireRange && this.fireCd <= 0) {
+      if (dist < reach && this.fireCd <= 0) {
         this.fireCd = 0.6;
         const dir = _v.copy(ctx.targetPos).sub(this.group.position).setZ(0).normalize();
         ctx.spawnBolt(this.group.position.clone(), dir, 3, this.faction, this.color);

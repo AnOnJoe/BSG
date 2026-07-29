@@ -69,8 +69,20 @@ export class AutoHelm {
       this.thrust = drift ? -0.5 : 0;
       return;
     }
+    // POINT DE ROUTE DU JOUEUR — il PRIME sur tout le reste.
+    //
+    // Le contrôle direct aux flèches donnait un pilotage de kart, alors que le jeu
+    // dit depuis le début que le plaisir vient du triage sous pression et pas de
+    // l'adresse au pilotage : on ne barre pas un vaisseau capital comme une voiture,
+    // on lui ORDONNE un point. Le clic pose donc une destination, et c'est ce même
+    // barreur qui l'atteint — donc avec exactement la même inertie et la même esquive
+    // que lorsqu'il conduit seul. Aucune duplication, aucun risque de divergence.
+    //
+    // Le waypoint est consommé à l'arrivée par `Range` (qui l'efface), pas ici : le
+    // barreur ne décide de rien, il exécute — c'est le contrat de toutes ses consignes.
+    const wp = ctx.waypoint || null;
     // RÉCUPÉRER : la caisse devient l'objectif, on ignore l'ennemi.
-    const goal = order === 'salvage' && ctx.pickup ? ctx.pickup : null;
+    const goal = wp || (order === 'salvage' && ctx.pickup ? ctx.pickup : null);
     // ESCORTE PAR DÉFAUT : sans ennemi en vue, il rejoignait... rien, et la
     // baleine restait immobile pendant tout le répit. Un barreur d'escorte se
     // porte sur le transport en retard : c'est son travail, et c'est là qu'on
@@ -111,7 +123,7 @@ export class AutoHelm {
     }
 
     // Écarter des bords : priorité absolue, sinon il s'y colle bêtement.
-    const margin = 22;
+    const margin = 46;   // à l'échelle du couloir agrandi (×2,1)
     let wantX = 0, wantY = 0;
     if (pos.x > bounds.x - margin) wantX = -1;
     else if (pos.x < -bounds.x + margin) wantX = 1;
@@ -137,6 +149,10 @@ export class AutoHelm {
       if (!this.perceived || this._lastTarget !== target) {
         this.perceived = target.position.clone();
         this._lastTarget = target;
+      } else if (wp) {
+        // Un POINT DE ROUTE est un ordre précis du joueur, pas une cible à pister :
+        // pas de retard de perception. Le barreur sait où on lui a dit d'aller.
+        this.perceived.copy(target.position);
       } else {
         this.perceived.lerp(target.position, Math.min(1, dt / Math.max(0.05, TUNE.helmReactionTau)));
       }
@@ -145,7 +161,14 @@ export class AutoHelm {
       _v.z = 0;
       const dist = _v.length() || 0.0001;
       desired = Math.atan2(_v.y, _v.x); // présente le nez à l'objectif
-      if (goal) {
+      if (wp) {
+        // On RALENTIT à l'approche et on s'arrête sur le point. Sans ce freinage la
+        // baleine dépasse largement — elle est lourde, et « aller là » voudrait dire
+        // « passer par là à pleine vitesse », ce qui est exactement le pilotage de
+        // kart qu'on veut supprimer.
+        closing = dist > TUNE.helmBrakeDist ? 1
+          : dist > TUNE.helmArriveDist ? dist / TUNE.helmBrakeDist : 0;
+      } else if (goal) {
         // Une caisse se ramasse en la SURVOLANT : on va dessus, sans zone morte.
         closing = 1;
       } else if (order === 'break') {
@@ -227,7 +250,16 @@ export class AutoHelm {
     // (« le plus lent commande le départ » est la contrainte du jeu) : c'est la
     // baleine qui doit lever le pied. Elle ne le fait QUE si la flotte la suit,
     // sinon on l'empêcherait de rompre ou d'aller intercepter.
-    if (leading && ctx.fleetX !== undefined) {
+    // ⚠ UN POINT DE ROUTE EST EXCLU DE CET ASSERVISSEMENT. Mesuré : la baleine
+    // approchait le point à 20 unités puis s'y bloquait indéfiniment (vitesse 1,1,
+    // distance qui remontait à 22) — parce que la flotte était loin derrière, donc
+    // `lead > slack × 1,7` et la poussée était forcée à −0,3. Or le cas NORMAL du
+    // clic est justement de désigner un point DEVANT la flotte pour la mener : sans
+    // cette exclusion, l'ordre du joueur est silencieusement annulé par une consigne
+    // d'escorte. Le point de route prime sur tout, y compris sur le confort du convoi
+    // — garder la flotte groupée redevient la responsabilité du joueur, ce qui est
+    // exactement le sens de prendre la main.
+    if (!wp && leading && ctx.fleetX !== undefined) {
       const lead = pos.x - ctx.fleetX;
       const slack = ctx.fleetLead ?? 45;
       // ⚠ ON RÈGLE L'ALLURE, ON NE COUPE PAS LES GAZ. Deux versions fausses avant

@@ -76,8 +76,8 @@ export const CAPITAL_CONFIG = {
     { pos: [-17, 0], r: 6.0 },
   ],
 
-  speed: 3.2,          // très lent : on a le temps de le voir venir
-  standoff: 34,        // distance de bombardement qu'il cherche à tenir
+  speed: 6.72,          // très lent : on a le temps de le voir venir
+  standoff: 71.4,        // distance de bombardement qu'il cherche à tenir
   bridgeFirePenalty: 0.5, // cadence des batteries (×) quand le pont est détruit
   reward: 900,         // crédits pour l'avoir démonté
 };

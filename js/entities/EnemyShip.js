@@ -23,11 +23,16 @@ const PROFILE = [
  *  - gunship  : lourd, lent, gros PV et dégâts, garde ses distances
  *  - carrier  : porte-drones (déploie plus d'intercepteurs)
  */
+// ⚠ `range` = DISTANCE D'ENGAGEMENT mise à l'échelle du rescale (×2,1), comme les
+// portées d'armes et la distance de combat du barreur. Sans ça, tout s'était agrandi
+// sauf eux : ils venaient se coller à la coque au lieu de tenir un cercle lisible, et
+// « approche longue et lisible » — la raison d'être du rythme lent — ne tenait plus.
+// Le multiplicateur `TUNE.enemyRangeMul` permet de rejuger ça manette en main.
 export const ENEMY_TYPES = {
-  fighter: { label: 'Chasseur',  hpMul: 0.55, dmgMul: 0.8, range: 12, tang: 9, max: 15, scale: 0.8, color: 0xff9944, fireCd: 1.2, bonusDrones: 0, react: 0.18 },
-  raider:  { label: 'Raider',    hpMul: 1.0,  dmgMul: 1.0, range: 18, tang: 6, max: 10, scale: 1.0, color: 0xff5544, fireCd: 1.6, bonusDrones: 0, react: 0.35 },
-  gunship: { label: 'Cuirassé',  hpMul: 2.2,  dmgMul: 1.7, range: 24, tang: 3, max: 6,  scale: 1.45, color: 0xff3322, fireCd: 1.9, bonusDrones: 0, react: 0.7 },
-  carrier: { label: 'Porte-drones', hpMul: 1.4, dmgMul: 0.7, range: 22, tang: 5, max: 8, scale: 1.15, color: 0xff4488, fireCd: 2.2, bonusDrones: 2, react: 0.45 },
+  fighter: { label: 'Chasseur',  hpMul: 0.55, dmgMul: 0.8, range: 25, tang: 9, max: 15, scale: 0.8, color: 0xff9944, fireCd: 1.2, bonusDrones: 0, react: 0.18 },
+  raider:  { label: 'Raider',    hpMul: 1.0,  dmgMul: 1.0, range: 38, tang: 6, max: 10, scale: 1.0, color: 0xff5544, fireCd: 1.6, bonusDrones: 0, react: 0.35 },
+  gunship: { label: 'Cuirassé',  hpMul: 2.2,  dmgMul: 1.7, range: 50, tang: 3, max: 6,  scale: 1.45, color: 0xff3322, fireCd: 1.9, bonusDrones: 0, react: 0.7 },
+  carrier: { label: 'Porte-drones', hpMul: 1.4, dmgMul: 0.7, range: 46, tang: 5, max: 8, scale: 1.15, color: 0xff4488, fireCd: 2.2, bonusDrones: 2, react: 0.45 },
 };
 
 /**
@@ -122,7 +127,8 @@ export class EnemyShip {
     this.group.scale.setScalar(t.scale);
     this.radius = 2.6 * t.scale;
     this.collisionRadius = this.radius;
-    this.preferredRange = t.range;
+    // Lu à chaque apparition, donc réglable en direct au panneau T d'une vague à l'autre.
+    this.preferredRange = t.range * TUNE.enemyRangeMul;
     this.tangSpeed = t.tang;
     this.maxSpeed = t.max;
     this.fireInterval = t.fireCd;

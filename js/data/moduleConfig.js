@@ -15,9 +15,9 @@ export const MODULE_CONFIG = {
     id: 'laser', name: 'Canon Laser', kind: 'weapon', slotType: 'weapon',
     color: PALETTE.laser,
     levels: [
-      { damage: 6,  fireRate: 7,  range: 40, energyCost: 5 },
-      { damage: 10, fireRate: 9,  range: 46, energyCost: 7 },
-      { damage: 16, fireRate: 11, range: 52, energyCost: 9 },
+      { damage: 6,  fireRate: 7,  range: 84, energyCost: 5 },
+      { damage: 10, fireRate: 9,  range: 97, energyCost: 7 },
+      { damage: 16, fireRate: 11, range: 109, energyCost: 9 },
     ],
   },
 
@@ -25,9 +25,14 @@ export const MODULE_CONFIG = {
     id: 'missile', name: 'Lance-Missiles', kind: 'weapon', slotType: 'weapon',
     color: PALETTE.missile,
     levels: [
-      { damage: 34, fireRate: 1.4, speed: 22, range: 60, ammo: 6 },
-      { damage: 52, fireRate: 1.8, speed: 26, range: 70, ammo: 9 },
-      { damage: 78, fireRate: 2.3, speed: 30, range: 80, ammo: 12 },
+      // ⚠ VITESSE à l'échelle (×2,1) en même temps que la portée. Restée à 22-30, elle
+      // rendait le missile inutile contre un chasseur : avec `enemySpeedMul` passé de
+      // 0,6 à 1,26, celui-ci file à 18,9 — la tête chercheuse ne le rattrapait plus
+      // qu'à 3 unités/s. Une arme autoguidée doit rester NETTEMENT plus rapide que sa
+      // cible, sinon elle ne poursuit pas, elle accompagne.
+      { damage: 34, fireRate: 1.4, speed: 46, range: 126, ammo: 6 },
+      { damage: 52, fireRate: 1.8, speed: 55, range: 147, ammo: 9 },
+      { damage: 78, fireRate: 2.3, speed: 63, range: 168, ammo: 12 },
     ],
   },
 
@@ -40,9 +45,9 @@ export const MODULE_CONFIG = {
     targets: 'small',
     autoTrack: true,
     levels: [
-      { damage: 3, fireRate: 14, range: 16, energyCost: 0.8 },
-      { damage: 4, fireRate: 18, range: 19, energyCost: 0.9 },
-      { damage: 5, fireRate: 22, range: 22, energyCost: 1.0 },
+      { damage: 3, fireRate: 14, range: 34, energyCost: 0.8 },
+      { damage: 4, fireRate: 18, range: 40, energyCost: 0.9 },
+      { damage: 5, fireRate: 22, range: 46, energyCost: 1.0 },
     ],
   },
 
@@ -102,9 +107,9 @@ export const MODULE_CONFIG = {
     id: 'radar', name: 'Radar', kind: 'radar', slotType: 'utility',
     color: PALETTE.radar,
     levels: [
-      { range: 20, maxTargets: 1 },
-      { range: 30, maxTargets: 2 },
-      { range: 42, maxTargets: 3 },
+      { range: 42, maxTargets: 1 },
+      { range: 63, maxTargets: 2 },
+      { range: 88, maxTargets: 3 },
     ],
   },
 };

@@ -24,17 +24,46 @@ cd BSG && python3 -m http.server 8000   # http://localhost:8000
   ouvrir la page, piloter via `window.app` / `window.TUNE`, lire l'état, prendre des
   screenshots. `Math.random`/`Date`/`requestAnimationFrame` sont dispo (c'est du
   navigateur — la restriction Workflow ne s'applique pas ici).
-- Contrôle syntaxe rapide : `find js -name '*.js' -print0 | xargs -0 -n1 node --check`.
-  (node ne résout pas les imports, mais valide la syntaxe de chaque module.)
+- **`node tools/check-syntax.mjs`** — contrôle syntaxe des 58 modules.
+  ⚠⚠ **`node --check fichier.js` NE VALIDE RIEN ICI.** C'était la commande documentée
+  du projet et elle renvoie **0 sur des fichiers syntaxiquement invalides** : sur un
+  `.js`, node applique les règles CommonJS et abandonne dès qu'il voit un `import`.
+  Elle a laissé passer **deux écrans noirs** (une apostrophe non échappée dans une aide
+  de `Tune.js`, un export manquant dans `scenes.js`). L'outil copie chaque module en
+  `.mjs` temporaire avant de lancer `node --check` — vérifié, il attrape `['x', 'l'a']`
+  là où la commande d'origine renvoyait 0.
 - **`node tools/check-dangling.mjs`** — traque les **appelants sans définition**
   (`this.app.machin()` alors que `App.machin` n'existe pas). Écrit après le bug
   `toggleExpand`, resté deux sessions : la touche **V** ne marchait pas et rien ne le
-  signalait. `node --check` ne voit pas ce genre de trou, et la lecture non plus.
+  signalait. Un contrôle de syntaxe ne voit pas ce genre de trou, et la lecture non plus.
   Heuristique : un résultat se vérifie à la main (faux positif possible sur un champ
   homonyme), zéro résultat est une bonne nouvelle.
 - **Faire CLIQUER les tests, pas seulement lire l'état.** Deux « bugs » relevés ici
   n'étaient que des lectures du DOM faites avant la frame suivante — laisser passer
   ~250 ms après une action avant de mesurer.
+
+### ⚠ PIÈGES DE MESURE (cinq faux bugs, tous produits par le banc de test)
+La règle : **une mesure qui accuse le jeu doit d'abord être soupçonnée elle-même.**
+Chacun de ces cas a produit un rapport alarmant et faux.
+- **Le pool d'ennemis est partagé avec les vagues.** `r.enemies[0]` est réutilisé par
+  l'assaut suivant : PV remis à zéro en pleine mesure, et son IA le déplace — donc
+  « cible immobile » ne l'est pas. Pour juger la conduite de tir, appeler
+  `weapons._fireControl()` **directement** sur une cible synthétique
+  (`{position, radius}`), et mettre `assaultTimer = Infinity`.
+- **Le laser est HITSCAN** : il ne crée aucun projectile. Compter `range.bolts` mesure
+  zéro quoi qu'il arrive ; il faut lire les dégâts cumulés.
+- **`WeaponControl.ordered` est une liste MISE EN CACHE.** Monter un module en test sans
+  appeler `weapons.refresh()` le rend totalement invisible : gâchette tenue 200 relevés
+  sur 200, munitions intactes, aucun tir. On croit l'arme cassée.
+- **L'équipement de départ est maigre** (3 plans sur 9) : pas de bouclier, pas de
+  missiles. Tester `shieldUp` sans monter de module bouclier ne teste rien.
+- **Tuer la baleine dans une phase invalide toutes les suivantes.** Une phase qui
+  encaisse doit rendre le joueur invulnérable (`ship.structure = ship.structureMax` à
+  chaque tick) — sinon les phases d'après tournent sur une partie terminée, tout est à
+  zéro et on cherche la cause dans le code.
+- **Ne pas extrapoler une grandeur qui accélère.** Juger la course FTL sur 60 s donnait
+  « la flotte arrive avant le calcul » ; la traversée complète donne **+60 s d'avance**.
+  Le taux de calcul monte avec l'éloignement (clarté 0,43 → 0,92).
 - **Debug console** : `window.app` (l'App), `window.app.range` (combat), `window.TUNE`.
 
 ## Architecture (points d'entrée)
@@ -68,8 +97,9 @@ cd BSG && python3 -m http.server 8000   # http://localhost:8000
 - **Le dilemme** : le saut n'emporte que ce qui est dans `JUMP_RADIUS`. Il part seul quand toute
   la flotte est à la porte ; sinon c'est au commandant d'ordonner le départ (**J**) en
   abandonnant le traînard, sous le feu qui continue.
-- **COULOIR et non arène** : `ARENA.x` passe à 430, on entre par `ENTRY_X` (gauche) et la porte
-  est à `JUMP_X` (droite). Le niveau a une direction — c'était le grief « enchaînement d'arènes ».
+- **COULOIR et non arène** : `ARENA` vaut **900 × 420** (cf. « Échelle » plus bas), on entre par
+  `ENTRY_X` (gauche) et on sort à droite. Le niveau a une direction — c'était le grief
+  « enchaînement d'arènes ».
 - **Les Cylons viennent pour la flotte**, pas pour le joueur : chacun prend le transport le plus
   proche de lui, sauf si la baleine est à moins de `TUNE.cylonPlayerAggro`. Vérifié : baleine
   parquée à 364 d'écart, ils passent de 67 à 15 de distance moyenne de la flotte et lui infligent
@@ -339,8 +369,10 @@ Mesuré, 25 s dans la Ceinture sans intervention : avance **−45 → +71**, coq
   ordonner le saut aurait tué toute la flotte. Deux correctifs faux avant le bon : ralentir
   proportionnellement (l'écart se stabilisait à 87, encore au-delà du rayon 78) puis couper les gaz
   (**blocage mutuel**, tout avançait à 1,3/s au lieu de 4, la flotte suivant une baleine à l'arrêt).
-  Le bon modèle est un **asservissement de vitesse** : au-delà de `helmFleetLead` la baleine se cale
-  sur l'allure du convoi. Écart tenu à 44, bulle 6/6.
+  Le bon modèle est un **asservissement de vitesse** : au-delà de `helmLeadView` (part du champ
+  visible) la baleine se cale sur l'allure du convoi. Écart tenu à 44, bulle 6/6.
+  ⚠ **Un POINT DE ROUTE échappe à cet asservissement**, sinon l'ordre du joueur est annulé sans
+  un mot dès qu'il clique devant la flotte — c'est-à-dire dans le cas normal.
 
 ### La flotte n'est plus un bloc
 « Elle se déplace comme un bloc où on aurait regroupé tous les vaisseaux » — c'était littéral : même
@@ -470,9 +502,12 @@ L'épique est un **contraste**, pas une intensité constante :
 ## Rythme : jeu de postes, pas beat'em all
 Un jeu de postes **ne peut pas** être nerveux : sans respiration, on n'a jamais le temps de
 changer de poste, et la mécanique centrale devient inutilisable. Le ralentissement n'est donc
-pas cosmétique. Réglages : `enemySpeedMul` 0.6, `enemyFireMul` 1.6 (intervalle ×), `spawnDist`
-78 (approche longue et lisible), `waveBreak` 8 s. Plus le ralenti à 25 % dès qu'un panneau de
-commandement est ouvert (`Range.timeScale`).
+pas cosmétique. Réglages : `enemySpeedMul` **1.26**, `enemyFireMul` 1.6 (intervalle ×),
+`spawnDist` **164** (approche longue et lisible), `waveBreak` 8 s. Plus le ralenti à 25 % dès
+qu'un panneau de commandement est ouvert (`Range.timeScale`).
+⚠ Ces chiffres sont **relatifs au monde** : `enemySpeedMul` a l'air agressif à 1,26 alors qu'il
+vaut exactement les 0,6 d'avant dans un monde 2,1× plus grand. Ne pas les lire dans l'absolu —
+c'est le rapport à `spawnDist` et aux portées qui fait le rythme.
 
 ## Énergie répartie (cœur du game design)
 Le jeu est une **sim de capitaine** : le plaisir vient du **triage sous pression**, pas de
@@ -551,9 +586,113 @@ restent dans la passerelle : ce sont des objets du vaisseau, pas de l'affichage.
 **Dézoom.** L'écran cadré est plus petit (544 px contre 800) à FOV constant : tout paraît plus
 petit sans qu'on voie plus large. `Range._followCamera` recule donc la caméra selon le produit
 de `TUNE.viewZoom` (vue générale), d'une **compensation de la taille d'écran**
-(`screenRefH / viewport.h`, plafonnée à 2) et de `capitalCamZoom`. Mesuré en cockpit :
-**104 × 70 unités visibles** (contre 87 × 54 sans compensation), baleine à 117 px. Régler la
-largeur de vue = `viewZoom` dans le panneau **T**.
+(`screenRefH / viewport.h`, plafonnée à 2), du **zoom personnel à la molette**
+(`userZoom`) et de `capitalCamZoom`. Régler la largeur de vue = `viewZoom`, panneau **T**.
+
+## ÉCHELLE : c'est un RAPPORT, pas une taille
+Grief de partie test : « l'espace est immense et ça ne se ressent pas, les vaisseaux sont
+énormes dans un tout petit espace, on a l'impression de piloter un kart entre les
+astéroïdes ». Mesuré à `viewZoom` 1,15 : champ visible **81 × 56 unités**, donc un paquebot
+occupait **36 %** de la largeur de l'écran, un rocher 28 %, et les obstacles étaient espacés
+de **37 unités** — à peine une longueur de paquebot.
+
+**Agrandir le monde seul ne change RIEN à l'image**, et élargir la vue seule raccourcit le
+couloir en nombre d'écrans. Il faut les deux, dans le même rapport (×2,1) : `viewZoom` 2,4,
+couloir `ARENA` 430×108 → **900×420**, et toutes les vitesses, portées et distances
+d'engagement à l'échelle. Mesuré après :
+
+| | avant | après |
+|---|---|---|
+| champ visible | 81 × 56 | **217 × 146** |
+| paquebot / largeur d'écran | 36 % | **6,6 %** |
+| plus gros rocher / largeur | 28 % | **14,6 %** |
+| espacement des obstacles | 37 | **116** |
+| couloir en écrans | 5,3 | **8,3** |
+
+⚠ **La HAUTEUR est gratuite, la LONGUEUR ne l'est pas.** Le couloir se traverse en X :
+l'allonger rallonge la traversée en secondes et casse la course contre `sector.ftlTime`,
+déjà calibrée. La hauteur ne se traverse pas — on peut l'ouvrir largement, et c'est ce qu'on
+veut en dézoomant : voir du vide, pas les bords du niveau. Vérifié après rescale : calcul
+prêt à **170 s**, flotte au bout du couloir à **230 s**, soit les **+60 s** d'avance
+documentés (clarté 0,43 → 0,92, taux 0,101 → 0,207 %/s).
+
+### ⚠⚠ CINQ VALEURS ABSOLUES OUBLIÉES PAR LE RESCALE
+Le piège de ce genre de chantier : chaque oubli fait disparaître un effet **en silence**.
+Aucun ne lève d'erreur, aucun ne se voit à la lecture.
+- **Les drones ennemis devenaient inoffensifs bouclier levé.** `shieldRadius` 9 → 19 pousse
+  leur orbite à 20,5 pour une portée de tir restée à 12 : ils tournaient sans jamais tirer,
+  et le canon anti-drone perdait sa raison d'être. Portée à 25 **et plancher-née sur la
+  distance d'orbite** (`Math.max(fireRange, orbitR + 3)`) — le bouclier doit ARRÊTER les
+  tirs, pas empêcher qu'ils partent. Vérifié : 3 drones à 21 du centre, **13 traçantes en
+  10 s** contre 0 avant.
+- **Les projectiles restaient à 26/55.** Un tir mettait deux fois plus longtemps à arriver,
+  et un cuirassé léger qui engage à 50 voyait ses tirs mourir à 55. Règle : un projectile
+  doit porter **nettement** plus loin que la distance d'engagement de qui le lance.
+- **Les missiles à 22/s** contre un chasseur passé à 18,9/s : 3 unités/s de rattrapage, ils
+  accompagnaient la cible. À 46/s, vérifié : **34 PV en 10 s**.
+- **Les distances d'engagement des ennemis** (12-24) n'avaient pas bougé : ils venaient se
+  coller à la coque, ce qui annule « l'approche longue et lisible » dont dépend tout le
+  rythme lent. Mises à l'échelle + `TUNE.enemyRangeMul` pour rejuger en jeu.
+- **Le panneau T devenait un piège** : `helmStandoff` 50 avec une jauge bornée à 40 et
+  `shieldRadius` 19 bornée à 16 — y toucher **rabattait la valeur** et annulait le rescale.
+  Plus trois défauts hors du **pas** de leur jauge, donc marqués « modifié » en permanence
+  et impossibles à retrouver. **Toute valeur mise à l'échelle doit voir ses bornes ET son
+  pas suivre.** Un test le vérifie désormais (bornes, pas, aide, orphelins).
+
+### Conduite de tir : le rescale ne l'a PAS dégradée
+`crewSpread` a été **divisée par 2,1** en même temps que les distances doublaient : l'erreur
+latérale au but vaut angle × distance, donc garder la valeur d'avant divisait le taux de
+touche. ⚠ Première tentative fausse : élargir `crewHoldFactor`, ce qui fait tirer l'équipage
+sur de **mauvaises** solutions au lieu de préserver sa précision. Mesuré sur 1 500 appels
+directs à `_fireControl` par cas (portée laser 84, radar 63, seuil 0,667) :
+
+| distance | cible immobile | cible qui manœuvre |
+|---|---|---|
+| 20 | 100 % (q 0,99) | 100 % (q 0,56) |
+| 50 | 100 % (q 0,93) | 100 % (q 0,48) |
+| **63** (là où le barreur se place) | **100 %** (q 0,86) | **66 %** (q 0,23) |
+| 80 (hors radar) | 91 % (q 0,36) | 43 % (q 0,12) |
+| 100 | 63 % | 44 % |
+
+Le profil est celui d'avant : parfait à la distance de combat tenue, dégradé au-delà du
+radar. C'est bien la portée radar qui décide de la distance utile de combat.
+
+## ZOOM À LA MOLETTE et POINT DE ROUTE
+« Ça reste trop karting en mode pilote, je pense qu'il faut pouvoir zoomer et dézoomer avec
+la molette » puis « ou alors il faut un déplacement au clic souris ». Les deux sont faits, et
+le second est plus qu'un confort : on **ordonne un point** à un vaisseau capital, on ne le
+conduit pas — les flèches, en donnant poussée et virage, invitaient à conduire.
+
+- **Molette** : un cran multiplie le recul par 1,12 (progression géométrique — un pas additif
+  serait imperceptible dézoomé et brutal serré), borné par `zoomMin`/`zoomMax`. Le HUD
+  l'annonce (`VUE 182 %`), sinon on ne sait pas comment revenir.
+  ⚠ **AUCUN effet de jeu** : `Range.viewHalfW` se calcule sur le zoom de BASE. Si la bulle de
+  saut suivait le zoom personnel, dézoomer l'élargirait et rendrait les sauts triviaux.
+  Vérifié : demi-largeur de référence **inchangée** à 108,3 après 8 crans de dézoom.
+- **Point de route** (clic gauche, **poste de pilote uniquement** — ailleurs le clic tire ou
+  désigne) : c'est le **même barreur IA** qui y mène, donc exactement la même inertie et la
+  même esquive, sans duplication. Freinage anticipé (`helmBrakeDist` 90), effacé à l'arrivée
+  (`helmArriveDist` 14) ou dès qu'on touche aux flèches. Mesuré : 157 unités parcourues en
+  9 s, vitesse 0 → 22 → 7, point consommé.
+  ⚠ **Bug rencontré : l'asservissement d'escorte annulait l'ordre.** La baleine approchait à
+  20 unités puis s'y bloquait (vitesse 1,1, distance qui remontait) parce que la flotte était
+  loin derrière : `lead > slack × 1,7` forçait la poussée à −0,3. Or le cas normal du clic est
+  de désigner un point DEVANT la flotte pour la mener. Le point de route est donc **exclu**
+  de cet asservissement — garder le convoi groupé redevient la responsabilité du joueur, ce
+  qui est exactement le sens de prendre la main.
+
+**Le poste de pilote garde sa raison d'être**, objection légitime une fois le clic en place :
+le clic donne le cap, mais le **routage** se juge sur deux choses que l'équipage IA ignore
+complètement — se mettre **à couvert** (le décor coupe les tirs, elle n'en tient aucun compte)
+et tenir la flotte **dans la bulle** avant d'amorcer. Les deux sont devenus des instruments
+du cockpit (`.ck-nav`) ; sans eux cette valeur restait invisible et le poste paraissait vide.
+
+### Grandeurs DÉRIVÉES du champ visible
+Trois valeurs étaient calibrées à la main sur une demi-largeur observée une fois (41), donc
+changer `viewZoom` au panneau T les cassait **silencieusement** — flotte hors champ, bulle
+qui déborde. Elles s'expriment maintenant en **part de la demi-largeur visible** :
+`gatherView` (bulle de saut, 0,95 → son bord affleure l'écran), `helmLeadView` (avance
+tolérée du barreur) et `Convoy.FOLLOW_X` (stations de RALLIEMENT).
 
 **⚠ Piège central : tout ce qui convertit écran ↔ monde doit passer par `core/Viewport.js`.**
 Le canvas n'occupe plus la fenêtre ; utiliser `window.innerWidth` décale silencieusement la
@@ -722,10 +861,15 @@ intentions basse fréquence).
 - **Équilibrage → `js/core/Tune.js`** (objet `TUNE` + `TUNE_SPECS` + `TUNE_DEFAULTS`).
   **RÈGLE : toute valeur qui peut poser un problème d'équilibrage ou de gameplay doit
   être là.** S'il faut toucher au code pour tester un chiffre, c'est qu'il manque une
-  entrée. **69 réglages, couverture 69/69** (un test le vérifie).
+  entrée. **78 réglages, couverture 78/78** (un test le vérifie).
   Ajouter un réglage = 1 entrée dans `TUNE` + 1 dans `TUNE_SPECS`, cette dernière au
   format `[clé, label, min, max, pas, groupe, aide]` — le **groupe** et l'**aide** ne
   sont pas optionnels en pratique : sans eux le panneau redevient illisible.
+  ⚠ Le test vérifie aussi que **chaque défaut tombe DANS ses bornes et SUR son pas**.
+  Les deux se cassent dès qu'on met une valeur à l'échelle sans toucher à sa jauge, et
+  le symptôme est vicieux : la valeur est rabattue au maximum de la jauge dès qu'on
+  l'effleure (donc le réglage s'annule tout seul), ou marquée « modifiée » à jamais
+  parce que le pas ne contient pas le défaut.
   Les valeurs doivent être lues **en direct** au point d'usage (getters sur les
   objets de données quand il le faut : `FTL_MODES`, `FIRE_MODES`, `FLEET_ORDERS`,
   `JUMP_REPAIR`). Deux exceptions assumées et **dites dans l'aide** : les PV des
@@ -778,6 +922,13 @@ le panneau perd sa raison d'être. Quatre choses le rendent praticable (`game/Tu
   bouton ⛶ levaient donc « toggleExpand is not a function » pendant deux sessions. Ça ne se voit
   pas à la lecture, seulement à l'usage — d'où l'intérêt de faire *cliquer* les tests headless sur
   les commandes, et pas seulement de lire l'état.
+- **Le contrôle de syntaxe du projet ne contrôlait rien** : `node --check` sur un `.js` est un
+  no-op pour un module ES. Voir « Lancer & vérifier ». C'est le pire genre de piège — un outil
+  de garde qui dit toujours oui.
+- **Une valeur mise à l'échelle sans ses bornes de jauge** s'annule dès qu'on touche au curseur.
+  Cinq cas dans le rescale, tous silencieux : voir « Échelle ».
+- **`shieldUp` demande un module bouclier monté** ; il n'y en a pas dans l'équipement de départ.
+  Même remarque pour les missiles. Écrire `ship.shield = 60` ne lève aucune bulle.
 
 ## Dépôt & journaux de session
 - BSG est un **sous-dépôt git autonome** (`BSG/.git`), volontairement séparé du dépôt parent
@@ -806,7 +957,9 @@ canon anti-drone · **terrain** qui coupe les tirs · **cadrage cockpit** + plei
 dialogues et choix à conséquences (**un arc par secteur**, 42 scènes) · **saut sur place** (bulle
 de rassemblement + amorçage vulnérable) · **dénouement** : le transport compromis à identifier
 et à détruire soi-même, sinon la boucle tourne sans fin · **cible prioritaire** d'artillerie et pistes de radar ·
-mise en scène (annonce radar, ralenti, saut FTL, **matière de cockpit**, **ambiance sonore**).
+**échelle du monde** (couloir 900×420, champ visible 217×146) avec **zoom molette** et
+**déplacement au clic** · mise en scène (annonce radar, ralenti, saut FTL, **matière de
+cockpit**, **ambiance sonore**).
 
 ## Prochaines pistes
 Les cinq chantiers décidés sont faits : **5** (scènes par secteur), **2** (économie de campagne),
@@ -826,6 +979,19 @@ Les cinq chantiers décidés sont faits : **5** (scènes par secteur), **2** (é
    Signal déjà relevé : un joueur qui ne touche à rien voit la flotte immobile (ordre RALLIEMENT par
    défaut, elle suit une baleine à l'arrêt) et le calcul bloqué au minimum de clarté. Le premier
    secteur devra pousser à avancer plus explicitement.
+   Points d'attention nés du rescale, à juger à l'œil et non au chiffre :
+   - **l'échelle elle-même** : le paquebot ne fait plus que 6,6 % de la largeur d'écran. Le grief
+     de karting est réglé sur le papier, mais le risque symétrique est que tout paraisse **trop
+     petit et trop lent**. `viewZoom` est le seul curseur à bouger, et la molette permet de
+     comparer sans quitter la partie ;
+   - **la létalité des drones** : ils ne pouvaient plus tirer du tout bouclier levé, donc toute la
+     difficulté ressentie récemment était **fausse de ce côté**. Le canon anti-drone redevient
+     nécessaire, et ça n'a jamais été joué ainsi ;
+   - **`enemyRangeMul`** : les Cylons tiennent maintenant 25 à 50 unités. À juger : est-ce lisible,
+     ou est-ce qu'ils paraissent lointains et désengagés ?
+   - **le point de route** est-il le geste naturel, ou les flèches restent-elles le réflexe ?
+   - une traversée dure **~230 s par secteur** en poussant (DISPERSER), soit ~20 min à cinq
+     secteurs sans compter le CIC ni les escales. À vérifier que ça ne traîne pas.
 2. Plus loin : **coop multi-postes** (l'architecture est prête, cf. `Stations.js`), autres coques,
    boutique plus riche, varier les scènes du CIC au-delà d'un arc par secteur.
 

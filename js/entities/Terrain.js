@@ -111,7 +111,11 @@ export class Terrain {
           if (kind.blocks && this.lanes.some((L) => Math.abs(y - L.y) < L.half + r)) continue;
           // Les menus débris peuvent se serrer : seuls les obstacles qui bloquent
           // ont besoin d'être bien séparés pour rester lisibles.
-          const gap = kind.blocks ? 6 : -r;
+          // ⚠ Écart minimal PROPORTIONNEL : à 6 unités fixes, deux rochers de 15 de
+          // rayon se touchaient presque, et l'espacement moyen tombait à 37 unités —
+          // à peine une longueur de paquebot, d'où la sensation de karting. On
+          // demande maintenant un couloir d'au moins la taille du plus gros des deux.
+          const gap = kind.blocks ? Math.max(18, r * 1.6) : -r;
           ok = this.obstacles.every((o) => !o.blocks || Math.hypot(o.x - x, o.y - y) > o.r + r + gap);
         }
         if (!ok) continue;

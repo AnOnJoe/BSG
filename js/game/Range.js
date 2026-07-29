@@ -33,14 +33,27 @@ import { HallOfFame } from '../core/HallOfFame.js';
 
 // COULOIR et non arène : on entre par la gauche, le point de saut est à droite.
 // C'est ce qui donne une direction au niveau — sans quoi on tourne en rond.
-const ARENA = { x: 430, y: 108 };
-const ENTRY_X = -ARENA.x + 60;      // là où la flotte débouche
+// ⚠ ÉCHELLE. Le couloir a été agrandi de 2,1× (430×108 → 900×226) EN MÊME TEMPS que
+// le champ visible et toutes les vitesses. Le but n'est pas de rendre le niveau plus
+// long en secondes — il l'est autant qu'avant — mais de rendre les VAISSEAUX PETITS
+// dans l'espace : un paquebot occupait 36 % de la largeur de l'écran et les rochers
+// étaient espacés de 37 unités, soit une longueur de paquebot. D'où « les vaisseaux
+// sont énormes dans un tout petit espace, on a l'impression de piloter un kart entre
+// les astéroïdes ». Agrandir le monde SANS élargir la vue n'aurait rien changé à
+// l'image ; élargir la vue seule raccourcissait le couloir à 5 écrans. Il faut les deux.
+// ⚠ La HAUTEUR est « gratuite », la LONGUEUR ne l'est pas. Le couloir se traverse en
+// X : l'allonger rallonge la traversée en secondes et casserait la course contre le
+// calcul FTL (`sector.ftlTime`), déjà calibrée. La hauteur, elle, ne se traverse pas —
+// on peut l'ouvrir largement pour donner de l'espace, ce qui est exactement ce qu'on
+// veut en dézoomant à la molette : voir du vide, pas les bords du niveau.
+const ARENA = { x: 900, y: 420 };
+const ENTRY_X = -ARENA.x + 126;     // là où la flotte débouche (marge à l'échelle)
 // PAS DE PORTE : dans la série on saute SUR PLACE. La flotte fuit vers la sortie
 // du secteur, et le saut emporte ce qui se trouve dans la BULLE DE RASSEMBLEMENT
 // centrée sur la baleine — d'où le travail du pilote : se placer au milieu des
 // siens avant de déclencher.
-const CONVOY_LIMIT = ARENA.x - 40;  // là où la flotte cesse d'avancer
-// Le rayon de la bulle est réglable en direct : voir `Range.gatherR` et TUNE.gatherRadius.
+const CONVOY_LIMIT = ARENA.x - 84;  // là où la flotte cesse d'avancer (idem)
+// Le rayon de la bulle est DÉRIVÉ du champ visible : voir `Range.gatherR` et TUNE.gatherView.
 // Dimensionné pour le plus gros thème (NUÉE : 7 chasseurs). Le pool est
 // pré-alloué une fois pour toutes et réutilisé de vague en vague.
 const MAX_ENEMIES = 8;
@@ -90,6 +103,18 @@ export class Range {
     this._roles = null;         // fonctions de la flotte à la frame précédente
     this.signal = new SignalHunt(); // dénouement : le transport compromis
     this.engineer = new Engineer();  // 5e poste : sections de coque
+    // ZOOM PERSONNEL À LA MOLETTE. Demandé en partie test : « ça reste trop karting
+    // en mode pilote, il faut pouvoir zoomer et dézoomer avec la molette ». Le
+    // ressenti d'échelle dépend du joueur et du moment — serrer pour manœuvrer entre
+    // les rochers, s'écarter pour lire la position de la flotte. Aucun réglage global
+    // ne peut satisfaire les deux, donc on lui donne la main.
+    // ⚠ Sans effet de jeu : `viewHalfW` (qui commande la bulle, la formation et
+    // l'avance du barreur) se calcule sur le zoom de BASE, pas sur celui-ci.
+    this.userZoom = 1;
+    this._onWheel = (e) => this._wheelZoom(e);
+    // POINT DE ROUTE posé au clic, au poste de pilote. Voir `_setWaypoint`.
+    this.waypoint = null;
+    this._onNavClick = (e) => this._navClick(e);
     this.loopCount = 0;         // tours de boucle refusés au dernier secteur
     // Anneau de passerelle (clic droit) : bascule de profil d'énergie
     this.ring = new CommandRing(
@@ -296,6 +321,10 @@ export class Range {
     this.aim.enable();
     this.input.enable();
     this.ring.enable(this.app.canvas);
+    // `passive: false` : sans ça Chrome refuse le preventDefault et la page défile
+    // sous le jeu à chaque cran de molette.
+    this.app.canvas.addEventListener('wheel', this._onWheel, { passive: false });
+    this.app.canvas.addEventListener('click', this._onNavClick);
     // ⚠ PIÈGE CENTRAL DE LA TRAVERSÉE. `enter()` appelait `_startGame()`, qui
     // remet `sectorIndex` à 0 et reconstruit la flotte. Or on repasse par le CIC
     // entre chaque secteur (`_arriveSector` → `toBridge`), donc revenir au combat
@@ -314,10 +343,16 @@ export class Range {
     this.aim.disable();
     this.input.disable();
     this.ring.disable();
+    this.app.canvas.removeEventListener('wheel', this._onWheel);
+    this.app.canvas.removeEventListener('click', this._onNavClick);
     this.hud.clear();
     this._clearEntities();
     this.shake.reset();
     this.boundary.visible = false;
+    // Un point de route ne survit pas à la sortie de l'écran : il serait exécuté à
+    // l'aveugle au retour, dans un secteur qui n'est plus le même.
+    this.waypoint = null;
+    if (this.navMark) this.navMark.visible = false;
     this.terrain.setVisible(false);
     this.convoy.setVisible(false);
     this.jumpGate.visible = false;
@@ -566,8 +601,36 @@ export class Range {
     this.fx.clear();
   }
 
-  /** Rayon de la bulle de rassemblement, lu en direct (panneau T). */
-  get gatherR() { return TUNE.gatherRadius; }
+  /** Dimensions du couloir — exposé pour le debug console et les mesures. */
+  get arena() { return ARENA; }
+
+  /**
+   * DEMI-LARGEUR VISIBLE DE RÉFÉRENCE, en unités monde.
+   *
+   * ⚠ C'est la référence d'échelle du jeu, et elle manquait : j'avais calibré à la
+   * main la bulle de saut, la formation de la flotte et l'avance du barreur sur une
+   * valeur observée une fois (41). Changer `viewZoom` au panneau T cassait donc
+   * silencieusement les trois — la flotte sortait du champ ou la bulle débordait.
+   *
+   * ⚠⚠ Elle se calcule sur le zoom DE BASE, **sans la molette du joueur**. C'est
+   * essentiel : si la bulle de saut suivait le zoom personnel, dézoomer l'élargirait
+   * et rendrait les sauts triviaux. La molette est un confort de vue, elle ne doit
+   * avoir AUCUN effet de jeu.
+   */
+  get viewHalfW() {
+    const screenComp = THREE.MathUtils.clamp(TUNE.screenRefH / Math.max(1, viewport.h), 1, 2);
+    const z = TUNE.viewZoom * screenComp;
+    const dist = Math.hypot(COMBAT_OFFSET.y * z, COMBAT_OFFSET.z * z);
+    const halfH = Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) * dist;
+    return halfH * this.camera.aspect;
+  }
+
+  /**
+   * Rayon de la bulle de rassemblement. Exprimé en PART DE LA DEMI-LARGEUR VISIBLE :
+   * son bord doit rester à l'écran, sinon on ne voit jamais ce qui partira — et
+   * c'est l'objet de décision central du jeu.
+   */
+  get gatherR() { return this.viewHalfW * TUNE.gatherView; }
 
   get sector() { return sectorAt(this.sectorIndex); }
 
@@ -741,6 +804,80 @@ export class Range {
       if (sec) this._designateSection(sec);
     }
     this.hud.refreshStates();
+  }
+
+  /**
+   * POINT DE ROUTE au clic — le pilotage « on ordonne un point » plutôt que « on
+   * conduit ».
+   *
+   * Suggéré en partie test : « ou alors il faut un déplacement au clic souris pour que
+   * ça fasse moins karting ? ». C'est plus qu'un correctif de confort : le projet dit
+   * depuis le début que le plaisir vient du triage sous pression et non de l'adresse
+   * au pilotage, et qu'on commande un vaisseau capital. Les flèches, en donnant la
+   * poussée et le virage directement, invitaient à CONDUIRE.
+   *
+   * ⚠ Réservé au POSTE DE PILOTE : ailleurs le clic gauche sert à tirer (artilleur) et
+   * à désigner (drones). Et les flèches restent disponibles — elles annulent le point
+   * dès qu'on y touche (cf. `_updateHelm`), pour qui veut barrer à la main.
+   */
+  _navClick(e) {
+    if (this.over || e.button !== 0) return;
+    if (!this.stations.manned('helm')) return;
+    const p = this.aim.point;
+    if (!p) return;
+    if (!this.navMark) this._buildNavMark();
+    this.waypoint = {
+      position: new THREE.Vector3(
+        THREE.MathUtils.clamp(p.x, -ARENA.x + 20, ARENA.x - 20),
+        THREE.MathUtils.clamp(p.y, -ARENA.y + 20, ARENA.y - 20),
+        0),
+    };
+    this.audio.relay?.();
+  }
+
+  /**
+   * Marqueur du point de route : un ordre invisible n'est pas un ordre. Construit à
+   * la demande (la plupart des postes ne s'en servent jamais) et réutilisé ensuite.
+   */
+  _buildNavMark() {
+    const pts = [];
+    for (let k = 0; k <= 36; k++) {
+      const a = (k / 36) * Math.PI * 2;
+      pts.push(new THREE.Vector3(Math.cos(a) * 7, Math.sin(a) * 7, 0));
+    }
+    this.navMark = new THREE.LineLoop(
+      new THREE.BufferGeometry().setFromPoints(pts), neonLineMat(0x66ff99, 0.9));
+    this.navMark.visible = false;
+    this.scene.add(this.navMark);
+  }
+
+  /** Suit le point de route et pulse doucement, pour qu'on le distingue du décor. */
+  _updateNavMark() {
+    if (!this.navMark) return;
+    const on = !!this.waypoint;
+    this.navMark.visible = on;
+    if (!on) return;
+    const w = this.waypoint.position;
+    this.navMark.position.set(w.x, w.y, 0);
+    const t = performance.now() / 340;
+    this.navMark.scale.setScalar(1 + Math.sin(t) * 0.14);
+    this.navMark.rotation.z += 0.01;
+    this.navMark.material.opacity = 0.55 + Math.abs(Math.sin(t)) * 0.4;
+  }
+
+  /**
+   * ZOOM À LA MOLETTE. Un cran multiplie ou divise le recul : une progression
+   * géométrique est la seule qui « donne le même pas » à toutes les échelles — un pas
+   * additif serait imperceptible dézoomé et brutal serré.
+   * Le HUD l'annonce, sinon on ne sait pas où l'on en est ni comment revenir.
+   */
+  _wheelZoom(e) {
+    e.preventDefault();
+    const step = e.deltaY > 0 ? 1.12 : 1 / 1.12;
+    const next = THREE.MathUtils.clamp(this.userZoom * step, TUNE.zoomMin, TUNE.zoomMax);
+    if (next === this.userZoom) return;
+    this.userZoom = next;
+    this.hud.setZoom(this.userZoom);
   }
 
   /**
@@ -1084,9 +1221,15 @@ export class Range {
     mesh.position.copy(pos);
     mesh.rotation.z = Math.atan2(dir.y, dir.x);
     this.scene.add(mesh);
+    // ⚠ VITESSE ET PORTÉE À L'ÉCHELLE (×2,1). Elles étaient restées à 26 et 55 après le
+    // rescale, ce qui cassait deux choses d'un coup : un tir mettait deux fois plus
+    // longtemps à arriver (donc les ennemis ne touchaient plus rien), et un cuirassé
+    // léger qui engage désormais à 50 voyait ses tirs mourir à 55 — juste à la limite.
+    // Un projectile doit toujours porter NETTEMENT plus loin que la distance
+    // d'engagement de celui qui le lance, sinon la menace disparaît en silence.
     this.bolts.push({
-      mesh, dir: dir.clone(), speed: opts.speed || 26, traveled: 0,
-      range: opts.range || 55, damage, faction, color, kind: opts.kind || 'bolt',
+      mesh, dir: dir.clone(), speed: opts.speed || 55, traveled: 0,
+      range: opts.range || 115, damage, faction, color, kind: opts.kind || 'bolt',
     });
   }
 
@@ -1299,7 +1442,9 @@ export class Range {
   // ---------- drones ----------
   _updateDrones(dt) {
     const nearest = this._nearestEnemy();
-    const spawnBolt = (p, d, dm, f, c) => this.spawnBolt(p, d, dm, f, c, { speed: 32, range: 26 });
+    // Traçantes de drone : courtes et rapides, mais la portée doit rester au-dessus de
+    // celle du drone (25 depuis le rescale), sinon il tire dans le vide.
+    const spawnBolt = (p, d, dm, f, c) => this.spawnBolt(p, d, dm, f, c, { speed: 67, range: 55 });
 
     // drones joueur : nombre = baies actives ; ciblent le plus proche ennemi
     const want = this.ship.activeInterceptorCount;
@@ -1342,7 +1487,9 @@ export class Range {
       // littéralement leur rôle — et le laser ne peut pas s'en charger (une cible
       // de rayon 1.3 filant à 17 met la conduite de tir humaine en échec).
       // Le périmètre est plus serré en ESCORTE : ils ne partent pas à la chasse.
-      const reach = this.droneOrder === 'escort' ? 30 : 55;
+      // Distances à l'échelle du monde agrandi (×2,1) : un périmètre de 55 unités
+      // ne couvrait plus qu'un quart de ce qu'il couvrait avant le rescale.
+      const reach = this.droneOrder === 'escort' ? 63 : 115;
       const threat = this._nearestEnemyDroneTo(this.ship.group.position, reach);
       if (threat) {
         dTargetPos = threat.position;
@@ -1797,8 +1944,26 @@ export class Range {
       heading: this.ship.group.rotation.z,
       speed: Math.hypot(v.x, v.y),
       threat: nearest ? nearest.position.distanceTo(this.ship.group.position) : null,
-      nearEdge: Math.abs(this.ship.group.position.x) > ARENA.x - 25
-        || Math.abs(this.ship.group.position.y) > ARENA.y - 25,
+      nearEdge: Math.abs(this.ship.group.position.x) > ARENA.x - 50
+        || Math.abs(this.ship.group.position.y) > ARENA.y - 50,
+      // COUVERT : la menace la plus proche a-t-elle une ligne de tir sur nous ? Le
+      // décor coupe les tirs, et l'équipage IA n'en tient AUCUN compte — c'est
+      // précisément ce qu'un pilote apporte. `null` s'il n'y a personne à craindre.
+      cover: nearest
+        ? this.terrain.isHidden(nearest.position.x, nearest.position.y,
+          this.ship.group.position.x, this.ship.group.position.y)
+        : null,
+      // Combien de la flotte partirait si l'on amorçait maintenant : c'est le travail
+      // de placement du pilote, et il ne se lit nulle part ailleurs.
+      bubble: (() => {
+        const p = this.ship.group.position;
+        const sp = this.convoy.splitByBubble(p.x, p.y, this.gatherR);
+        return { inside: sp.inside.length, total: sp.inside.length + sp.outside.length };
+      })(),
+      waypointDist: this.waypoint
+        ? Math.hypot(this.waypoint.position.x - this.ship.group.position.x,
+          this.waypoint.position.y - this.ship.group.position.y)
+        : null,
     });
     const dg = this.designated;
     this.hud.setSquadron({
@@ -1887,6 +2052,7 @@ export class Range {
     });
     this._updateIndicators();
     this._updateFleetTags();
+    this._updateNavMark();
   }
 
   /**
@@ -1952,7 +2118,9 @@ export class Range {
     //  - `capitalCamZoom` quand un cuirassé est en vue, sinon il déborde du cadre
     //    et on perd précisément ce qu'on cherche : la sensation d'échelle.
     const screenComp = THREE.MathUtils.clamp(TUNE.screenRefH / Math.max(1, viewport.h), 1, 2);
-    this._camZoomWant = TUNE.viewZoom * screenComp * (this.capital.alive ? TUNE.capitalCamZoom : 1);
+    // …et de la MOLETTE, un quatrième facteur purement personnel (`userZoom`).
+    this._camZoomWant = TUNE.viewZoom * screenComp * this.userZoom
+      * (this.capital.alive ? TUNE.capitalCamZoom : 1);
     // Convergence en ~1 s : plus lent, la vue restait visiblement en transit
     // plusieurs secondes après une bascule de cadrage.
     if (dt > 0) this.camZoom += (this._camZoomWant - this.camZoom) * Math.min(1, dt * 3.5);
@@ -2012,7 +2180,18 @@ export class Range {
       return;
     }
     const atHelm = this.stations.manned('helm');
-    if (!atHelm) {
+    // POINT DE ROUTE : le barreur y mène, et il PRIME sur ses consignes. On l'efface
+    // à l'arrivée, ou dès que le joueur touche aux flèches — barrer à la main doit
+    // reprendre la main immédiatement, sinon on se bat contre son propre ordre.
+    if (this.waypoint) {
+      const w = this.waypoint.position;
+      const d = Math.hypot(w.x - this.ship.group.position.x, w.y - this.ship.group.position.y);
+      const manual = this.input.up || this.input.down || this.input.left || this.input.right;
+      if (d < TUNE.helmArriveDist || manual) this.waypoint = null;
+    }
+    // Le barreur mène au point de route même quand le JOUEUR tient la barre : c'est
+    // lui qui a donné l'ordre, et c'est le même code d'inertie et d'esquive.
+    if (!atHelm || this.waypoint) {
       // Le barreur IA produit les MÊMES commandes que le joueur (thrust/turn),
       // donc la physique ci-dessous est strictement identique dans les deux cas.
       const atPost = this.stations.crewed('helm'); // en transit : personne à la barre
@@ -2033,7 +2212,9 @@ export class Range {
         fleetX: this.convoy.alive.length
           ? this.convoy.alive.reduce((a, t) => a + t.position.x, 0) / this.convoy.alive.length
           : undefined,
-        fleetLead: TUNE.helmFleetLead,
+        // Avance tolérée : une part du champ visible, pour que la flotte reste à
+        // l'écran quel que soit le zoom.
+        fleetLead: this.viewHalfW * TUNE.helmLeadView,
         fleetPace: this.convoy.speed,                       // allure à tenir
         speed: Math.hypot(this.shipVel.x, this.shipVel.y),  // la sienne
         terrain: this.terrain,   // pour esquiver le décor au lieu de le percuter
@@ -2049,10 +2230,13 @@ export class Range {
           return rd ? rd.range * TUNE.radarRangeMul : 0;
         })(),
         order: this.helmOrder,
+        // Le point cliqué par le joueur : il prime sur la consigne (cf. AutoHelm).
+        waypoint: this.waypoint,
         bounds: ARENA,
       });
     }
-    const helm = atHelm ? this.input : this.autoHelm;
+    // Au poste de pilote, le clavier reprend la main dès qu'il n'y a plus de point.
+    const helm = (atHelm && !this.waypoint) ? this.input : this.autoHelm;
 
     const rotBefore = this.ship.group.rotation.z;
     this.shipAngVel += helm.turn * TUNE.angAccel * engineMul * dt;
@@ -2152,7 +2336,9 @@ export class Range {
     const enemyCtx = {
       playerPos: this.ship.group.position,
       bounds: ARENA,
-      spawnBolt: (p, d, dm, f, c) => this.spawnBolt(p, d, dm, f, c, { speed: 24, range: 60 }),
+      // Tirs des vaisseaux ennemis : à l'échelle (×2,1). Un cuirassé léger engage à 50,
+      // il faut donc que ses tirs portent bien au-delà — sinon il canonne dans le vide.
+      spawnBolt: (p, d, dm, f, c) => this.spawnBolt(p, d, dm, f, c, { speed: 50, range: 126 }),
     };
     const prevAlive = this.aliveEnemies.length;
     const wasAlive = this.enemies.map((e) => e.state === 'alive');
@@ -2228,7 +2414,7 @@ export class Range {
       // La consigne TENIR immobilise aussi la flotte quand elle suit la baleine :
       // c'est l'usage principal, regrouper tout le monde avant d'amorcer le saut.
       this.convoy.update(dt, CONVOY_LIMIT, this.terrain, this.fleetOrder,
-        this.ship.group.position, ARENA, this.helmOrder === 'hold');
+        this.ship.group.position, ARENA, this.helmOrder === 'hold', this.viewHalfW);
     }
     // Position moyenne de la flotte dans le couloir → qualité du calcul.
     const alive = this.convoy.alive;

@@ -9,17 +9,23 @@ export const TUNE = {
   laserCostMul: 1.0,   // multiplicateur du coût énergie du laser
   manualAimBonus: 1.15, // dégâts (×) quand le joueur tient la tourelle lui-même
   stationSwitchTime: 1.5, // temps d'installation à un nouveau poste (s)
-  helmStandoff: 24,     // distance de combat MINIMALE du barreur IA (plancher)
+  helmStandoff: 50,     // distance de combat MINIMALE du barreur IA (plancher)
   helmStandoffRatio: 0.88, // part de la portée des armes qu'il tient (borné par le radar)
-  helmEscortDist: 16,   // distance à laquelle il escorte un civil (plus serré)
+  helmEscortDist: 34,   // distance à laquelle il escorte un civil (plus serré)
   helmReactionTau: 0.8, // retard de réaction du barreur IA (s) : il barre mollement
-  helmFleetLead: 26,    // avance (unités) au-delà de laquelle le barreur attend la flotte.
-                        // Doit rester sous la DEMI-LARGEUR VISIBLE (~41) : au-delà, la
-                        // flotte sort de l'écran et on escorte ce qu'on ne voit pas.
+  helmLeadView: 0.63,   // avance tolérée sur la flotte, en part de la demi-largeur
+                        // visible : au-delà elle sort de l'écran et on escorte ce
+                        // qu'on ne voit pas.
   // --- Conduite de tir de l'ÉQUIPAGE (il n'est pas une machine : il rate) ---
   crewReactionTau: 0.35, // retard de suivi de la cible (s) : rate ce qui manœuvre
   crewAcquireTime: 0.5,  // temps de verrouillage avant le premier tir (s)
-  crewSpread: 0.10,      // dispersion angulaire (rad) à la portée maximale
+  // Dispersion angulaire (rad) à la portée maximale. ⚠ Divisée par 2,1 lors du
+  // rescale du monde : l'erreur LATÉRALE au but vaut angle × distance, donc doubler
+  // les distances de combat doublait l'écart au but pour une même dispersion, et le
+  // taux de touche s'effondrait. (Première tentative fausse : j'avais élargi
+  // `crewHoldFactor`, ce qui fait tirer l'équipage sur de MAUVAISES solutions au lieu
+  // de préserver sa précision.)
+  crewSpread: 0.048,
   crewNoRadarMul: 2.5,   // dispersion (×) sur une cible hors portée radar
   // Dispersion ET retard (×) quand le navire-hôpital est perdu. Calibré à 2,2 :
   // mesuré, la fenêtre de tir tombe de 100 → 71 % sur une cible qui manœuvre
@@ -40,16 +46,20 @@ export const TUNE = {
   powerShiftTime: 0.6, // durée de bascule d'un profil d'énergie à l'autre (s)
   engineMinMul: 0.4,   // accél./virage quand le bus moteurs est à 0 % (1.0 au tiers)
   slowMoScale: 0.25,   // vitesse du temps quand l'anneau de passerelle est ouvert
-  shipAccel: 7,        // accélération de la baleine
+  shipAccel: 14.7,        // accélération de la baleine
   shipDrag: 0.7,       // traînée (plus haut = s'arrête plus vite)
   angAccel: 3.0,       // accélération de virage
   angDrag: 1.8,        // amortissement du virage
   // Rythme : jeu de POSTES, pas de beat'em all. Le combat doit laisser le temps
   // de changer de poste et de décider — d'où des ennemis lents, qui tirent
   // moins souvent, arrivent de plus loin, et des vagues espacées.
-  enemySpeedMul: 0.6,  // vitesse des ennemis (×)
+  enemySpeedMul: 1.26,  // vitesse des ennemis (×)
   enemyFireMul: 1.6,   // cadence de tir ennemi (× l'intervalle : >1 = tire moins souvent)
-  spawnDist: 78,       // distance d'apparition des ennemis (approche longue et lisible)
+  spawnDist: 164,       // distance d'apparition des ennemis (approche longue et lisible)
+  // Distance d'ENGAGEMENT des ennemis (× celle de leur type). Baisser = ils viennent
+  // se coller à la coque, donc faciles à toucher mais illisibles ; monter = ils
+  // bombardent de loin, hors de portée de la défense rapprochée.
+  enemyRangeMul: 1,
   waveBreak: 8,        // respiration entre deux vagues (s) — hérité, peu utilisé
   ftlChargeRate: 1.0,  // multiplicateur global du calcul de saut (le rythme de
                        // base vient de sector.ftlTime, pas d'ici)
@@ -67,12 +77,29 @@ export const TUNE = {
   loopAssaultTighten: 0.82, // assauts ×(ce facteur) à chaque tour de boucle refusé
   contactDelay: 12,    // sursis à l'arrivée dans le couloir avant le contact (s)
                        // — les 33 minutes sont jouées au CIC, pas ici
-  cylonPlayerAggro: 26, // en dessous de cette distance, un Cylon traite la baleine
+  cylonPlayerAggro: 55, // en dessous de cette distance, un Cylon traite la baleine
                         // avant les civils ; au-delà il va droit sur la flotte
   capitalCamZoom: 1.55, // recul de caméra (×) quand un cuirassé est en vue
-  viewZoom: 1.15,      // recul de caméra général (vue plus large)
+  // ⚠ RAPPORT TAILLE/ÉCRAN — c'est LE réglage d'échelle. Mesuré à 1,15 : le champ
+  // visible faisait 81 × 56 unités, donc un paquebot occupait 36 % de la largeur, un
+  // rocher 28 %, et les rochers étaient espacés de 37 unités — à peine plus qu'une
+  // longueur de paquebot. D'où « les vaisseaux sont énormes dans un tout petit espace,
+  // on a l'impression de piloter un kart entre les astéroïdes ». Élargir le champ est
+  // le seul levier qui change ce rapport : agrandir le monde ET les vitesses donnerait
+  // exactement la même image.
+  viewZoom: 2.4,
+  // Bornes du zoom à la MOLETTE (recul de caméra ×). En dessous de 1 on serre, au-delà
+  // on s'écarte. Purement visuel : cf. `Range.viewHalfW`, qui ignore ce facteur pour
+  // que dézoomer n'élargisse pas la bulle de saut.
+  zoomMin: 0.55,
+  zoomMax: 3.2,
+  // POINT DE ROUTE (clic au poste de pilote) : distance à laquelle on commence à
+  // freiner, et distance en dessous de laquelle on considère être arrivé. La baleine
+  // est lourde : sans freinage anticipé elle dépasse le point de très loin.
+  helmBrakeDist: 90,
+  helmArriveDist: 14,
   screenRefH: 800,     // hauteur d'écran de référence : en dessous, on dézoome d'autant
-  shieldRadius: 9,     // rayon de la bulle de bouclier
+  shieldRadius: 19,     // rayon de la bulle de bouclier
   pickupEvery: 15,     // délai moyen entre bonus (s)
   pickupLife: 22,      // durée de vie d'un bonus avant disparition (s)
   repairAmount: 45,    // PV de coque rendus par un kit de réparation
@@ -84,14 +111,15 @@ export const TUNE = {
   dradisRangeMul: 11,   // portée d'AFFICHAGE du DRADIS (couvre le couloir)
   empRangeMul: 1,      // rayon d'effet de l'IEM (× le rayon du module)
   // ===== FUITE & SAUT =====
-  // Rayon de la bulle de rassemblement (qui part, qui reste). ⚠ À 78 il dépassait
-  // largement le champ visible (demi-largeur ~41) : on ne voyait JAMAIS son bord,
-  // alors que c'est l'objet de décision central du jeu. Ramené sous la demi-largeur.
-  gatherRadius: 40,
+  // Rayon de la bulle de rassemblement, en PART DE LA DEMI-LARGEUR VISIBLE. Exprimé
+  // ainsi et non en unités : à 78 unités il dépassait le champ (demi-largeur ~41) et
+  // on ne voyait jamais son bord, alors que c'est l'objet de décision central. Et une
+  // valeur absolue redevenait fausse dès qu'on touchait au zoom.
+  gatherView: 0.95,
   ftlForcedRate: 2.4,  // vitesse du calcul en mode FORCÉ (×)
   ftlForcedDrain: 14,  // énergie ponctionnée par le mode FORCÉ (/s)
   // ===== FLOTTE CIVILE (elle est l'économie de la partie) =====
-  convoySpeedMul: 1,   // allure de tous les transports (×)
+  convoySpeedMul: 2.1,   // allure de tous les transports (×)
   convoyHpMul: 1,      // PV de tous les transports (×) — appliqué au montage
   crippledAt: 0.4,     // part de coque sous laquelle un transport DÉCROCHE
   crippledSpeedMin: 0.2, // allure d'un transport à 0 % de coque (× la nominale)
@@ -172,7 +200,7 @@ export const TUNE_SPECS = [
   ['ftlMinClarity', 'Calcul perturbé à l\'entrée (×)', 0.1, 1, 0.02, 'Fuite & saut', 'Qualité du calcul à l\'ENTRÉE du couloir (perturbation du saut précédent). Bas = avancer vers la sortie rapporte beaucoup, donc on ose DISPERSER. À 1, traverser ne sert plus à rien.'],
   ['ftlForcedRate', 'Mode FORCÉ : vitesse (×)', 1, 5, 0.1, 'Fuite & saut', 'Accélération du calcul en mode FORCÉ. C\'est l\'arbitrage central : gagner du temps contre encaisser.'],
   ['ftlForcedDrain', 'Mode FORCÉ : énergie (/s)', 0, 40, 1, 'Fuite & saut', 'Énergie ponctionnée par le mode FORCÉ. Monter = forcer devient un vrai sacrifice (armes et boucliers à sec).'],
-  ['gatherRadius', 'Rayon de la bulle de saut', 20, 160, 2, 'Fuite & saut', 'Rayon de la bulle : ce qui est dedans part au saut, le reste est abandonné. Grand = pardonne les traînards ; petit = il faut vraiment rassembler la flotte.'],
+  ['gatherView', 'Bulle de saut (part de l\'écran)', 0.3, 2, 0.05, 'Fuite & saut', 'Rayon de la bulle, exprimé en part de la demi-largeur visible : ce qui est dedans part au saut, le reste est abandonné. À 0,95 son bord affleure celui de l\'écran, donc on voit toujours qui partira. Grand = pardonne les traînards, mais on ne voit plus la limite.'],
   ['jumpSpoolTime', 'Amorçage du saut (s)', 1, 15, 0.5, 'Fuite & saut', 'Durée d\'immobilité après l\'ordre de saut. Tout le monde est une cible fixe pendant ce temps : c\'est ce qui fait qu\'on choisit son moment.'],
   ['dradisCompress', 'Compression des 33 min (×)', 4, 40, 0.5, 'Fuite & saut', 'Compression des 33 minutes de fiction en temps réel. Monter = répit plus court avant le premier contact.'],
   ['contactDelay', 'Sursis avant contact (s)', 2, 40, 1, 'Fuite & saut', 'Sursis en arrivant dans le couloir, avant que les Cylons ne tombent. Le temps de se placer.'],
@@ -213,7 +241,12 @@ export const TUNE_SPECS = [
   // --- Équipage IA ---
   ['crewReactionTau', 'Retard de suivi (s)', 0.05, 1.5, 0.05, 'Équipage IA', 'Retard avec lequel l\'équipage suit sa cible. C\'est LUI qui fait rater ce qui manœuvre — le levier principal de la médiocrité de l\'IA.'],
   ['crewAcquireTime', 'Verrouillage (s)', 0, 2, 0.1, 'Équipage IA', 'Délai de verrouillage avant le premier tir sur une nouvelle cible.'],
-  ['crewSpread', 'Dispersion (rad)', 0, 0.4, 0.01, 'Équipage IA', 'Dispersion angulaire à portée maximale. Nulle à bout portant.'],
+  // ⚠ Pas RAFFINÉ à 0,002. Le défaut est passé à 0,048 avec le rescale, or un pas de
+  // 0,01 ne contient pas cette valeur : la jauge la marquait « modifiée » (liseré
+  // ambre) dès qu'on l'effleurait et on ne pouvait plus revenir exactement au défaut.
+  // Le projet dit qu'un mauvais réglage oublié se prend pour un bug — un défaut
+  // inatteignable est pire.
+  ['crewSpread', 'Dispersion (rad)', 0, 0.3, 0.002, 'Équipage IA', 'Dispersion angulaire à portée maximale. Nulle à bout portant. ⚠ L\'erreur au but vaut angle × distance : si tu changes les portées, celle-ci doit suivre en sens inverse.'],
   ['crewNoRadarMul', 'Sans radar (×)', 1, 5, 0.25, 'Équipage IA', 'Multiplicateur de dispersion sur une cible hors portée radar. C\'est ce qui donne un rôle mécanique au module radar.'],
   ['crewFatigueMul', 'Épuisé, sans hôpital (×)', 1, 4, 0.1, 'Équipage IA', 'Dégradation quand le navire-hôpital est perdu (dispersion ET retard). À 2,2 : 100 % de touches maintenu à bout portant, mais 66 → 37 % à longue portée.'],
   ['crewBiasTime', 'Durée du biais (s)', 0.1, 2, 0.1, 'Équipage IA', 'Durée pendant laquelle l\'équipage garde le même biais de visée. Court = tremblement ; long = rafales cohérentes qui manquent ensemble.'],
@@ -222,10 +255,11 @@ export const TUNE_SPECS = [
   // --- Ennemis ---
   ['enemyHpMul', 'PV des ennemis (×)', 0.2, 3, 0.1, 'Ennemis', 'PV des ennemis. Monter = chaque assaut prend plus longtemps à nettoyer, donc la pression s\'accumule.'],
   ['enemyDmgMul', 'Dégâts des ennemis (×)', 0.2, 3, 0.1, 'Ennemis', 'Dégâts des ennemis, sur toi comme sur les civils.'],
-  ['enemySpeedMul', 'Vitesse ennemis (×)', 0.3, 2, 0.1, 'Ennemis', 'Vitesse des ennemis. Volontairement basse : un jeu de postes a besoin de temps pour changer de poste.'],
+  ['enemySpeedMul', 'Vitesse ennemis (×)', 0.3, 2.5, 0.02, 'Ennemis', 'Vitesse des ennemis. Volontairement basse RELATIVEMENT au monde : mise à l\'échelle du rescale (×2,1), un jeu de postes a besoin de temps pour changer de poste.'],
   ['enemyFireMul', 'Intervalle tir ennemi (×)', 0.4, 3, 0.1, 'Ennemis', 'Intervalle entre leurs tirs (>1 = ils tirent MOINS souvent).'],
-  ['spawnDist', 'Distance d\'apparition', 40, 130, 2, 'Ennemis', 'Distance d\'apparition. Grand = approche longue et lisible, on a le temps de préparer.'],
-  ['cylonPlayerAggro', 'Distance d\'agressivité', 8, 60, 2, 'Ennemis', 'En dessous de cette distance, un Cylon s\'occupe de toi plutôt que des civils. Grand = ils te suivent, donc « escorter » perd son sens.'],
+  ['spawnDist', 'Distance d\'apparition', 60, 320, 4, 'Ennemis', 'Distance d\'apparition. Grand = approche longue et lisible, on a le temps de préparer.'],
+  ['enemyRangeMul', 'Distance d\'engagement (×)', 0.3, 2.5, 0.05, 'Ennemis', 'Distance à laquelle les ennemis se stabilisent pour tirer (× celle de leur type : 25 pour un chasseur, 50 pour un cuirassé léger). Bas = ils se collent à la coque, faciles à abattre mais illisibles et hors de portée de tes tourelles longues ; haut = ils te bombardent de loin, où l\'équipage tire mal.'],
+  ['cylonPlayerAggro', 'Distance d\'agressivité', 15, 140, 5, 'Ennemis', 'En dessous de cette distance, un Cylon s\'occupe de toi plutôt que des civils. Grand = ils te suivent, donc « escorter » perd son sens.'],
   ['rewardMul', 'Matériel par ennemi (×)', 0, 4, 0.1, 'Ennemis', 'Matériel récupéré par ennemi détruit. Monter = on aménage et on équipe plus tôt.'],
   ['stackFalloff', 'Empilement : rendement des suivants (×)', 0.3, 1, 0.05, 'Vaisseau', 'Rendement des exemplaires SUPPLÉMENTAIRES d\'un même module défensif : le 1er compte plein, le 2e ×ce facteur, le 3e ×son carré. À 1 (défaut) le cumul est linéaire — donc empiler 4 boucliers ou 4 armures bat toute combinaison, et prendre un radar coûte de la défense pour un gain incomparable. Baisser pour rendre la diversité payante.'],
   ['waveBreak', 'Respiration entre vagues (s)', 1, 20, 0.5, 'Ennemis', 'Respiration entre deux vagues (hérité de l\'ancienne boucle, peu utilisé depuis les assauts continus).'],
@@ -236,12 +270,12 @@ export const TUNE_SPECS = [
   ['shieldRegenPerPower', 'Régén bouclier / débit', 0.2, 2, 0.1, 'Vaisseau', 'PV de bouclier régénérés par point de débit du bus BOUCLIERS.'],
   ['powerShiftTime', 'Bascule de profil (s)', 0.1, 2, 0.1, 'Vaisseau', 'Durée d\'établissement d\'un changement de profil d\'énergie. Long = on ne micro-gère pas.'],
   ['engineMinMul', 'Moteurs à 0 % (×)', 0.1, 1, 0.05, 'Vaisseau', 'Accélération et virage quand le bus MOTEURS est à zéro. Exactement 1,0 au tiers (profil ÉQUILIBRE).'],
-  ['shipAccel', 'Accélération', 3, 20, 0.5, 'Vaisseau', 'Accélération de la baleine. Elle est lourde à dessein : le plaisir vient du triage, pas du pilotage.'],
+  ['shipAccel', 'Accélération', 4, 30, 0.1, 'Vaisseau', 'Accélération de la baleine. Elle est lourde à dessein : le plaisir vient du triage, pas du pilotage.'],
   ['shipDrag', 'Traînée (freinage)', 0.2, 2, 0.05, 'Vaisseau', 'Traînée. Haut = elle s\'arrête vite ; bas = elle patine sur son erre.'],
   ['angAccel', 'Accél. de virage', 1, 8, 0.2, 'Vaisseau', 'Accélération de virage.'],
   ['angDrag', 'Amorti de virage', 0.5, 4, 0.1, 'Vaisseau', 'Amortissement du virage.'],
   ['shipPivot', 'Pivot (± proue/poupe)', -7, 7, 0.5, 'Vaisseau', 'Décalage du pivot de rotation vers la proue (positif) ou la poupe. Change complètement la sensation de manœuvre.'],
-  ['shieldRadius', 'Rayon du bouclier', 5, 16, 0.5, 'Vaisseau', 'Rayon de la bulle de bouclier : elle intercepte les tirs à son bord et bloque les drones.'],
+  ['shieldRadius', 'Rayon du bouclier', 8, 34, 0.5, 'Vaisseau', 'Rayon de la bulle de bouclier : elle intercepte les tirs à son bord et bloque les drones.'],
   ['repairAmount', 'Kit de réparation (PV)', 10, 100, 5, 'Vaisseau', 'Coque rendue par un kit de réparation ramassé.'],
   ['pickupEvery', 'Délai entre bonus (s)', 4, 30, 1, 'Vaisseau', 'Délai moyen entre deux bonus.'],
   ['pickupLife', 'Durée d\'un bonus (s)', 5, 45, 1, 'Vaisseau', 'Durée avant qu\'un bonus non ramassé disparaisse.'],
@@ -249,14 +283,23 @@ export const TUNE_SPECS = [
   // --- Postes ---
   ['stationSwitchTime', 'Transit entre postes (s)', 0, 4, 0.1, 'Postes', 'Temps d\'installation à un nouveau poste. Pendant ce transit, le poste rejoint est VACANT. À 0, tu es partout à la fois et l\'équipage ne sert plus à rien.'],
   ['slowMoScale', 'Ralenti de l\'anneau (×)', 0.1, 1, 0.05, 'Postes', 'Vitesse du temps quand un panneau de commandement est ouvert. Bas = on peut réfléchir sans être puni.'],
-  ['helmStandoff', 'Barreur IA : distance minimale', 10, 40, 1, 'Postes', 'Distance de combat que tient le barreur IA.'],
-  ['helmStandoffRatio', 'Barreur IA : part de la portée tenue', 0.4, 1, 0.02, 'Postes', 'Le barreur tient cette fraction de la portée de tes armes, plafonnée par la portée radar (au-delà, l\'équipage tire mal). À 0,88 avec un laser de 40 il reste à 35 au lieu de foncer au contact. Améliorer le radar permet donc de combattre de plus loin.'],
-  ['helmEscortDist', 'Barreur IA : distance d\'escorte', 6, 40, 1, 'Postes', 'Distance à laquelle le barreur IA escorte un civil (plus serré qu\'une distance de combat).'],
+  // ⚠ Bornes RELEVÉES avec le rescale (×2,1). Elles étaient restées à 10-40 alors que
+  // la valeur passait à 50 : la jauge ne pouvait plus l'afficher, et y toucher la
+  // rabattait à 40 — donc annulait silencieusement la distance de combat que le
+  // rescale venait d'établir. Toute valeur mise à l'échelle doit voir ses bornes
+  // suivre, sinon le panneau devient un piège.
+  ['helmStandoff', 'Barreur IA : distance minimale', 15, 110, 1, 'Postes', 'Distance de combat que tient le barreur IA.'],
+  ['helmStandoffRatio', 'Barreur IA : part de la portée tenue', 0.4, 1, 0.02, 'Postes', 'Le barreur tient cette fraction de la portée de tes armes, plafonnée par la portée radar (au-delà, l\'équipage tire mal). À 0,88 avec un laser de 84 il reste à 74 au lieu de foncer au contact. Améliorer le radar permet donc de combattre de plus loin.'],
+  ['helmEscortDist', 'Barreur IA : distance d\'escorte', 10, 80, 1, 'Postes', 'Distance à laquelle le barreur IA escorte un civil (plus serré qu\'une distance de combat).'],
   ['helmReactionTau', 'Barreur IA : mollesse (s)', 0.1, 2, 0.1, 'Postes', 'Mollesse du barreur IA. Haut = il barre approximativement, donc prendre la barre soi-même compte.'],
-  ['helmFleetLead', 'Barreur IA : avance tolérée sur la flotte', 20, 200, 5, 'Postes', 'Au-delà de cette avance sur la flotte, le barreur IA lève le pied et attend — mais seulement si la flotte est en RALLIEMENT. Sans ça la baleine distance le convoi et la bulle de saut se vide, donc ordonner le saut abandonne tout le monde.'],
+  ['helmLeadView', 'Barreur IA : avance tolérée (part de l\'écran)', 0.2, 1.5, 0.01, 'Postes', 'Avance sur la flotte, en part de la demi-largeur visible, au-delà de laquelle le barreur IA se cale sur son allure — seulement si la flotte est en RALLIEMENT. Sans ça la baleine distance le convoi, la bulle se vide, et ordonner le saut abandonne tout le monde.'],
+  ['helmBrakeDist', 'Point de route : distance de freinage', 20, 250, 5, 'Postes', 'Distance à laquelle la baleine commence à ralentir en approchant du point cliqué. Trop court et elle dépasse (elle est lourde) ; trop long et elle rampe sur la fin.'],
+  ['helmArriveDist', 'Point de route : distance d\'arrivée', 4, 60, 2, 'Postes', 'En dessous de cette distance du point cliqué, on considère être arrivé et le point est effacé. Grand = elle s\'arrête « dans le secteur » ; petit = elle vient se poser dessus.'],
 
   // --- Vue ---
-  ['viewZoom', 'Recul caméra général (×)', 0.8, 2.2, 0.05, 'Vue', 'Recul général de la caméra, donc largeur de vue. Décide de ce qu\'on voit arriver.'],
+  ['zoomMin', 'Molette : zoom maximal (×)', 0.3, 1, 0.05, 'Vue', 'Recul minimal atteignable à la molette — plus bas = on peut serrer davantage sur la baleine.'],
+  ['zoomMax', 'Molette : dézoom maximal (×)', 1, 6, 0.1, 'Vue', 'Recul maximal atteignable à la molette — plus haut = on peut prendre beaucoup de champ pour lire la position de la flotte. Sans effet de jeu : la bulle de saut ne suit pas ce zoom.'],
+  ['viewZoom', 'Recul caméra général (×)', 0.8, 4, 0.05, 'Vue', 'Recul général de la caméra, donc largeur de vue. Décide de ce qu\'on voit arriver.'],
   ['capitalCamZoom', 'Recul caméra cuirassé (×)', 1, 2.5, 0.05, 'Vue', 'Recul supplémentaire quand un cuirassé est en vue : sans lui il déborde du cadre.'],
   // Affecte la largeur de vue réelle, donc ce qu'on voit arriver : c'est un
   // réglage de gameplay, pas seulement d'affichage.
