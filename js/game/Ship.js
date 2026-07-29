@@ -204,10 +204,35 @@ export class Ship {
       .reduce((s, m) => s + m.droneCount, 0);
   }
 
+  /**
+   * Radar de plus grande PORTÉE. Des antennes ne s'additionnent pas en portée :
+   * seule la meilleure compte, et c'est elle qui définit la bulle de pistage.
+   */
   getActiveRadar() {
     const radars = this.modules.filter((m) => m.kind === 'radar' && m.active);
     if (!radars.length) return null;
     return radars.reduce((a, b) => (b.range > a.range ? b : a));
+  }
+
+  /**
+   * PISTES suivies simultanément — la somme de tous les radars actifs.
+   *
+   * ⚠ Avant, `maxTargets` était lu sur le seul meilleur radar : monter un second
+   * radar ne changeait donc **absolument rien** (mesuré : 1, 2, 3 ou 4 radars Nv1
+   * donnaient tous portée 20 et 1 piste), alors qu'il coûtait du matériel et un
+   * emplacement utilitaire pris à l'armure ou au bouclier. On payait pour zéro, et
+   * rien ne le disait.
+   *
+   * Les pistes s'additionnent donc : c'est cohérent physiquement (deux antennes
+   * suivent deux fois plus de choses sans porter plus loin) et ça en fait un vrai
+   * arbitrage face aux défenses, puisque les tourelles se répartissent sur les
+   * pistes disponibles (cf. `WeaponControl.update`).
+   */
+  get radarTracks() {
+    const n = this.modules
+      .filter((m) => m.kind === 'radar' && m.active)
+      .reduce((s, m) => s + (m.maxTargets || 0), 0);
+    return Math.max(1, n);
   }
 
   /** Bonus de vitesse verticale apporté par les réacteurs actifs. */
@@ -218,10 +243,25 @@ export class Ship {
   }
 
   // --- défense & énergie (combat) ---
+  /**
+   * Somme d'une caractéristique sur les modules actifs d'un type.
+   *
+   * `TUNE.stackFalloff` applique un RENDEMENT DÉCROISSANT aux exemplaires
+   * supplémentaires : le premier compte plein, le deuxième ×f, le troisième ×f²…
+   * À 1 (défaut) le cumul est strictement linéaire, c'est-à-dire le comportement
+   * historique — je ne change pas l'équilibrage en silence. Mais le levier existe,
+   * parce que le cumul linéaire rend l'empilement mécaniquement optimal : avec
+   * quatre emplacements utilitaires, quatre boucliers (160 PV) ou quatre armures
+   * (+240 PV) battent toute combinaison, et prendre un radar coûte 40 à 60 PV de
+   * défense pour un gain qui ne se compare pas.
+   */
   _sumActive(defId, prop) {
-    return this.modules
-      .filter((m) => m.defId === defId && m.active)
-      .reduce((s, m) => s + m[prop], 0);
+    const f = TUNE.stackFalloff ?? 1;
+    const list = this.modules.filter((m) => m.defId === defId && m.active);
+    if (f >= 1) return list.reduce((s, m) => s + m[prop], 0);
+    // Le plus fort d'abord : empiler ne doit pas pénaliser le meilleur exemplaire.
+    list.sort((a, b) => b[prop] - a[prop]);
+    return list.reduce((s, m, i) => s + m[prop] * Math.pow(f, i), 0);
   }
   get structureMax() { return this.baseStructure + this._sumActive('armor', 'armorHp'); }
   get shieldMax() { return this._sumActive('shield', 'shieldHp'); }

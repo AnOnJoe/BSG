@@ -1843,7 +1843,7 @@ export class Range {
     // Cible prioritaire de l'artillerie + pistes tenues par le radar
     this.hud.setPriority(
       this.weapons.priority ? this._targetName(this.weapons.priority) : null,
-      this.ship.getActiveRadar()?.maxTargets || 1);
+      this.ship.radarTracks);
     // Sections de coque + qui répare quoi (poste d'ingénieur)
     const engAtPost = this.stations.manned('engineer');
     this.hud.setSections(this.ship, this.engineer, engAtPost,
@@ -2090,7 +2090,7 @@ export class Range {
       })(),
       // Nombre de pistes que le radar tient simultanément (`radar.maxTargets`,
       // enfin lu). Il commande le budget de verrous de la conduite de tir.
-      maxTargets: this.ship.getActiveRadar()?.maxTargets || 1,
+      maxTargets: this.ship.radarTracks,   // SOMME des radars actifs, pas le meilleur
       shipPos: this.ship.group.position,
       fireLaser: (p, d, dm, r, c) => this.fireLaser(p, d, dm, r, c),
       spawnMissile: (p, d, s) => this.spawnMissile(p, d, s),

@@ -114,6 +114,9 @@ export const TUNE = {
   enemyHpMul: 1,        // PV des ennemis (×)
   enemyDmgMul: 1,       // dégâts des ennemis (×)
   rewardMul: 1,         // matériel récupéré par ennemi détruit (×)
+  // Rendement des exemplaires SUPPLÉMENTAIRES d'un même module défensif (armure,
+  // bouclier, réacteur). 1 = cumul linéaire, le comportement historique.
+  stackFalloff: 1,
 };
 
 /**
@@ -223,6 +226,7 @@ export const TUNE_SPECS = [
   ['spawnDist', 'Distance d\'apparition', 40, 130, 2, 'Ennemis', 'Distance d\'apparition. Grand = approche longue et lisible, on a le temps de préparer.'],
   ['cylonPlayerAggro', 'Distance d\'agressivité', 8, 60, 2, 'Ennemis', 'En dessous de cette distance, un Cylon s\'occupe de toi plutôt que des civils. Grand = ils te suivent, donc « escorter » perd son sens.'],
   ['rewardMul', 'Matériel par ennemi (×)', 0, 4, 0.1, 'Ennemis', 'Matériel récupéré par ennemi détruit. Monter = on aménage et on équipe plus tôt.'],
+  ['stackFalloff', 'Empilement : rendement des suivants (×)', 0.3, 1, 0.05, 'Vaisseau', 'Rendement des exemplaires SUPPLÉMENTAIRES d\'un même module défensif : le 1er compte plein, le 2e ×ce facteur, le 3e ×son carré. À 1 (défaut) le cumul est linéaire — donc empiler 4 boucliers ou 4 armures bat toute combinaison, et prendre un radar coûte de la défense pour un gain incomparable. Baisser pour rendre la diversité payante.'],
   ['waveBreak', 'Respiration entre vagues (s)', 1, 20, 0.5, 'Ennemis', 'Respiration entre deux vagues (hérité de l\'ancienne boucle, peu utilisé depuis les assauts continus).'],
 
   // --- Vaisseau ---
