@@ -48,6 +48,7 @@ python3 -m http.server 8000
 | **Entrée** | « boss key » : bascule sur un faux écran de travail (pause + son coupé) |
 | **V** ou ⛶ | **vue plein écran** : le décor du cockpit s'efface |
 | **T** | panneau de **réglages** (équilibrage en direct) |
+| **C** *au menu* | raccourci de **test** : droit au combat, sans la phase CIC |
 
 Le **nez suit le cap** (proue directrice, la poupe balaie) ; les tourelles visent
 l'ennemi **indépendamment** du cap. La rotation est **lourde** (inertie) et pivote

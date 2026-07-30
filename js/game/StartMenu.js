@@ -42,6 +42,8 @@ export class StartMenu {
     if (e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter') return; // Entrée = boss key
     if (e.code === 'KeyG') { e.preventDefault(); this.app.startCampaign(); }
     if (e.code === 'KeyH') { e.preventDefault(); this.app.toHangar('menu'); }
+    // Raccourci de TEST : droit au combat, sans l'arc du CIC.
+    if (e.code === 'KeyC') { e.preventDefault(); this.app.startCombatDirect(); }
   }
 
   _build() {
@@ -90,6 +92,13 @@ export class StartMenu {
             <button id="mn-hangar">PONT HANGAR — ⛭ ${Math.floor(this.app.salvage)} de matériel <b>H</b></button>
           </div>
 
+          <!-- RACCOURCI DE TEST. Volontairement à part et étiqueté comme tel : ce n'est
+               pas une façon de jouer, c'est un outil pour juger le pilotage et les
+               vitesses sans traverser 42 scènes de passerelle à chaque essai. -->
+          <div class="mn-dev">
+            <button id="mn-direct" class="mn-devbtn">⚙ TEST — combat direct, sans le CIC <b>C</b></button>
+          </div>
+
           <!-- Repartir de zéro. Nécessaire depuis que la progression existe : une
                sauvegarde d'avant migre ses anciens crédits en matériel, donc on
                démarre riche et on ne voit pas le début sobre du jeu. Deux temps :
@@ -116,6 +125,7 @@ export class StartMenu {
 
     this.ui.querySelector('#mn-start').addEventListener('click', () => this.app.startCampaign());
     this.ui.querySelector('#mn-hangar').addEventListener('click', () => this.app.toHangar('menu'));
+    this.ui.querySelector('#mn-direct').addEventListener('click', () => this.app.startCombatDirect());
 
     // Effacer une progression demande DEUX clics : le premier ne fait que demander
     // confirmation. Un bouton destructeur qui agit au premier clic est un piège.

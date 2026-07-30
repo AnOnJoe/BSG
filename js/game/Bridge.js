@@ -258,6 +258,20 @@ export class Bridge {
           this._choose(+el.dataset.i);
         });
       }
+    } else if (this.index >= this._scenes.length - 1) {
+      // DERNIÈRE SCÈNE : un bouton franc, comme « COMMENCER LA TRAVERSÉE » au menu.
+      //
+      // Demandé en partie test : « sur la dernière scène il faut un bouton pour que l'on
+      // sache qu'on est sur la dernière page de la partie RPG ». Rien ne le disait —
+      // `Espace` menait au combat exactement comme il menait à la réplique suivante, donc
+      // on basculait dans la bataille sans l'avoir vu venir. Un changement d'écran aussi
+      // brutal doit être un acte, pas la continuation d'un geste répété.
+      this.el.choices.innerHTML =
+        `<button id="dlg-go" class="btn-primary dlg-go">ENGAGER LE COMBAT <b>Espace</b></button>`;
+      this.el.choices.querySelector('#dlg-go').addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        this._toAction();
+      });
     } else {
       this.el.choices.innerHTML = '';
     }

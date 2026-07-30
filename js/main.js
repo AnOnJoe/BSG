@@ -319,6 +319,28 @@ class App {
     this._show('bridge');
   }
 
+  /**
+   * RACCOURCI DE TEST : droit au combat, sans l'arc du CIC.
+   *
+   * Demandé pour juger le pilotage et les vitesses, et c'est légitime : chaque essai de
+   * réglage imposait sinon de traverser 42 scènes de passerelle avant de voir un
+   * vaisseau bouger. Les tests headless de ce dépôt faisaient exactement la même chose
+   * en martelant `N`, ce qui prenait 30 s par mesure.
+   *
+   * ⚠ Il passe par `newCampaign()` comme le départ normal : sans lui la flotte n'existe
+   * pas et `Range.enter()` arrive dans un secteur vide (piège central de la traversée,
+   * cf. `Range.enter`). Ce n'est donc pas un chemin parallèle, juste le même départ
+   * sans les dialogues.
+   * ⚠ `pendingEffects` est vidé : aucune décision n'a été prise, il ne faut pas que le
+   * combat applique celles d'une partie précédente.
+   */
+  startCombatDirect() {
+    this.range.newCampaign();
+    this.bridge.reset();
+    this.pendingEffects = [];
+    this._show('range');
+  }
+
   /** Retour au menu (fin de partie). */
   toMenu() { this._show('menu'); }
 

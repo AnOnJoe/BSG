@@ -319,6 +319,17 @@ parle s'allume.
   `Range._applyPendingEffects()` (via `App.pendingEffects`) — PV/vitesse d'un transport nommé,
   modules coupés, énergie, crédits, avance de calcul FTL. Chaque effet est **annoncé au journal**
   au début de l'action ; subir un malus sans savoir d'où il vient serait incompréhensible.
+- **La DERNIÈRE scène porte un bouton franc** (`ENGAGER LE COMBAT`, liséré ambre pulsant),
+  du même poids que « COMMENCER LA TRAVERSÉE » au menu. Rien ne signalait la fin de l'arc :
+  `Espace` menait au combat exactement comme il menait à la réplique suivante, donc on
+  basculait dans la bataille sans l'avoir vu venir. Un changement d'écran aussi brutal doit
+  être un **acte**, pas la continuation d'un geste répété.
+- **Raccourci de TEST : `C` au menu (ou le bouton pointillé) va droit au combat**, sans l'arc
+  du CIC. Il passe par `newCampaign()` comme le départ normal — sans lui la flotte n'existe pas
+  et `Range.enter()` arrive dans un secteur vide (cf. le piège central de la traversée) — et il
+  vide `pendingEffects`, sinon le combat appliquerait les décisions d'une partie précédente.
+  Étiqueté et stylé à part : ce n'est pas une façon de jouer, c'est l'outil qui permet de juger
+  le pilotage et les vitesses sans traverser 42 scènes à chaque essai de réglage.
 - Contrôles : `Espace`/clic = suivant · `1..3` = choisir · **`N` = passer les DIALOGUES**.
   ⚠ `N` expédiait l'arc entier : on entrait au combat sans qu'aucun choix n'ait été fait, donc
   « no décision no impact ». Elle saute désormais les répliques et **s'arrête à chaque choix**, et
