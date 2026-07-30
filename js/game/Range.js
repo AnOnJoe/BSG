@@ -378,7 +378,9 @@ export class Range {
     this.wave = 0;
     this.assaultNo = 0;
     this.sectorIndex = 0;
-    this.convoy.build(FLEET, ENTRY_X, ARENA.y * 1.2);
+    // ⚠ Même piège que `redeploy` : `ARENA.y * 1.2` naissait hors écran après le
+    // rescale. La formation de départ se cale sur le champ visible.
+    this.convoy.build(FLEET, ENTRY_X, this.viewHalfW * 0.85);
     this.convoy.lostSouls = 0;
     this._roles = null;          // le veilleur de fonctions repart à neuf
     this.weapons.fatigue = 1;
@@ -1008,6 +1010,13 @@ export class Range {
       this.hud.pushLog(`${mod.def.name} : la section est percée, il faut la réparer.`);
       return;
     }
+    // Idem pour une équipe prêtée à un civil : il n'y a personne pour servir la pièce,
+    // et le refus doit DIRE quand elle revient — sinon on croit à un module cassé.
+    if (mod && mod._crewDetached) {
+      this.hud.showWaveBanner(this.wave, `${mod.def.name.toUpperCase()} — ÉQUIPE DÉTACHÉE`);
+      this.hud.pushLog(`${mod.def.name} : l'équipe est sur un transport civil, elle rembarque au prochain saut.`);
+      return;
+    }
     this.weapons.toggle(n);
     this.hud.refreshStates();
   }
@@ -1082,14 +1091,32 @@ export class Range {
       if (effect.trackSignal) this.app.signalTracked = true;
       this.hud.pushLog(label);
     }
-    // Modules coupés : on éteint les premières armes, et on le dit
+    // ÉQUIPES DÉTACHÉES SUR UN CIVIL (décision du CIC).
+    //
+    // ⚠ Trois manques relevés en partie test, et ils se cumulaient en incompréhension :
+    // « quand un module est désactivé suite au RPG ce n'est pas hyper visuel · on ne
+    // sait pas lequel on a perdu · et le saut d'après il n'est pas réactivé
+    // automatiquement ». Le code se contentait d'un `setActive(false)` — donc un état
+    // rigoureusement identique à un module que le commandant a éteint lui-même, un
+    // journal qui annonçait un COMPTE sans nommer personne, et aucun retour possible
+    // sauf à deviner lequel rallumer.
+    // Corrigé : on marque (`_crewDetached`, pastille ambre pointillée « DÉT. »), on
+    // NOMME, et l'équipe revient d'elle-même au prochain saut (`Ship.repairAll`, appelé
+    // par `JUMP_REPAIR`) — un prêt d'équipage se dénoue quand on est à l'abri.
     if (this.modulesOffline > 0) {
-      let cut = 0;
+      const cut = [];
       for (const m of this.ship.orderedModules()) {
-        if (cut >= this.modulesOffline) break;
-        if (m.kind === 'weapon' && m.active) { m.setActive(false); cut++; }
+        if (cut.length >= this.modulesOffline) break;
+        if (m.kind === 'weapon' && m.active && !m._sectionDown) {
+          m.setActive(false);
+          m._crewDetached = true;
+          cut.push(m.def.name);
+        }
       }
-      if (cut) this.hud.pushLog(`${cut} module(s) hors service : l'équipe est détachée sur un civil.`);
+      if (cut.length) {
+        this.hud.pushLog(`Équipe détachée sur un transport : ${cut.join(' et ')} hors service `
+          + 'jusqu\'au prochain saut.');
+      }
       this.hud.refreshStates();
     }
     this.app.pendingEffects = [];
@@ -1610,12 +1637,36 @@ export class Range {
   }
 
   /** Caisse la plus proche (consigne RÉCUPÉRER du barreur). */
+  /**
+   * Caisse la plus proche que le barreur peut aller chercher SANS se saborder.
+   *
+   * ⚠ Défaite subie en partie test : « dans le champ d'astéroïdes je me suis retrouvé à
+   * perdre parce que le pilote essayait d'attraper une caisse à côté d'un astéroïde et
+   * a pris des dégâts ». La consigne RÉCUPÉRER met `closing = 1` sans zone morte (une
+   * caisse se ramasse en la survolant), donc le barreur poussait indéfiniment contre le
+   * rocher et raclait la coque jusqu'au bout. Le bug n'est PAS dans l'esquive — les
+   * moustaches font leur travail, elles refusent le cap et lèvent le pied — il est dans
+   * l'OBJECTIF : aucune manœuvre propre n'existe, donc il ne faut pas le prendre.
+   *
+   * Deux filtres, et le second compte autant que le premier :
+   *  - la caisse elle-même doit être dégagée (marge = rayon de la coque) ;
+   *  - la LIGNE d'approche doit l'être aussi, sinon il s'y colle en chemin.
+   * Une ramasse doit rester un bonus, jamais un risque mortel décidé par l'IA.
+   */
   _nearestPickup() {
     let best = null, bd = Infinity;
     const p = this.ship.group.position;
+    const pad = this.ship.collisionRadius + 3;
     for (const pk of this.pickups) {
       const d = pk.position.distanceToSquared(p);
-      if (d < bd) { bd = d; best = pk; }
+      if (d >= bd) continue;
+      if (this.terrain) {
+        if (this.terrain.blocksPoint?.(pk.position.x, pk.position.y, pad)) continue;
+        const dx = pk.position.x - p.x, dy = pk.position.y - p.y;
+        const len = Math.hypot(dx, dy) || 0.0001;
+        if (this.terrain.rayHit(p.x, p.y, dx / len, dy / len, len, pad)) continue;
+      }
+      bd = d; best = pk;
     }
     return best;
   }
@@ -1724,6 +1775,19 @@ export class Range {
     const repair = this._jumpRepair();
     this.ship.structure = Math.min(this.ship.structureMax, this.ship.structure + repair.structure);
     if (repair.ammo) for (const m of this.ship.modules) if (m.reload) m.reload();
+    // LES ÉQUIPES PRÊTÉES REVIENNENT. Un module coupé par une décision du CIC restait
+    // éteint pour le reste de la partie, sans que rien ne dise lequel ni pourquoi : le
+    // malus d'une scène devenait définitif, ce qui n'est pas ce que le choix annonce.
+    // On est momentanément à l'abri, l'équipe rembarque — sauf si sa section est percée,
+    // qui est l'affaire de l'ingénieur et pas la nôtre.
+    const back = [];
+    for (const m of this.ship.modules) {
+      if (!m._crewDetached) continue;
+      m._crewDetached = false;
+      if (!m._sectionDown) { m.setActive(true); back.push(m.def.name); }
+    }
+    if (back.length) this.hud.pushLog(`Équipe de retour à bord : ${back.join(' et ')} de nouveau en ligne.`);
+    this.hud.refreshStates();
     this.app.addSalvage(repair.salvage);
     this.audio.pickup();
     this.app.renderer.pulse(1);
@@ -1790,7 +1854,9 @@ export class Range {
     this.ftl.reset(this.sector.ftlTime, this.sector.ftlPreCharge);
     // Le calcul du saut suivant est plus long : la pression monte sans qu'on
     // ait besoin de gonfler les PV.
-    this.convoy.redeploy(ENTRY_X, ARENA.y * 1.2);
+    // ⚠ Étalement dérivé du CHAMP VISIBLE, pas du couloir : cf. `Convoy.redeploy`.
+    // `ARENA.y * 1.2` donnait 504 après le rescale, la flotte naissait hors écran.
+    this.convoy.redeploy(ENTRY_X, this.viewHalfW * 0.85);
     this.ship.group.position.set(ENTRY_X + 26, 0, 0);
     this.shipVel.set(0, 0, 0);
     this.shipAngVel = 0;
@@ -1818,7 +1884,7 @@ export class Range {
     this.waveTheme = null;
     this.nextTheme = null;
     this.ftl.reset(this.sector.ftlTime, this.sector.ftlPreCharge);
-    this.convoy.redeploy(ENTRY_X, ARENA.y * 1.2);
+    this.convoy.redeploy(ENTRY_X, this.viewHalfW * 0.85);
     this.ship.group.position.set(ENTRY_X + 26, 0, 0);
     this.shipVel.set(0, 0, 0);
     this.shipAngVel = 0;

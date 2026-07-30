@@ -509,6 +509,25 @@ export class Convoy {
       t.position.y += t._vy * dt;
       if (!order.follow) t.position.x = Math.min(t.position.x, limitX);
 
+      // ⚠ CAP DU TRANSPORT. Ils n'avaient **aucune** rotation (`rotation.z` restait à 0
+      // pour toujours) : un cargo qui montait en formation se déplaçait donc en crabe,
+      // proue obstinément vers la sortie. C'est le contraire de ce qu'on veut vendre
+      // (« il faut imaginer de gros vaisseaux lents ») : une masse tourne LENTEMENT,
+      // mais elle tourne, et c'est précisément cette lenteur qui se voit et qui pèse.
+      // La proue est en +X (cf. les profils dans `convoyConfig`), donc aucun décalage.
+      // Taux volontairement bas et fonction de la mollesse propre du navire (`lag`
+      // ∈ [0,35 ; 0,85]) : constante de temps de **2 à 4,7 s** selon le navire, donc
+      // six masses qui ne virent pas ensemble. Un taux plus vif (essayé à 0,55) ramenait
+      // la constante sous la seconde et rendait le convoi frétillant — exactement le
+      // défaut qu'on corrige.
+      const spd = Math.hypot(t._vx, t._vy);
+      if (spd > 0.4) {
+        const wantRot = Math.atan2(t._vy, t._vx);
+        let dr = ((wantRot - t.group.rotation.z + Math.PI) % (Math.PI * 2)) - Math.PI;
+        if (dr < -Math.PI) dr += Math.PI * 2;
+        t.group.rotation.z += dr * Math.min(1, dt * (0.18 / Math.max(0.35, tr.lag)));
+      }
+
       // FORCER : les moteurs s'usent, et ça se paie en coque.
       if (order.wear) t.takeDamage(order.wear * dt);
 
@@ -537,7 +556,18 @@ export class Convoy {
     return out;
   }
 
-  /** Réengage les transports sauvés dans le secteur suivant. */
+  /**
+   * Réengage les transports sauvés dans le secteur suivant.
+   *
+   * ⚠ `spanY` est la LARGEUR TOTALE de la formation, et l'appelant lui passait
+   * `ARENA.y * 1.2`. Tant que l'arène faisait 108 de haut ça donnait 130, soit à peu
+   * près un écran ; après le rescale (420) ça donnait **504 pour un champ visible haut
+   * de 146** — deux rangées sur trois naissaient hors de l'écran. Grief exact :
+   * « après un 1er saut la baleine et les civils sont très loin ». Régression typique
+   * d'un changement d'échelle : la formule était juste, sa donnée d'entrée ne l'était
+   * plus. On sort donc du couloir pour se caler sur le CHAMP VISIBLE (cf. les autres
+   * grandeurs dérivées : `gatherView`, `helmLeadView`, `FOLLOW_X`).
+   */
   redeploy(startX, spanY) {
     const keep = this.saved;
     for (const t of keep) {
@@ -552,6 +582,10 @@ export class Convoy {
         (row - (rows - 1) / 2) * (spanY / Math.max(1, rows)) * 1.1,
         CONVOY_Z
       );
+      // On sort d'un saut : tout le monde est aligné sur la sortie, pas de cap hérité
+      // du secteur précédent (ils tournent maintenant, cf. `update`).
+      t.group.rotation.z = 0;
+      t._vx = 0; t._vy = 0;
     });
     return keep.length;
   }

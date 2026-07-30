@@ -28,11 +28,25 @@ const PROFILE = [
 // sauf eux : ils venaient se coller à la coque au lieu de tenir un cercle lisible, et
 // « approche longue et lisible » — la raison d'être du rythme lent — ne tenait plus.
 // Le multiplicateur `TUNE.enemyRangeMul` permet de rejuger ça manette en main.
+// `range` = DISTANCE D'ENGAGEMENT, à l'échelle du rescale (×2,1) comme les portées
+// d'armes : sans ça ils venaient se coller à la coque et « l'approche longue et
+// lisible » — la raison d'être du rythme lent — ne tenait plus. Multiplicateur de
+// réglage : `TUNE.enemyRangeMul`.
+//
+// ⚠ `max` / `tang` / `turn` : LA MASSE COMMANDE. Le grief était « les gros vaisseaux
+// tournent trop vite et avancent trop vite », et il ne visait pas les chasseurs
+// (« les intercepteurs ça va »). On CREUSE donc l'écart au lieu de tout ralentir :
+//  - chasseur et raider = chasse embarquée, inchangés, ils doivent rester vifs ;
+//  - gunship et porte-drones = bâtiments, divisés par ~1,5 en vitesse et surtout
+//    beaucoup plus lents à s'orienter.
+// `turn` est le taux de lissage du cap (fort = pivote sec). Il était **fixé à 4 pour
+// tout le monde**, donc un bâtiment lourd virait aussi sec qu'un chasseur : c'est de
+// là que venait l'essentiel de la nervosité côté ennemi.
 export const ENEMY_TYPES = {
-  fighter: { label: 'Chasseur',  hpMul: 0.55, dmgMul: 0.8, range: 25, tang: 9, max: 15, scale: 0.8, color: 0xff9944, fireCd: 1.2, bonusDrones: 0, react: 0.18 },
-  raider:  { label: 'Raider',    hpMul: 1.0,  dmgMul: 1.0, range: 38, tang: 6, max: 10, scale: 1.0, color: 0xff5544, fireCd: 1.6, bonusDrones: 0, react: 0.35 },
-  gunship: { label: 'Cuirassé',  hpMul: 2.2,  dmgMul: 1.7, range: 50, tang: 3, max: 6,  scale: 1.45, color: 0xff3322, fireCd: 1.9, bonusDrones: 0, react: 0.7 },
-  carrier: { label: 'Porte-drones', hpMul: 1.4, dmgMul: 0.7, range: 46, tang: 5, max: 8, scale: 1.15, color: 0xff4488, fireCd: 2.2, bonusDrones: 2, react: 0.45 },
+  fighter: { label: 'Chasseur',  hpMul: 0.55, dmgMul: 0.8, range: 25, tang: 9, max: 15, turn: 4.0, scale: 0.8, color: 0xff9944, fireCd: 1.2, bonusDrones: 0, react: 0.18 },
+  raider:  { label: 'Raider',    hpMul: 1.0,  dmgMul: 1.0, range: 38, tang: 6, max: 10, turn: 2.6, scale: 1.0, color: 0xff5544, fireCd: 1.6, bonusDrones: 0, react: 0.35 },
+  gunship: { label: 'Cuirassé',  hpMul: 2.2,  dmgMul: 1.7, range: 50, tang: 1.5, max: 4, turn: 0.7, scale: 1.45, color: 0xff3322, fireCd: 1.9, bonusDrones: 0, react: 0.7 },
+  carrier: { label: 'Porte-drones', hpMul: 1.4, dmgMul: 0.7, range: 46, tang: 3, max: 5.5, turn: 0.9, scale: 1.15, color: 0xff4488, fireCd: 2.2, bonusDrones: 2, react: 0.45 },
 };
 
 /**
@@ -131,6 +145,7 @@ export class EnemyShip {
     this.preferredRange = t.range * TUNE.enemyRangeMul;
     this.tangSpeed = t.tang;
     this.maxSpeed = t.max;
+    this.turnRate = t.turn ?? 4;   // vivacité d'orientation : la masse commande
     this.fireInterval = t.fireCd;
     this.reactionTau = t.react;   // temps de réaction (retard de perception du joueur)
     this.perceived = null;         // position perçue du joueur (rattrape la vraie avec du retard)
@@ -212,10 +227,14 @@ export class EnemyShip {
     this._flipT -= dt;
     if (this._flipT <= 0) { this.orbitDir *= -1; this._flipT = 3 + Math.random() * 3; }
 
-    // Le nez (local -X) suit le CAP (direction de déplacement)
+    // Le nez (local -X) suit le CAP (direction de déplacement), d'autant plus
+    // paresseusement que le bâtiment est lourd (`turn`). Le taux était fixé à 4 pour
+    // tous : un cuirassé léger pivotait aussi sec qu'un chasseur, ce qui est
+    // exactement le « trop nerveux » relevé en partie test.
     if (sp > 0.5) {
       const angV = Math.atan2(vy, vx);
-      this.group.rotation.z = lerpAngle(this.group.rotation.z, angV + Math.PI, Math.min(1, dt * 4));
+      this.group.rotation.z = lerpAngle(this.group.rotation.z, angV + Math.PI,
+        Math.min(1, dt * (this.turnRate || 4)));
     }
 
     if (this.flash > 0) {

@@ -680,12 +680,22 @@ export class Hud {
     if (!this.chips) return;
     for (const { chip, module, ammoEl } of this.chips) {
       chip.classList.toggle('active', module.active);
-      // HORS SERVICE par section percée : à distinguer d'un module simplement
-      // coupé par le commandant, sinon on clique dessus en vain sans comprendre.
+      // TROIS états d'indisponibilité, et il faut les distinguer, sinon on clique dans
+      // le vide sans comprendre — un refus muet se lit comme un bug (règle du projet) :
+      //  - `_sectionDown` : section percée ⇒ affaire de l'ingénieur, ici et maintenant ;
+      //  - `_crewDetached` : l'équipe a été prêtée à un civil par une décision du CIC.
+      //    Elle revient AU PROCHAIN SAUT et pas avant ; rien ne le disait, et rien ne
+      //    disait non plus QUEL module était concerné (« on ne sait pas lequel on a
+      //    perdu et le saut d'après il n'est pas réactivé automatiquement ») ;
+      //  - simplement éteint par le commandant ⇒ un clic le rallume.
       const hs = !!module._sectionDown;
+      const det = !hs && !!module._crewDetached;
       chip.classList.toggle('offline', hs);
-      chip.title = hs ? 'Section percée — réparation nécessaire (poste d\'ingénieur)' : '';
-      chip.querySelector('.mod-lv').textContent = hs ? 'HS' : `Nv ${module.level}`;
+      chip.classList.toggle('detached', det);
+      chip.title = hs ? 'Section percée — réparation nécessaire (poste d\'ingénieur)'
+        : det ? 'Équipe détachée sur un transport civil (décision du CIC) — elle revient au prochain saut'
+          : '';
+      chip.querySelector('.mod-lv').textContent = hs ? 'HS' : det ? 'DÉT.' : `Nv ${module.level}`;
       chip.style.setProperty('--chip-color', hexToCss(module.levelColor));
       ammoEl.textContent = module.defId === 'missile' ? `${module.ammo}/${module.ammoMax}` : '';
     }

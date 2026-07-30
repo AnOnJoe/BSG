@@ -76,7 +76,12 @@ export const CAPITAL_CONFIG = {
     { pos: [-17, 0], r: 6.0 },
   ],
 
-  speed: 6.72,          // très lent : on a le temps de le voir venir
+  // ⚠ C'est la plus grosse masse du jeu : elle doit être la plus lente, et de loin.
+  // À 6,72 elle allait presque aussi vite qu'un transport civil (8-12), ce qui
+  // contredisait tout — « il faut imaginer de gros vaisseaux lents ». Son orientation
+  // est déjà pesante (lissage 0,25 dans `CapitalShip.update`) ; c'est la translation
+  // qui manquait. Repère : convoi 8-12, raider 12,6, chasseur 18,9.
+  speed: 4.4,
   standoff: 71.4,        // distance de bombardement qu'il cherche à tenir
   bridgeFirePenalty: 0.5, // cadence des batteries (×) quand le pont est détruit
   reward: 900,         // crédits pour l'avoir démonté

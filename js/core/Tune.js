@@ -46,10 +46,25 @@ export const TUNE = {
   powerShiftTime: 0.6, // durée de bascule d'un profil d'énergie à l'autre (s)
   engineMinMul: 0.4,   // accél./virage quand le bus moteurs est à 0 % (1.0 au tiers)
   slowMoScale: 0.25,   // vitesse du temps quand l'anneau de passerelle est ouvert
-  shipAccel: 14.7,        // accélération de la baleine
+  // ⚠ MASSE = LENTEUR. C'est la référence de sensation du jeu, et elle était fausse :
+  // « les gros vaisseaux tournent trop vite et avancent trop vite · dans l'ensemble
+  // c'est trop nerveux · il faut imaginer de gros vaisseaux lents · regarde Homeworld ».
+  // La baleine tournait à **95 °/s** (3,0 / 1,8) et filait à 21 — c'est un chasseur.
+  // Le modèle visé est celui d'un RTS spatial : on ORDONNE une masse, elle met du temps
+  // à répondre, et c'est cette latence qui fait la décision (anticiper, pas réagir).
+  //   vitesse de pointe  = shipAccel / shipDrag        →  10 / 0,7 = 14,3 coque NUE.
+  //     ⚠ les modules de poussée s'ajoutent (`ship.thrustBonus`) : **16,9 mesuré** avec
+  //     l'équipement de départ. Ne pas lire la formule seule.
+  //   rotation de pointe = angAccel / angDrag (rad/s)  →  0,9 / 2,6 = 0,346 = **19 °/s
+  //     mesuré**, soit un demi-tour en **9,7 s**.
+  // ⚠ NE PAS ralentir ce qui est PETIT en même temps : « les intercepteurs ça va » et
+  // « les missiles ne sont pas assez rapides ». Ce qui rend un RTS spatial lisible,
+  // c'est l'ÉCART entre les masses et les chasseurs — pas la lenteur générale. Un demi-
+  // tour prend 9 s : c'est voulu, c'est ce qui donne du poids au point de route.
+  shipAccel: 10,
   shipDrag: 0.7,       // traînée (plus haut = s'arrête plus vite)
-  angAccel: 3.0,       // accélération de virage
-  angDrag: 1.8,        // amortissement du virage
+  angAccel: 0.9,       // accélération de virage
+  angDrag: 2.6,        // amortissement du virage
   // Rythme : jeu de POSTES, pas de beat'em all. Le combat doit laisser le temps
   // de changer de poste et de décider — d'où des ennemis lents, qui tirent
   // moins souvent, arrivent de plus loin, et des vagues espacées.
@@ -270,10 +285,14 @@ export const TUNE_SPECS = [
   ['shieldRegenPerPower', 'Régén bouclier / débit', 0.2, 2, 0.1, 'Vaisseau', 'PV de bouclier régénérés par point de débit du bus BOUCLIERS.'],
   ['powerShiftTime', 'Bascule de profil (s)', 0.1, 2, 0.1, 'Vaisseau', 'Durée d\'établissement d\'un changement de profil d\'énergie. Long = on ne micro-gère pas.'],
   ['engineMinMul', 'Moteurs à 0 % (×)', 0.1, 1, 0.05, 'Vaisseau', 'Accélération et virage quand le bus MOTEURS est à zéro. Exactement 1,0 au tiers (profil ÉQUILIBRE).'],
-  ['shipAccel', 'Accélération', 4, 30, 0.1, 'Vaisseau', 'Accélération de la baleine. Elle est lourde à dessein : le plaisir vient du triage, pas du pilotage.'],
-  ['shipDrag', 'Traînée (freinage)', 0.2, 2, 0.05, 'Vaisseau', 'Traînée. Haut = elle s\'arrête vite ; bas = elle patine sur son erre.'],
-  ['angAccel', 'Accél. de virage', 1, 8, 0.2, 'Vaisseau', 'Accélération de virage.'],
-  ['angDrag', 'Amorti de virage', 0.5, 4, 0.1, 'Vaisseau', 'Amortissement du virage.'],
+  ['shipAccel', 'Accélération', 2, 30, 0.1, 'Vaisseau', 'Accélération de la baleine. Vitesse de pointe ≈ ce chiffre ÷ traînée, plus l\'apport des modules de poussée : 16,9 mesuré au défaut. Elle est lourde à dessein — on commande une masse, on ne pilote pas un chasseur. Repères : convoi 8-12, raider 12,6, chasseur 18,9, intercepteur 36.'],
+  ['shipDrag', 'Traînée (freinage)', 0.2, 2, 0.05, 'Vaisseau', 'Traînée. Haut = elle s\'arrête vite ; bas = elle patine sur son erre. Divise aussi la vitesse de pointe.'],
+  // ⚠ Les DEUX ensemble font la sensation, et c'est LE réglage du « trop nerveux » :
+  // la rotation de pointe vaut accél. ÷ amorti. Il fallait descendre le minimum de
+  // l'accélération à 0,2 — bornée à 1, la jauge ne pouvait même pas atteindre un
+  // comportement de vaisseau capital.
+  ['angAccel', 'Accél. de virage', 0.2, 8, 0.05, 'Vaisseau', 'Accélération de virage. Rotation de pointe = ce chiffre ÷ amorti : 19 °/s au défaut, soit un demi-tour en 9,7 s (mesuré). ⚠ C\'EST LE RÉGLAGE DU « TROP NERVEUX » : à 3,0 la baleine tournait à 95 °/s, comme un chasseur. Monter la rend vive, baisser la rend pesante.'],
+  ['angDrag', 'Amorti de virage', 0.5, 6, 0.1, 'Vaisseau', 'Amortissement du virage. Divise la rotation de pointe et gomme le survirage : haut = la barre est molle et pesante, bas = elle part au tête-à-queue.'],
   ['shipPivot', 'Pivot (± proue/poupe)', -7, 7, 0.5, 'Vaisseau', 'Décalage du pivot de rotation vers la proue (positif) ou la poupe. Change complètement la sensation de manœuvre.'],
   ['shieldRadius', 'Rayon du bouclier', 8, 34, 0.5, 'Vaisseau', 'Rayon de la bulle de bouclier : elle intercepte les tirs à son bord et bloque les drones.'],
   ['repairAmount', 'Kit de réparation (PV)', 10, 100, 5, 'Vaisseau', 'Coque rendue par un kit de réparation ramassé.'],

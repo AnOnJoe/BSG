@@ -499,6 +499,53 @@ L'épique est un **contraste**, pas une intensité constante :
   s'entendre est ce qu'elle ne doit pas faire). Mesuré : basse 0,047 → 0,140 du CIC au combat. Le
   menu reste **silencieux** : ce n'est pas un lieu du vaisseau.
 
+## LA RÉFÉRENCE EST HOMEWORLD : on ordonne à des masses
+Verdict de la première vraie partie : « **dans l'ensemble c'est trop nerveux · il faut
+imaginer de gros vaisseaux lents · regarde Homeworld · on est plus dans un style RTS** ».
+C'est la correction de cap la plus importante reçue sur le projet, et elle tranche une
+ambiguïté qui traînait depuis le début : ce n'est pas un shoot avec des menus, c'est un RTS
+spatial à une seule flotte. **La latence de réponse EST la mécanique** — on anticipe, on ne
+réagit pas.
+
+⚠ **« Trop nerveux » ne veut PAS dire « tout ralentir ».** Le même retour dit « les
+intercepteurs ça va » et « les missiles ne sont pas assez rapides ». Ce qui rend une scène de
+RTS spatial lisible, c'est **l'écart entre les masses et les petits engins** : on voit venir
+une passe de chasse parce que les bâtiments, eux, lambinent. La règle du projet est donc :
+
+> **La masse commande la lenteur. Ce qui est gros est lourd ; ce qui est petit reste vif ;
+> les armes ne ralentissent jamais.**
+
+Hiérarchie mesurée après correction (unités/s) :
+
+| | avant | après |
+|---|---|---|
+| cuirassé | 6,7 | **4,4** |
+| gunship (bâtiment léger) | 7,6 | **5,0** |
+| porte-drones | 10,1 | **6,9** |
+| convoi civil | 8,4-10,9 | inchangé (c'est l'horloge du niveau) |
+| raider | 12,6 | inchangé |
+| **baleine (pointe)** | 21 | **16,9** |
+| chasseur | 18,9 | inchangé |
+| intercepteur / drone | 36 | inchangé |
+| missile | 46 | **78** |
+
+**Le poste clé était la ROTATION, pas la vitesse.** La baleine tournait à **95 °/s**
+(`angAccel` 3,0 ÷ `angDrag` 1,8) : le chiffre d'un chasseur. Elle est à **19 °/s**, soit un
+demi-tour en **9,7 s** (mesuré), et elle s'arrête en 4 s sur son erre. Côté ennemi, le taux
+de lissage du cap était **fixé à 4 pour tous les types** — un bâtiment lourd pivotait aussi
+sec qu'un chasseur ; c'est devenu un trait par type (`turn`), de 0,7 pour un gunship à 4,0
+pour un chasseur.
+
+**Les transports ne tournaient pas du tout** : `rotation.z` restait à 0 pour toujours, donc
+un cargo qui montait en formation se déplaçait **en crabe**, proue obstinément vers la sortie.
+Ils ont maintenant un cap qui suit leur marche avec une constante de temps de **2 à 4,7 s**
+selon leur mollesse propre — mesuré, six caps distincts en permanence. Un premier essai à
+0,55 ramenait la constante sous la seconde et rendait le convoi frétillant : exactement le
+défaut qu'on corrigeait.
+
+Corollaire : **le déplacement au clic devient le geste principal**, pas une option. C'est
+l'idiome du genre, et il est le seul praticable avec une telle inertie.
+
 ## Rythme : jeu de postes, pas beat'em all
 Un jeu de postes **ne peut pas** être nerveux : sans respiration, on n'a jamais le temps de
 changer de poste, et la mécanique centrale devient inutilisable. Le ralentissement n'est donc
@@ -929,6 +976,20 @@ le panneau perd sa raison d'être. Quatre choses le rendent praticable (`game/Tu
   Cinq cas dans le rescale, tous silencieux : voir « Échelle ».
 - **`shieldUp` demande un module bouclier monté** ; il n'y en a pas dans l'équipement de départ.
   Même remarque pour les missiles. Écrire `ship.shield = 60` ne lève aucune bulle.
+- **`ARENA.y * 1.2` comme étalement de formation** : juste à 108 de haut (130 ≈ un écran),
+  absurde à 420 (**504 pour un champ visible de 146**) — la flotte naissait hors de l'écran à
+  chaque saut. Toute formation se dérive du **champ visible**, jamais du couloir.
+- **Un malus de scène qui ne se dénoue jamais.** Les modules coupés par une décision du CIC
+  restaient éteints pour le reste de la partie, sans nom et sans marque distinctive : le joueur
+  ne savait ni lequel il avait perdu, ni qu'il ne reviendrait pas. Un effet annoncé « au
+  prochain combat » doit être **nommé**, **marqué** (`_crewDetached`, pastille ambre pointillée
+  « DÉT. », distincte du « HS » magenta d'une section percée) et **repris** au saut suivant.
+- **Un objectif d'IA peut être mortel sans que l'IA soit en cause.** La consigne RÉCUPÉRER
+  mettait `closing = 1` sans zone morte : le barreur poussait contre un rocher pour atteindre
+  une caisse collée dessus, et raclait la coque jusqu'à la défaite. L'esquive faisait pourtant
+  son travail. **Quand une manœuvre propre n'existe pas, c'est l'objectif qu'il faut refuser**,
+  pas le pilotage qu'il faut corriger : `_nearestPickup()` écarte les caisses dont la position
+  ou la ligne d'approche n'est pas dégagée.
 
 ## Dépôt & journaux de session
 - BSG est un **sous-dépôt git autonome** (`BSG/.git`), volontairement séparé du dépôt parent
@@ -986,9 +1047,17 @@ cockpit**, **ambiance sonore**).
 Les cinq chantiers décidés sont faits : **5** (scènes par secteur), **2** (économie de campagne),
 **4** (dénouement), **3** (ingénieur) et **6** (finitions).
 
-1. **JOUER UNE TRAVERSÉE COMPLÈTE.** C'est désormais le seul point bloquant, et il ne se code pas :
-   la boucle a un début, une économie, cinq postes et deux fins, mais **rien n'a jamais été joué en
-   entier**. Les tests headless valident les mécanismes, jamais le dosage. À juger manette en main :
+0. **REJOUER APRÈS LE VIRAGE HOMEWORLD.** La première partie a dit « trop nerveux » et l'échelle
+   « est bonne » : le chantier suivant est donc de vérifier que l'inertie va dans le bon sens sans
+   tomber dans l'excès inverse. Le seul curseur à toucher si c'est trop pesant est **`angAccel`**
+   (0,9 → 19 °/s ; à 1,4 on passe à 31 °/s). Points ouverts :
+   - un demi-tour en **9,7 s** est-il jouable à la barre, ou faut-il que le clic devienne le seul
+     mode de conduite ?
+   - le cuirassé à **4,4** est-il devenu ennuyeux à attendre ?
+   - les transports virent de 1 à 12° en 5 s : est-ce visible, ou faut-il exagérer le roulis ?
+1. **JOUER UNE TRAVERSÉE COMPLÈTE.** La boucle a un début, une économie, cinq postes et deux fins,
+   mais **elle n'a jamais été jouée en entier**. Les tests headless valident les mécanismes, jamais
+   le dosage. À juger manette en main :
    - `signalFixCost` (11 %, soit **55 % de calcul pour la certitude complète**) — c'est le réglage
      dont je doute le plus ; il peut rendre le dénouement intenable ou trivial ;
    - ce que vaut réellement un transport, et si perdre la citerne se **sent** ;

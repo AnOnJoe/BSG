@@ -277,7 +277,13 @@ export class Ship {
     this._sinceHit = 99;
     this.power.reset(); // on repart toujours en profil équilibré
     this.resetSections();
-    for (const m of this.modules) { m._sectionDown = false; if (m.reload) m.reload(); }
+    // `_crewDetached` aussi : une remise à neuf ne laisse pas une équipe prêtée en
+    // route, sinon un module resterait éteint sans raison lisible au départ suivant.
+    for (const m of this.modules) {
+      m._sectionDown = false;
+      m._crewDetached = false;
+      if (m.reload) m.reload();
+    }
   }
 
   consume(amount) {

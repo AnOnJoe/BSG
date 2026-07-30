@@ -25,14 +25,18 @@ export const MODULE_CONFIG = {
     id: 'missile', name: 'Lance-Missiles', kind: 'weapon', slotType: 'weapon',
     color: PALETTE.missile,
     levels: [
-      // ⚠ VITESSE à l'échelle (×2,1) en même temps que la portée. Restée à 22-30, elle
-      // rendait le missile inutile contre un chasseur : avec `enemySpeedMul` passé de
-      // 0,6 à 1,26, celui-ci file à 18,9 — la tête chercheuse ne le rattrapait plus
-      // qu'à 3 unités/s. Une arme autoguidée doit rester NETTEMENT plus rapide que sa
-      // cible, sinon elle ne poursuit pas, elle accompagne.
-      { damage: 34, fireRate: 1.4, speed: 46, range: 126, ammo: 6 },
-      { damage: 52, fireRate: 1.8, speed: 55, range: 147, ammo: 9 },
-      { damage: 78, fireRate: 2.3, speed: 63, range: 168, ammo: 12 },
+      // ⚠ UN MISSILE N'EST PAS UNE MASSE. Deux passes ont été nécessaires :
+      //  - resté à 22-30 après le rescale, il ne rattrapait un chasseur (18,9) qu'à
+      //    3 unités/s : il l'accompagnait au lieu de le poursuivre ;
+      //  - relevé à 46-63, encore jugé trop lent en jeu (« les missiles ne sont pas
+      //    assez rapides »).
+      // Le ralentissement général qui donne le poids des vaisseaux capitaux ne doit
+      // SURTOUT pas toucher aux armes ni aux chasseurs : c'est l'écart entre les deux
+      // qui rend la scène lisible. À 78-98, le missile va 4× plus vite qu'un chasseur
+      // et 5,5× plus vite que la baleine — on le voit partir et frapper.
+      { damage: 34, fireRate: 1.4, speed: 78, range: 126, ammo: 6 },
+      { damage: 52, fireRate: 1.8, speed: 88, range: 147, ammo: 9 },
+      { damage: 78, fireRate: 2.3, speed: 98, range: 168, ammo: 12 },
     ],
   },
 

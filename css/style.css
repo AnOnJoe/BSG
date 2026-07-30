@@ -1688,6 +1688,20 @@ body.expanded #ftl-panel { left: 12px; top: 176px; width: 196px; }
 .mod-chip.offline .mod-name { color: var(--neon-magenta); text-decoration: line-through; }
 .mod-chip.offline .mod-lv { color: var(--neon-magenta); letter-spacing: 1.5px; }
 
+/* ÉQUIPE DÉTACHÉE par une décision du CIC. Ambre et non magenta : ce n'est pas une
+   avarie, c'est un prêt d'équipage, et il se dénoue tout seul au prochain saut. Le
+   pointillé dit « personne à bord », par cohérence avec l'emplacement non aménagé du
+   pont hangar. Sans ces trois signes le module était juste éteint, indiscernable d'un
+   module coupé volontairement — on ne savait pas lequel on avait perdu. */
+.mod-chip.detached {
+  border-color: rgba(255,176,64,0.7) !important;
+  border-style: dashed !important;
+  background: rgba(255,176,64,0.08);
+  cursor: not-allowed;
+}
+.mod-chip.detached .mod-name { color: var(--neon-amber); opacity: 0.75; }
+.mod-chip.detached .mod-lv { color: var(--neon-amber); letter-spacing: 1.5px; }
+
 /* Cible prioritaire de l'artillerie (consigne persistante — elle doit se voir) */
 .prio-name { font-size: 12px; letter-spacing: 1.2px; color: var(--dim); }
 .prio-name.on { color: var(--neon-magenta); text-shadow: 0 0 8px rgba(255,51,136,0.5); }
