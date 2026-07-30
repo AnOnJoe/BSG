@@ -69,6 +69,18 @@ Chacun de ces cas a produit un rapport alarmant et faux.
 - **Ne pas extrapoler une grandeur qui accélère.** Juger la course FTL sur 60 s donnait
   « la flotte arrive avant le calcul » ; la traversée complète donne **+60 s d'avance**.
   Le taux de calcul monte avec l'éloignement (clarté 0,43 → 0,92).
+- **Ne pas mesurer sa propre consigne.** Un banc qui posait `helmOrder = 'hold'` « pour
+  immobiliser la baleine » lisait ensuite des zéros partout et concluait à un jeu figé : TENIR
+  gèle DÉLIBÉRÉMENT la flotte quand elle suit la baleine. Vérifier qu'aucune consigne posée
+  pour les besoins du test ne produit l'effet qu'on croit observer.
+- **Laisser le temps au plus lent.** Deux verdicts « ils remuent encore » n'étaient qu'une
+  attente trop courte : le paquebot met 23 s à couvrir 110 unités. Dimensionner l'attente sur
+  le vaisseau le plus lent ET le plus éloigné, jamais sur la moyenne.
+- **Une exception JS gèle la frame entière et ressemble à un réglage à zéro.** Un
+  `Assignment to constant variable` dans `Convoy.update` a produit « 0/6 en route, aucune
+  rotation, la baleine ne tourne plus » — un tableau parfaitement cohérent, et faux. Ni
+  `check-syntax` ni `check-dangling` ne voient ça : **toujours relever les erreurs de la
+  console dans un test headless**, et se méfier d'un résultat uniformément nul.
 - **Debug console** : `window.app` (l'App), `window.app.range` (combat), `window.TUNE`.
 
 ## Architecture (points d'entrée)
@@ -631,6 +643,49 @@ retour du joueur devient une devinette.**
 
 Corollaire : **le déplacement au clic devient le geste principal**, pas une option. C'est
 l'idiome du genre, et il est le seul praticable avec une telle inertie.
+
+## LE CONVOI STATIONNE, IL NE COLLE PAS
+Trois griefs de partie test qui décrivaient le même défaut sous trois angles :
+« les civils suivent la baleine trop à la trace, ils devraient ne s'activer que si elle
+avance un peu plus loin » · « les vaisseaux devraient pouvoir tourner sur place » · « au
+début les civils bougent dans tous les sens pour se replacer, ça fait bizarre ».
+
+- **Zone morte avec hystérésis** (`convoyHoldDist`, 26). Il y en avait bien une, de
+  **3 unités** — héritée d'avant le rescale, donc invisible sur un champ visible large de
+  217 : le moindre frémissement de la baleine remettait les six coques en route. Deux seuils
+  et non un (on s'ébranle au-delà de 26, on ne se remet en station qu'à 40 % de cette
+  distance), sinon ils vibrent à la frontière. Mesuré : **6/6 à l'arrêt complet**, vitesse 0.
+- **Ils pivotent sur place.** Deux choses l'empêchaient, et la seconde était la vraie : la
+  rotation était conditionnée à `spd > 0.4`, et surtout le cap visé se déduisait de la
+  **vitesse courante** — la proue ne pouvait donc que suivre un mouvement déjà commencé, il
+  fallait partir en crabe pour avoir le droit de se tourner. On vise la direction **voulue**,
+  et on ne pousse franchement qu'une fois aligné (plein régime dans un cône de 29°, un
+  sixième de l'allure en travers). Mesuré : le paquebot tourne de 81° en **se déplaçant de
+  2,3 unités**.
+- **La flotte naît EN FORMATION.** Elle naissait en grille à deux colonnes puis devait tout
+  réarranger : vingt secondes de chassé-croisé à chaque début de secteur. `stationOf()` est
+  désormais la **même fonction** pour le déploiement et pour la tenue de station — deux
+  formules séparées auraient divergé au premier changement de formation et le remue-ménage
+  serait revenu sans qu'on comprenne. Mesuré : **0 unité parcourue** en 12 s après le
+  déploiement.
+
+⚠ **Une station ne doit jamais tomber dans la zone d'exclusion de la baleine.** Avec
+`spread` 0,1 en RALLIEMENT, les stations se resserrent à ~17 unités alors que la répulsion
+agit jusqu'à `radius + 9` : les deux règles se battaient sans fin, un navire sur six
+oscillait en permanence. `stationOf` repousse la station radialement — corriger `spread`
+aurait marché aujourd'hui et cassé demain.
+
+## ALLURE GÉNÉRALE (`TUNE.gameSpeed`)
+« Il faut ralentir globalement le jeu, là on a l'impression de jouer en accéléré. » C'est le
+seul levier qui veut vraiment dire « ralentir » : il agit sur l'**écoulement du temps**
+(`Range.timeScale`, lu par `App._loop`), donc il **préserve tous les rapports** validés un
+par un — rotation de la baleine, écart entre les masses et les chasseurs, hiérarchie des
+allures. Baisser les vitesses une à une aurait détruit cet étalonnage.
+À 0,8 : un tour complet de baleine passe de 18,9 à **23,4 s** (mesuré), et un secteur de
+~200 à ~250 s. ⚠ Il ralentit donc AUSSI les horloges. Si la barre devient trop molle, c'est
+`angAccel` qui compense, pas ce curseur.
+⚠ Piège : `_dramaT` se décompte en divisant par le facteur **complet** appliqué au `dt`,
+donc `_dramaScale × gameSpeed`. Oublier `gameSpeed` rallongerait chaque ralenti dramatique.
 
 ## Rythme : jeu de postes, pas beat'em all
 Un jeu de postes **ne peut pas** être nerveux : sans respiration, on n'a jamais le temps de

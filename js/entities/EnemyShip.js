@@ -232,7 +232,14 @@ export class EnemyShip {
     // ⚠ Vitesse angulaire PLAFONNÉE, pour la même raison que côté convoi : un lissage
     // `min(1, dt * taux)` sature sur une frame longue et fait pivoter la coque d'un
     // bloc. Sur un bâtiment lourd, ce saut ruine à lui seul l'impression de masse.
-    if (sp > 0.5) {
+    // ⚠ IL PIVOTE MÊME À L'ARRÊT. La rotation était conditionnée à `sp > 0.5` : un
+    // bâtiment stabilisé à sa distance d'engagement gardait donc son cap indéfiniment,
+    // et ne pouvait pas se retourner sans d'abord se remettre en mouvement. Le cap visé
+    // se lit sur la vitesse VOULUE (`vx`, `vy`), qui existe même quand le déplacement
+    // effectif est nul — c'est ce qui permet de tourner sur place.
+    // (`sp` est la norme de la vitesse VOULUE, pas du déplacement réel : le seuil ne sert
+    // donc qu'à écarter le cas dégénéré où `atan2(0, 0)` renverrait un cap arbitraire.)
+    if (sp > 0.05) {
       const angV = Math.atan2(vy, vx) + Math.PI;
       const rate = this.turnRate || 4;
       let dr = ((angV - this.group.rotation.z + Math.PI) % (Math.PI * 2)) - Math.PI;

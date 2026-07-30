@@ -5,6 +5,17 @@
  * fige les chiffres dans le code (Ship / moduleConfig / Range / EnemyShip).
  */
 export const TUNE = {
+  // ⚠⚠ ALLURE GÉNÉRALE DU JEU — le premier réglage à toucher, et il commande tous les
+  // autres. Grief de partie test : « il faut ralentir globalement le jeu, là on a
+  // l'impression de jouer en accéléré ».
+  // C'est le SEUL levier qui veut vraiment dire « ralentir » : il agit sur l'écoulement du
+  // temps, donc il préserve tous les rapports déjà validés un par un (rotation de la
+  // baleine, écart entre les masses et les chasseurs, hiérarchie des allures). Baisser
+  // les vitesses une à une aurait détruit cet étalonnage.
+  // ⚠ Il ralentit AUSSI les horloges : à 0,8 un secteur passe de ~200 s à ~250 s, et la
+  // rotation de la baleine de 19 à 15,2 °/s. Si la barre devient trop molle, c'est
+  // `angAccel` qui compense — pas ce curseur.
+  gameSpeed: 0.8,
   energyRegen: 12,     // régén d'énergie de base (hors réacteurs), /s
   laserCostMul: 1.0,   // multiplicateur du coût énergie du laser
   manualAimBonus: 1.15, // dégâts (×) quand le joueur tient la tourelle lui-même
@@ -165,6 +176,14 @@ export const TUNE = {
   // que la baleine et met 21 s à faire demi-tour ; à 1 l'écart se resserre (×1,7), à 2
   // il se creuse (×2,9) et un paquebot devient presque impossible à réorienter.
   turnMassExp: 1.5,
+  // ZONE MORTE DE STATION : en dessous de cet écart à sa place dans la formation, un
+  // transport NE BOUGE PAS. « Les civils suivent la baleine trop à la trace, ils
+  // devraient ne s'activer que si la baleine avance un peu plus loin, et sinon rester en
+  // position. » Il y avait bien une zone morte, mais de 3 unités — héritée d'avant le
+  // rescale, donc invisible sur un champ visible large de 217. L'hystérésis est câblée à
+  // 40 % de cette valeur : on s'ébranle au-delà du seuil, on ne se remet en station qu'une
+  // fois bien rentré, sinon ils vibrent à la frontière.
+  convoyHoldDist: 26,
   convoyHpMul: 1,      // PV de tous les transports (×) — appliqué au montage
   crippledAt: 0.4,     // part de coque sous laquelle un transport DÉCROCHE
   crippledSpeedMin: 0.2, // allure d'un transport à 0 % de coque (× la nominale)
@@ -240,6 +259,10 @@ export function resetTune() {
  * qu'il manque une entrée.
  */
 export const TUNE_SPECS = [
+  // --- Allure générale : mis EN TÊTE parce que c'est le réglage qui commande tous les
+  // autres, et le premier à essayer quand quelque chose « ne va pas ». ---
+  ['gameSpeed', 'ALLURE GÉNÉRALE DU JEU (×)', 0.3, 1.5, 0.05, 'Allure générale', 'Vitesse d\'écoulement du temps, appliquée à TOUT le combat. C\'est le seul réglage qui veut vraiment dire « ralentir » : il préserve tous les rapports entre vaisseaux (rotation, allures, portées) au lieu de les casser un par un. À 0,8 (défaut) un secteur passe de ~200 à ~250 s et la baleine tourne à 15,2 °/s au lieu de 19. Si la barre devient trop molle, compense avec « Accél. de virage », pas avec ce curseur.'],
+
   // --- Fuite & saut ---
   ['ftlChargeRate', 'Calcul de saut (×)', 0.3, 3, 0.05, 'Fuite & saut', 'Vitesse globale du calcul de saut. Monter = on part plus tôt, donc moins d\'assauts subis. C\'est le levier le plus brutal sur la difficulté.'],
   ['ftlMinClarity', 'Calcul perturbé à l\'entrée (×)', 0.1, 1, 0.02, 'Fuite & saut', 'Qualité du calcul à l\'ENTRÉE du couloir (perturbation du saut précédent). Bas = avancer vers la sortie rapporte beaucoup, donc on ose DISPERSER. À 1, traverser ne sert plus à rien.'],
@@ -253,6 +276,7 @@ export const TUNE_SPECS = [
   // --- Flotte civile ---
   ['convoySpeedMul', 'Allure des transports (×)', 0.4, 2.5, 0.05, 'Flotte civile', 'Allure de tous les transports : 5,2 à 7,3 au défaut. ⚠ C\'est L\'HORLOGE DU NIVEAU — la clarté du calcul de saut dépend de la fraction de couloir parcourue, donc ralentir le convoi RETARDE la fin du secteur. Repères de masse : cuirassé cylon 4,4 · gunship 5,0 · porte-drones 6,9 · ta baleine 16,9. Un civil ne devrait pas distancer un bâtiment de guerre.'],
   ['convoyTurnRate', 'Virage des transports (à taille de baleine)', 0.05, 1.5, 0.002, 'Flotte civile', 'Vitesse de virage d\'un transport qui aurait la TAILLE DE LA BALEINE (rayon 4,2, comme le remorqueur). Au défaut il vire exactement comme elle : 19 °/s. Les plus gros sont ralentis par le réglage ci-dessous. Bas = ils dérivent en travers (rendu « cargo sans manœuvre ») ; haut = ils pointent franchement où ils vont.'],
+  ['convoyHoldDist', 'Zone morte de station', 0, 80, 2, 'Flotte civile', 'Écart à sa place dans la formation en dessous duquel un transport NE BOUGE PAS. À 0 ils collent à la baleine et repartent au moindre de ses frémissements ; haut = ils stationnent franchement et ne s\'ébranlent que si elle s\'éloigne vraiment. Ils ne se remettent en station qu\'une fois revenus à 40 % de cette distance, pour ne pas vibrer à la frontière. ⚠ Trop haut, la flotte se disperse et il faudra la rallier avant de sauter.'],
   ['turnMassExp', 'La taille ralentit la rotation (puissance)', 0, 3, 0.1, 'Flotte civile', 'Comment la taille de coque ralentit le virage : facteur (4,2 ÷ rayon) à cette puissance. C\'est la formalisation de « la masse commande la lenteur ». À 0 tout le monde vire pareil ; à 1,5 (défaut) le paquebot Cloud 9 tourne 2,25× moins vite que la baleine et met 21 s à faire demi-tour ; à 2 il devient presque impossible à réorienter.'],
   ['convoyHpMul', 'PV des transports (×)', 0.3, 3, 0.1, 'Flotte civile', 'PV de tous les transports. Appliqué au montage de la flotte, donc au prochain départ — pas en pleine bataille.'],
   ['crippledAt', 'Décrochage sous (part de coque)', 0.1, 0.9, 0.05, 'Flotte civile', 'Part de coque sous laquelle un transport perd sa propulsion et DÉCROCHE. Monter = des traînards plus tôt et plus souvent.'],

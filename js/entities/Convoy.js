@@ -40,6 +40,36 @@ const SHIP_RADIUS = 4.2;
 const TURN_GAIN = 3;
 
 /**
+ * STATION DE RALLIEMENT d'un transport, en coordonnées absolues.
+ *
+ * ⚠ Extrait de `update` pour que le DÉPLOIEMENT s'en serve aussi. Grief de partie test :
+ * « au début les civils bougent dans tous les sens pour se replacer, ça fait bizarre ».
+ * La cause n'était pas le pilotage : ils naissaient en **grille à deux colonnes**
+ * (`build`/`redeploy`) puis devaient tous se réarranger en formation d'escorte — six
+ * masses qui se croisent pendant vingt secondes à chaque début de secteur. On les fait
+ * donc naître directement À LEUR PLACE.
+ *
+ * Une seule fonction pour les deux usages : deux formules séparées auraient divergé au
+ * premier changement de formation, et le remue-ménage serait revenu sans qu'on comprenne.
+ */
+export function stationOf(i, n, gather, viewHalfW, span, radius) {
+  const slot = n > 1 ? (i / (n - 1)) * 2 - 1 : 0;
+  let x = gather.x + FOLLOW_X[i % FOLLOW_X.length] * viewHalfW;
+  let y = gather.y + slot * span;
+  // Jamais dans la zone d'exclusion de la baleine : sinon la répulsion et la station se
+  // battent sans fin et le navire ne se pose jamais (mesuré, un sur six).
+  const minStation = radius + 13;
+  const sx = x - gather.x, sy = y - gather.y;
+  const d = Math.hypot(sx, sy);
+  if (d < minStation) {
+    const a = d > 0.01 ? Math.atan2(sy, sx) : (i / Math.max(1, n)) * Math.PI * 2;
+    x = gather.x + Math.cos(a) * minStation;
+    y = gather.y + Math.sin(a) * minStation;
+  }
+  return { x, y };
+}
+
+/**
  * PLAN DE PROFONDEUR DE LA FLOTTE CIVILE.
  *
  * ⚠ Signalé en partie test : « si je passe sur un navire civil il faut que tout le
@@ -263,18 +293,25 @@ export class Convoy {
     this.lostSouls = 0;
   }
 
-  /** Place la flotte à l'entrée du couloir, en formation lâche. */
-  build(fleet, startX, spanY) {
+  /**
+   * Place la flotte à l'entrée du couloir, DÉJÀ EN FORMATION D'ESCORTE.
+   *
+   * ⚠ Elle naissait en grille à deux colonnes, donc les six devaient aussitôt se
+   * réarranger : « au début les civils bougent dans tous les sens pour se replacer, ça
+   * fait bizarre ». Vingt secondes de chassé-croisé à chaque début de secteur, et la cause
+   * n'était pas dans le pilotage mais dans la position de départ. On les pose à la place
+   * qu'ils vont tenir (`stationOf`, la même fonction que `update`), donc ils n'ont rien à
+   * corriger : la flotte est en ordre dès la première frame.
+   * `gather` = position de la baleine au départ ; `viewHalfW`/`span` = géométrie de la
+   * formation, passées par `Range` pour rester cohérentes avec le champ visible.
+   */
+  build(fleet, startX, gather, viewHalfW, span) {
     this.clear();
     fleet.forEach((typeId, i) => {
       const t = new Transport(typeId, i);
-      const rows = Math.ceil(fleet.length / 2);
-      const col = i % 2, row = Math.floor(i / 2);
-      t.group.position.set(
-        startX - col * 55 - row * 8,
-        (row - (rows - 1) / 2) * (spanY / Math.max(1, rows)) * 1.1,
-        CONVOY_Z
-      );
+      const g = gather || { x: startX, y: 0 };
+      const st = stationOf(i, fleet.length, g, viewHalfW, span, t.radius);
+      t.group.position.set(st.x, st.y, CONVOY_Z);
       this.transports.push(t);
       this.group.add(t.group);
     });
@@ -396,13 +433,20 @@ export class Convoy {
    *    de formation. Elle suit désormais la direction réelle de marche, sonde à la
    *    largeur de la coque, et l'esquive PRIME sur la formation le temps de dégager.
    */
+  /**
+   * Étalement vertical de la formation : sur la HAUTEUR VISIBLE pour RALLIEMENT, sur
+   * l'arène pour DISPERSER (disperser doit justement sortir du champ).
+   * ⚠ Exposé pour que le DÉPLOIEMENT calcule les mêmes stations que `update` — c'est ce
+   * qui garantit que la flotte naît en ordre au lieu de se réarranger.
+   */
+  spanFor(orderId, viewHalfW = 41, arenaY = 108) {
+    const order = FLEET_ORDERS.find((o) => o.id === orderId) || FLEET_ORDERS[0];
+    return order.follow ? viewHalfW * 0.62 * order.spread * 4 : arenaY * order.spread;
+  }
+
   update(dt, limitX, terrain, orderId, gather, arena, holding = false, viewHalfW = 41) {
     const order = FLEET_ORDERS.find((o) => o.id === orderId) || FLEET_ORDERS[0];
-    // Étalement : sur la HAUTEUR VISIBLE (≈ demi-largeur / aspect) pour RALLIEMENT,
-    // sur l'arène pour DISPERSER — disperser doit justement sortir du champ.
-    const span = order.follow
-      ? viewHalfW * 0.62 * order.spread * 4
-      : (arena ? arena.y : 108) * order.spread;
+    const span = this.spanFor(orderId, viewHalfW, arena ? arena.y : 108);
     const list = this.alive;
     // Jusqu'où un transport distancé peut pousser ses moteurs pour recoller.
     // Réglable : à 1 l'écart croît sans borne dès que la baleine va plus vite, trop
@@ -434,29 +478,35 @@ export class Convoy {
         };
         t._vx = 0; t._vy = 0;
         t._side = 0; t._hold = 0;
+        t._underway = false;   // en route, ou en station ? (cf. la zone morte plus bas)
       }
       const tr = t._trait;
       tr.drift += dt * 0.35;
 
       // --- station visée ----------------------------------------------------
-      const slot = list.length > 1 ? (i / (list.length - 1)) * 2 - 1 : 0;
-      const centerY = gather ? gather.y : 0;
-      // Le balancement propre évite la formation au cordeau, qui est ce qui donnait
-      // l'impression d'un seul objet rigide.
-      const wantY = centerY + slot * span + tr.off * 0.35 + Math.sin(tr.drift) * 2.6;
-      let wantX;
+      // Le balancement propre (`off`, `drift`) évite la formation au cordeau, qui est ce
+      // qui donnait l'impression d'un seul objet rigide.
+      let wantX, wantY;
       if (order.follow && gather) {
         // RALLIEMENT : ⚠ ils se rangent AUTOUR de la baleine, pas en file derrière.
         // Mesuré avant correction : 1 transport visible sur 6 (champ visible 81×56
         // unités, transports à 34-71). On escortait une flotte qu'on ne voyait pas.
-        // Les stations sont donc dimensionnées sur l'ÉCRAN et non sur l'arène, et
-        // réparties de part et d'autre — une escorte encadre ce qu'elle protège.
-        // (Le cas TENIR est identique : la station suit la baleine, qui ne bouge
-        // plus. Pas besoin d'une branche séparée.)
-        wantX = gather.x + FOLLOW_X[i % FOLLOW_X.length] * viewHalfW + tr.off * 0.3;
+        // Les stations sont dimensionnées sur l'ÉCRAN et non sur l'arène.
+        // ⚠ `stationOf` est la MÊME fonction que celle du déploiement : c'est ce qui
+        // garantit que la flotte naît en ordre au lieu de se réarranger, et elle écarte
+        // aussi les stations de la zone d'exclusion de la baleine — sans quoi la répulsion
+        // éjecte le navire, la station le rappelle, et il ne se pose jamais (mesuré, un
+        // sur six oscillait en permanence).
+        // (Le cas TENIR est identique : la station suit une baleine qui ne bouge plus.)
+        const st = stationOf(i, list.length, gather, viewHalfW, span, t.radius);
+        wantX = st.x + tr.off * 0.3;
+        wantY = st.y + tr.off * 0.35 + Math.sin(tr.drift) * 2.6;
       } else {
         // Sinon ils poussent vers la sortie du secteur, chacun à son allure.
+        const slot = list.length > 1 ? (i / (list.length - 1)) * 2 - 1 : 0;
         wantX = Math.min(limitX, t.position.x + 60);
+        wantY = (gather ? gather.y : 0) + slot * span
+          + tr.off * 0.35 + Math.sin(tr.drift) * 2.6;
       }
 
       // --- cap et allure ----------------------------------------------------
@@ -473,6 +523,19 @@ export class Convoy {
       // lent commande le départ » ne voulait plus rien dire.
       const cruise = Math.min(t.effSpeed * tr.pace * urge, t.effSpeed * CATCHUP) * order.speedMul;
 
+      // ⚠ ZONE MORTE AVEC HYSTÉRÉSIS : « les civils suivent la baleine trop à la trace,
+      // ils devraient ne s'activer que si la baleine avance un peu plus loin, et sinon
+      // rester en position ». Il y avait bien une zone morte, mais de **3 unités** —
+      // héritée d'avant le rescale, donc invisible sur un champ visible large de 217 : le
+      // moindre frémissement de la baleine remettait les six coques en mouvement.
+      // Deux seuils et non un, sinon ils vibrent à la frontière : on ne s'ébranle qu'au
+      // delà de `convoyHoldDist`, et on ne se remet en station qu'une fois revenu à 40 %
+      // de cette distance. C'est la différence entre un convoi qui STATIONNE et un convoi
+      // qui colle.
+      const hold = TUNE.convoyHoldDist;
+      if (t._underway) { if (dist < hold * 0.4) t._underway = false; }
+      else if (dist > hold) t._underway = true;
+
       let ux = dist > 0.01 ? dx / dist : 1;
       let uy = dist > 0.01 ? dy / dist : 0;
 
@@ -484,7 +547,8 @@ export class Convoy {
         const clearAt = (ax, ay) => !terrain.rayHit(t.position.x, t.position.y, ax, ay, look, pad);
         if (!clearAt(ux, uy)) {
           const base = Math.atan2(uy, ux);
-          const first = t._hold > 0 && t._side ? t._side : (t.position.y >= centerY ? 1 : -1);
+          const cy = gather ? gather.y : 0;   // côté d'esquive préféré : vers l'extérieur
+          const first = t._hold > 0 && t._side ? t._side : (t.position.y >= cy ? 1 : -1);
           let found = null;
           for (const step of [0.4, 0.8, 1.2, 1.7, 2.4]) {
             for (const side of [first, -first]) {
@@ -534,8 +598,27 @@ export class Convoy {
       }
       { const n = Math.hypot(ux, uy); if (n > 0.01) { ux /= n; uy /= n; } }
 
+      // --- CAP D'ABORD, TRANSLATION ENSUITE --------------------------------
+      // ⚠ « Je pense que les vaisseaux devraient pouvoir tourner sur place. » Deux choses
+      // l'empêchaient, et la seconde était la vraie :
+      //  1. la rotation était conditionnée à `spd > 0.4`, donc un navire à l'arrêt gardait
+      //     son cap indéfiniment — il ne pouvait littéralement pas pivoter ;
+      //  2. le cap visé était déduit de la VITESSE COURANTE, pas de la direction voulue.
+      //     La proue ne pouvait donc que suivre un mouvement déjà commencé : il fallait
+      //     partir en crabe pour avoir le droit de se tourner.
+      // On vise maintenant la direction VOULUE, on pivote même à l'arrêt, et on ne pousse
+      // franchement qu'une fois à peu près aligné — c'est le geste des vaisseaux capitaux
+      // d'un RTS spatial : ils s'orientent, puis ils y vont.
+      const wantRot = (t._underway || dist > 0.01) ? Math.atan2(uy, ux) : t.group.rotation.z;
+      let dr = ((wantRot - t.group.rotation.z + Math.PI) % (Math.PI * 2)) - Math.PI;
+      if (dr < -Math.PI) dr += Math.PI * 2;
+      // Alignement : plein régime dans un cône de ~29°, un sixième de l'allure en travers.
+      // Sans ce frein, pivoter « sur place » resterait une figure de style — ils
+      // atteindraient leur station de biais avant d'avoir fini de se tourner.
+      const align = Math.abs(dr) < 0.5 ? 1 : Math.abs(dr) < 1.2 ? 0.45 : 0.15;
+
       // --- intégration : de l'inertie, chacun la sienne ---------------------
-      const want = dist < 3 ? 0 : cruise;
+      const want = t._underway ? cruise * align : 0;
       const k = Math.min(1, dt / Math.max(0.05, tr.lag));
       t._vx += (ux * want - t._vx) * k;
       t._vy += (uy * want - t._vy) * k;
@@ -543,23 +626,16 @@ export class Convoy {
       t.position.y += t._vy * dt;
       if (!order.follow) t.position.x = Math.min(t.position.x, limitX);
 
-      // ⚠ CAP DU TRANSPORT. Ils n'avaient **aucune** rotation (`rotation.z` restait à 0
-      // pour toujours) : un cargo qui montait en formation se déplaçait donc en crabe,
-      // proue obstinément vers la sortie. C'est le contraire de ce qu'on veut vendre
-      // (« il faut imaginer de gros vaisseaux lents ») : une masse tourne LENTEMENT,
-      // mais elle tourne, et c'est précisément cette lenteur qui se voit et qui pèse.
-      // La proue est en +X (cf. les profils dans `convoyConfig`), donc aucun décalage.
-      // Le taux est divisé par la mollesse propre du navire (`lag` ∈ [0,35 ; 0,85]) :
-      // six masses qui ne virent pas ensemble, et jamais toutes à la même vitesse.
-      // ⚠ RÉGLABLE (`TUNE.convoyTurnRate`) et pas codé en dur : il l'était à 0,18, et sur
-      // un « la vitesse de rotation des civils n'est pas bonne » il était impossible de
-      // savoir s'il fallait monter ou descendre sans toucher au code. C'est exactement le
-      // cas que la règle du panneau T existe pour éviter.
-      const spd = Math.hypot(t._vx, t._vy);
-      if (spd > 0.4) {
-        const wantRot = Math.atan2(t._vy, t._vx);
-        let dr = ((wantRot - t.group.rotation.z + Math.PI) % (Math.PI * 2)) - Math.PI;
-        if (dr < -Math.PI) dr += Math.PI * 2;
+      // ⚠ CAP DU TRANSPORT — appliqué à CHAQUE frame, même à l'arrêt (cf. « cap d'abord »
+      // plus haut : `dr` y est calculé sur la direction VOULUE, pas sur la vitesse).
+      // Ils n'avaient d'abord **aucune** rotation (`rotation.z` restait à 0 pour toujours),
+      // donc un cargo qui montait en formation se déplaçait en crabe. Puis ils ne pouvaient
+      // tourner qu'EN MOUVEMENT, donc pas sur place.
+      // ⚠ Le taux est RÉGLABLE (`TUNE.convoyTurnRate`) et pas codé en dur : il l'était à
+      // 0,18, et sur un « la vitesse de rotation des civils n'est pas bonne » il était
+      // impossible de savoir s'il fallait monter ou descendre sans toucher au code. C'est
+      // exactement le cas que la règle du panneau T existe pour éviter.
+      {
         // ⚠ VITESSE ANGULAIRE PLAFONNÉE, et non un simple lissage `min(1, dt * taux)`.
         // Ce lissage sature dès que `dt` s'allonge (une frame longue suffit) : la proue
         // saute alors d'un coup, ce qui est le contraire de la masse qu'on veut vendre
@@ -623,24 +699,22 @@ export class Convoy {
    * plus. On sort donc du couloir pour se caler sur le CHAMP VISIBLE (cf. les autres
    * grandeurs dérivées : `gatherView`, `helmLeadView`, `FOLLOW_X`).
    */
-  redeploy(startX, spanY) {
+  redeploy(startX, gather, viewHalfW, span) {
     const keep = this.saved;
     for (const t of keep) {
       t.jumped = false;
       t.group.visible = true;
     }
-    const rows = Math.ceil(Math.max(1, keep.length) / 2);
     keep.forEach((t, i) => {
-      const col = i % 2, row = Math.floor(i / 2);
-      t.position.set(
-        startX - col * 55 - row * 8,
-        (row - (rows - 1) / 2) * (spanY / Math.max(1, rows)) * 1.1,
-        CONVOY_Z
-      );
+      const g = gather || { x: startX, y: 0 };
+      const st = stationOf(i, keep.length, g, viewHalfW, span, t.radius);
+      t.position.set(st.x, st.y, CONVOY_Z);
       // On sort d'un saut : tout le monde est aligné sur la sortie, pas de cap hérité
-      // du secteur précédent (ils tournent maintenant, cf. `update`).
+      // du secteur précédent (ils tournent maintenant, cf. `update`), et déjà EN STATION
+      // pour ne pas rejouer le chassé-croisé de replacement à chaque secteur.
       t.group.rotation.z = 0;
       t._vx = 0; t._vy = 0;
+      t._underway = false;
     });
     return keep.length;
   }

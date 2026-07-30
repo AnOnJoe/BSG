@@ -378,9 +378,13 @@ export class Range {
     this.wave = 0;
     this.assaultNo = 0;
     this.sectorIndex = 0;
-    // ⚠ Même piège que `redeploy` : `ARENA.y * 1.2` naissait hors écran après le
-    // rescale. La formation de départ se cale sur le champ visible.
-    this.convoy.build(FLEET, ENTRY_X, this.viewHalfW * 0.85);
+    // ⚠ La flotte naît DÉJÀ EN FORMATION, autour de la position de départ de la baleine.
+    // Elle naissait en grille à deux colonnes et devait aussitôt se réarranger : « au début
+    // les civils bougent dans tous les sens pour se replacer, ça fait bizarre ». Vingt
+    // secondes de chassé-croisé au début de chaque secteur, dont la cause n'était pas le
+    // pilotage mais la position de départ.
+    this.convoy.build(FLEET, ENTRY_X, { x: ENTRY_X + 26, y: 0 },
+      this.viewHalfW, this.convoy.spanFor('tighten', this.viewHalfW, ARENA.y));
     this.convoy.lostSouls = 0;
     this._roles = null;          // le veilleur de fonctions repart à neuf
     this.weapons.fatigue = 1;
@@ -1173,10 +1177,17 @@ export class Range {
    * Lu par App._loop, qui met le dt à l'échelle avant d'appeler update().
    */
   get timeScale() {
+    // ⚠ ALLURE GÉNÉRALE DU JEU, par-dessus tout le reste. Grief de partie test : « il faut
+    // ralentir globalement le jeu, là on a l'impression de jouer en accéléré ». C'est le
+    // seul levier qui veut vraiment dire « ralentir » : il préserve TOUS les rapports
+    // déjà validés (rotation de la baleine, écart entre les masses et les chasseurs) en
+    // n'agissant que sur l'écoulement du temps. Baisser une à une les vitesses aurait
+    // détruit l'étalonnage qu'on vient d'établir.
+    const g = TUNE.gameSpeed;
     // Ralenti dramatique (destruction d'un cuirassé, mort) : l'épique est un
     // CONTRASTE, il faut suspendre le temps sur les moments qui comptent.
-    if (this._dramaT > 0) return this._dramaScale;
-    return this.ring.isOpen && !this.over ? TUNE.slowMoScale : 1;
+    if (this._dramaT > 0) return this._dramaScale * g;
+    return (this.ring.isOpen && !this.over ? TUNE.slowMoScale : 1) * g;
   }
 
   /** Suspend le temps quelques instants pour laisser voir ce qui vient de se passer. */
@@ -1854,9 +1865,11 @@ export class Range {
     this.ftl.reset(this.sector.ftlTime, this.sector.ftlPreCharge);
     // Le calcul du saut suivant est plus long : la pression monte sans qu'on
     // ait besoin de gonfler les PV.
-    // ⚠ Étalement dérivé du CHAMP VISIBLE, pas du couloir : cf. `Convoy.redeploy`.
-    // `ARENA.y * 1.2` donnait 504 après le rescale, la flotte naissait hors écran.
-    this.convoy.redeploy(ENTRY_X, this.viewHalfW * 0.85);
+    // ⚠ Redéploiement DÉJÀ EN STATION autour de la baleine (cf. `Convoy.redeploy`) : sinon
+    // le chassé-croisé de replacement se rejoue à chaque secteur. `ARENA.y * 1.2` donnait
+    // en plus 504 d'étalement après le rescale, donc une flotte hors écran.
+    this.convoy.redeploy(ENTRY_X, { x: ENTRY_X + 26, y: 0 },
+      this.viewHalfW, this.convoy.spanFor('tighten', this.viewHalfW, ARENA.y));
     this.ship.group.position.set(ENTRY_X + 26, 0, 0);
     this.shipVel.set(0, 0, 0);
     this.shipAngVel = 0;
@@ -1884,7 +1897,8 @@ export class Range {
     this.waveTheme = null;
     this.nextTheme = null;
     this.ftl.reset(this.sector.ftlTime, this.sector.ftlPreCharge);
-    this.convoy.redeploy(ENTRY_X, this.viewHalfW * 0.85);
+    this.convoy.redeploy(ENTRY_X, { x: ENTRY_X + 26, y: 0 },
+      this.viewHalfW, this.convoy.spanFor('tighten', this.viewHalfW, ARENA.y));
     this.ship.group.position.set(ENTRY_X + 26, 0, 0);
     this.shipVel.set(0, 0, 0);
     this.shipAngVel = 0;
@@ -2211,7 +2225,13 @@ export class Range {
   update(dt) {
     // Le dt reçu est déjà mis à l'échelle : on divise pour retomber en temps réel,
     // sinon un ralenti à 0,3 durerait plus de trois fois la durée demandée.
-    if (this._dramaT > 0) this._dramaT -= dt / Math.max(0.05, this._dramaScale);
+    // ⚠ Il faut diviser par le facteur COMPLET appliqué par `App._loop`, donc
+    // `_dramaScale × gameSpeed` — oublier `gameSpeed` rallongerait le ralenti d'autant,
+    // et un ralenti qui ne dure pas ce qu'on a demandé est exactement le piège déjà
+    // rencontré ici.
+    if (this._dramaT > 0) {
+      this._dramaT -= dt / Math.max(0.05, this._dramaScale * TUNE.gameSpeed);
+    }
 
     if (this.over) {
       this._followCamera(dt);
