@@ -44,6 +44,13 @@ export const HELM_ORDERS = [
  *                mènes. Tous dans la bulle de saut, tous couvrables — mais une
  *                cible dense, et ils n'avancent plus par eux-mêmes vers la sortie
  *                du secteur (donc le calcul reste perturbé si tu traînes).
+ *  - STOPPER   : ils coupent les moteurs LÀ OÙ ILS SONT, quoi que fasse la baleine.
+ *                Demandé en partie test (« il manque un ordre : ne pas bouger ») :
+ *                RALLIEMENT immobilise la flotte seulement si la baleine s'arrête —
+ *                impossible donc de la poser quelque part et d'aller se battre plus
+ *                loin sans la traîner derrière soi. Le prix : la progression vers la
+ *                sortie s'arrête (calcul perturbé) et la bulle se vide dès qu'on
+ *                s'éloigne.
  *  - DISPERSER : ils s'écartent au large. Les Cylons doivent choisir et les pertes
  *                se diluent — mais on ne peut plus tous les couvrir, et il faudra
  *                les RAPPELER avant d'amorcer le saut, ce qui prend du temps.
@@ -56,6 +63,9 @@ export const FLEET_ORDERS = [
   // `spread` 0,16 donnait ±17 par créneau, plus les décalages personnels : la
   // flotte sortait de la hauteur visible (±28). Réduit pour qu'elle tienne à l'écran.
   { id: 'tighten', name: 'RALLIEMENT', speedMul: 0.95, spread: 0.1, wear: 0, follow: true },
+  // ⚠ id 'station' et non 'hold' : 'hold' existe déjà dans HELM_ORDERS, et deux ordres
+  // homonymes dans deux espaces différents sont un piège de débogage garanti.
+  { id: 'station', name: 'STOPPER', speedMul: 0, spread: 0.1, wear: 0, freeze: true },
   { id: 'disperse', name: 'DISPERSER', speedMul: 1.0,
     get spread() { return 1.05 * TUNE.fleetSpreadMul; }, wear: 0 },
   // FORCER est le sommet du triangle qui se paie : allure contre usure. Les deux

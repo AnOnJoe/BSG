@@ -444,7 +444,10 @@ export class Convoy {
     return order.follow ? viewHalfW * 0.62 * order.spread * 4 : arenaY * order.spread;
   }
 
-  update(dt, limitX, terrain, orderId, gather, arena, holding = false, viewHalfW = 41) {
+  // (l'ancien 7e paramètre `holding` a été retiré : il n'était plus LU nulle part — la
+  // consigne TENIR du barreur immobilise la flotte indirectement, via une baleine à
+  // l'arrêt dont les stations ne bougent plus. L'arrêt EXPLICITE est l'ordre STOPPER.)
+  update(dt, limitX, terrain, orderId, gather, arena, viewHalfW = 41) {
     const order = FLEET_ORDERS.find((o) => o.id === orderId) || FLEET_ORDERS[0];
     const span = this.spanFor(orderId, viewHalfW, arena ? arena.y : 108);
     const list = this.alive;
@@ -533,7 +536,11 @@ export class Convoy {
       // de cette distance. C'est la différence entre un convoi qui STATIONNE et un convoi
       // qui colle.
       const hold = TUNE.convoyHoldDist;
-      if (t._underway) { if (dist < hold * 0.4) t._underway = false; }
+      // Ordre STOPPER : moteurs coupés là où l'on est, quoi que fasse la baleine. C'est
+      // le seul ordre qui ignore la station — RALLIEMENT n'immobilise la flotte que si
+      // la baleine s'arrête, et il manquait un vrai « ne pas bouger » (partie test).
+      if (order.freeze) t._underway = false;
+      else if (t._underway) { if (dist < hold * 0.4) t._underway = false; }
       else if (dist > hold) t._underway = true;
 
       let ux = dist > 0.01 ? dx / dist : 1;
@@ -609,7 +616,16 @@ export class Convoy {
       // On vise maintenant la direction VOULUE, on pivote même à l'arrêt, et on ne pousse
       // franchement qu'une fois à peu près aligné — c'est le geste des vaisseaux capitaux
       // d'un RTS spatial : ils s'orientent, puis ils y vont.
-      const wantRot = (t._underway || dist > 0.01) ? Math.atan2(uy, ux) : t.group.rotation.z;
+      //
+      // ⚠⚠ MAIS UNIQUEMENT EN ROUTE (`_underway`), jamais en station. La première version
+      // disait `_underway || dist > 0.01`, et ce second terme a produit « chaque vaisseau
+      // tourne sur lui-même comme une aiguille d'horloge » : un navire POSÉ sur sa station
+      // en reste toujours à ~1-3 unités (balancement `sin(drift)`, décalage `off`,
+      // répulsions), et la DIRECTION de ce vecteur quasi nul tourne continûment avec le
+      // balancement. La proue poursuivait donc un cap qui fait le tour du cadran. Le cap
+      // ne doit JAMAIS être déduit d'un vecteur plus petit que le bruit de position — en
+      // station on garde son cap, point.
+      const wantRot = t._underway ? Math.atan2(uy, ux) : t.group.rotation.z;
       let dr = ((wantRot - t.group.rotation.z + Math.PI) % (Math.PI * 2)) - Math.PI;
       if (dr < -Math.PI) dr += Math.PI * 2;
       // Alignement : plein régime dans un cône de ~29°, un sixième de l'allure en travers.

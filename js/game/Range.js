@@ -2514,10 +2514,11 @@ export class Range {
       this.shipVel.multiplyScalar(Math.max(0, 1 - dt * 6));
       this.shipAngVel *= Math.max(0, 1 - dt * 6);
     } else {
-      // La consigne TENIR immobilise aussi la flotte quand elle suit la baleine :
-      // c'est l'usage principal, regrouper tout le monde avant d'amorcer le saut.
+      // La consigne TENIR du barreur immobilise indirectement une flotte en RALLIEMENT
+      // (ses stations suivent une baleine à l'arrêt) ; l'arrêt EXPLICITE, quoi que fasse
+      // la baleine, est l'ordre de flotte STOPPER.
       this.convoy.update(dt, CONVOY_LIMIT, this.terrain, this.fleetOrder,
-        this.ship.group.position, ARENA, this.helmOrder === 'hold', this.viewHalfW);
+        this.ship.group.position, ARENA, this.viewHalfW);
     }
     // Position moyenne de la flotte dans le couloir → qualité du calcul.
     const alive = this.convoy.alive;

@@ -164,17 +164,26 @@ Le HUD dit **pourquoi** ça rame (« PERTURBÉ 55 % · éloignez-vous du point d
 le joueur constate un calcul lent sans comprendre qu'il doit avancer.
 
 ## ORDRES À LA FLOTTE (`FLEET_ORDERS`, console du commandant)
-Trois consignes qui forment un triangle : chacune est bonne contre une situation et mauvaise
-contre les autres, **aucune n'est le bon choix par défaut**. Mesuré :
+Quatre consignes : chacune est bonne contre une situation et mauvaise contre les autres,
+**aucune n'est le bon choix par défaut**. Mesuré :
 
 | Ordre | Étalement | Dans la bulle | Effet |
 |---|---|---|---|
 | RALLIEMENT | 36 | **6/6** | ils convergent sur la baleine et **la suivent** — le joueur mène. Couvrables et prêts à sauter, mais cible dense, et ils ne progressent plus vers la sortie (donc le calcul reste perturbé si l'on traîne) |
+| **STOPPER** | — | selon la position | moteurs coupés **là où ils sont, quoi que fasse la baleine**. Vérifié : baleine partie à +300, déplacement max 0,1 en 8 s |
 | DISPERSER | 206 | **4/6** | pertes diluées, mais il faudra rappeler avant de sauter |
 | FORCER | 88 | 6/6 | ×1,35 en allure, mais les moteurs s'usent (−1,7 PV/s) |
 
+STOPPER a été demandé en partie test (« il manque un ordre : ne pas bouger ») et il manquait
+vraiment : RALLIEMENT n'immobilise la flotte que si la baleine s'arrête — impossible donc de la
+poser quelque part et d'aller se battre plus loin sans la traîner derrière soi. Son prix : la
+progression vers la sortie s'arrête (calcul perturbé) et la bulle se vide dès qu'on s'éloigne.
+⚠ Son id est **`station`**, pas `hold` : `hold` existe déjà dans `HELM_ORDERS`, et deux ordres
+homonymes dans deux espaces différents sont un piège de débogage garanti. (L'ancien 7e paramètre
+`holding` de `Convoy.update` a été retiré : il n'était plus lu nulle part.)
+
 Le nerf : **on ne saute qu'en étant rassemblé**. Disperser oblige donc à rallier puis à attendre,
-sous le feu. Et RALLIEMENT immobilise la progression, donc laisse le calcul perturbé : les deux
+sous le feu. Et RALLIEMENT immobilise la progression, donc laisse le calcul perturbé : les
 ordres s'opposent vraiment. Seul le commandant les donne (`setOrder('fleet', …)` exige
 `manned('command')`).
 
@@ -674,6 +683,15 @@ début les civils bougent dans tous les sens pour se replacer, ça fait bizarre 
 agit jusqu'à `radius + 9` : les deux règles se battaient sans fin, un navire sur six
 oscillait en permanence. `stationOf` repousse la station radialement — corriger `spread`
 aurait marché aujourd'hui et cassé demain.
+
+⚠⚠ **Le cap ne se déduit JAMAIS d'un vecteur plus petit que le bruit de position.** Vu en
+partie test : « chaque vaisseau tourne sur lui-même comme une aiguille d'horloge », même sans
+rien faire. Le pivot sur place visait la direction voulue dès `dist > 0.01` — or un navire
+POSÉ reste toujours à 1-3 unités de sa station (balancement `sin(drift)`, décalages,
+répulsions), et la direction de ce vecteur quasi nul **tourne continûment avec le
+balancement**. La proue poursuivait un cap qui faisait le tour du cadran. Règle : on ne
+s'oriente qu'en route (`_underway`) ; en station on garde son cap. Vérifié : dérive **0°**
+en 20 s à l'arrêt, pivot sur place intact quand un déplacement commence.
 
 ## ALLURE GÉNÉRALE (`TUNE.gameSpeed`)
 « Il faut ralentir globalement le jeu, là on a l'impression de jouer en accéléré. » C'est le
