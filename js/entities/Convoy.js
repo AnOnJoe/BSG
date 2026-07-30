@@ -18,6 +18,28 @@ import { TUNE } from '../core/Tune.js';
 const FOLLOW_X = [-0.63, -0.20, 0.29, -0.44, 0.05, -0.73];
 
 /**
+ * ÉTALON DE TAILLE DU JEU : le `collisionRadius` de la baleine (cf. `Ship`). Le joueur a
+ * validé sa vitesse de rotation en la comparant au remorqueur, qui a exactement le même
+ * rayon — c'est donc la référence à laquelle toute autre coque se compare, et non un
+ * chiffre choisi. Une coque plus grosse doit virer PLUS LENTEMENT qu'elle.
+ */
+const SHIP_RADIUS = 4.2;
+
+/**
+ * RAIDEUR DE L'APPROCHE DU CAP, commune à toutes les coques pilotées par l'IA (convoi,
+ * ennemis, cuirassé). La vitesse angulaire vaut `clamp(écart × taux × GAIN, ± taux×1,2)` :
+ * le vaisseau tourne donc à plein régime tant que l'écart dépasse `1,2 / GAIN` radians,
+ * puis s'aligne en douceur.
+ *
+ * ⚠ Sans ce gain (donc à 1), l'amorti commençait à 69° du but et mangeait la moitié du
+ * virage : à vitesse de rotation ÉGALE, un civil mettait 15,4 s pour un demi-tour là où la
+ * baleine en met 9,7. Le réglage de rotation devenait alors incomparable d'une famille à
+ * l'autre, ce qui rend tout étalonnage impossible. À 3, l'amorti ne concerne plus que les
+ * 23 derniers degrés et les deux familles se comparent enfin directement.
+ */
+const TURN_GAIN = 3;
+
+/**
  * PLAN DE PROFONDEUR DE LA FLOTTE CIVILE.
  *
  * ⚠ Signalé en partie test : « si je passe sur un navire civil il faut que tout le
@@ -544,8 +566,19 @@ export class Convoy {
         // et se lit comme un défaut d'affichage. Mesuré en headless, des pointes à plus
         // de 100 °/s sur un hoquet de frame. On garde le caractère proportionnel — vif
         // quand le cap est loin, doux à l'arrivée — mais borné.
-        const rate = TUNE.convoyTurnRate / Math.max(0.3, tr.lag);   // rad/s par rad d'écart
-        const omega = Math.max(-rate * 1.2, Math.min(rate * 1.2, dr * rate));
+        //
+        // ⚠⚠ LE TAUX VIENT DE LA TAILLE DE COQUE, PAS DE `lag`. Étalonnage donné par le
+        // joueur : « la baleine fait la taille du remorqueur, sa vitesse de rotation est
+        // parfaite, mais les autres qui sont beaucoup plus gros tournent beaucoup trop
+        // vite ». La baleine a un `collisionRadius` de **4,2**, exactement celui du
+        // remorqueur, et vire à 19 °/s. C'est donc l'ÉTALON : à rayon égal un civil vire
+        // comme elle, et tout ce qui est plus gros vire moins vite.
+        // Passer par `lag` était une fausse piste — il mesure l'inertie de TRANSLATION et
+        // se trouvait mélanger un écart aléatoire par indice, ce qui donnait au paquebot
+        // (la plus grosse coque du jeu) la rotation la plus vive des six.
+        const rate = TUNE.convoyTurnRate
+          * Math.pow(SHIP_RADIUS / Math.max(1, t.def.radius || SHIP_RADIUS), TUNE.turnMassExp);
+        const omega = Math.max(-rate * 1.2, Math.min(rate * 1.2, dr * rate * TURN_GAIN));
         const step = omega * dt;
         t.group.rotation.z += Math.abs(step) > Math.abs(dr) ? dr : step;
       }

@@ -237,7 +237,10 @@ export class EnemyShip {
       const rate = this.turnRate || 4;
       let dr = ((angV - this.group.rotation.z + Math.PI) % (Math.PI * 2)) - Math.PI;
       if (dr < -Math.PI) dr += Math.PI * 2;
-      const omega = Math.max(-rate * 1.2, Math.min(rate * 1.2, dr * rate));
+      // Gain d'approche : cf. `TURN_GAIN` dans Convoy.js — sans lui l'amorti commence à
+      // 69° du but et mange la moitié du virage, ce qui rend les vitesses de rotation
+      // incomparables d'une famille de vaisseaux à l'autre.
+      const omega = Math.max(-rate * 1.2, Math.min(rate * 1.2, dr * rate * 3));
       const step = omega * dt;
       this.group.rotation.z += Math.abs(step) > Math.abs(dr) ? dr : step;
     }

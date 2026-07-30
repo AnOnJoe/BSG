@@ -554,33 +554,49 @@ profil de manœuvre.
 | ÉQUILIBRE | 19,0 °/s | 9,7 s | **18,9 s** |
 | ATTAQUE ou DÉFENSE (moteurs 20 %) | 14,4 °/s | 12,6 s | **24,8 s** |
 
-Les autres ne tournent pas par couple mais **rejoignent un cap voulu**, donc ils ne font jamais
-360° — au pire un demi-tour, et la fin est asymptotique. Calculé depuis la loi implémentée :
+### ⚠⚠ L'ÉTALON DE ROTATION : la baleine a le rayon du REMORQUEUR
+C'est l'information qui a débloqué tout le calibrage, et elle est venue du joueur :
+« **la baleine fait la taille du remorqueur, sa vitesse de rotation est parfaite, mais les
+autres qui sont beaucoup plus gros tournent beaucoup trop vite** ». Vérifié :
+`Ship.collisionRadius` vaut **4,2**, exactement le rayon du remorqueur.
 
-| vaisseau | rotation de pointe | 180° |
-|---|---|---|
-| chasseur cylon | 275 °/s | 1,4 s |
-| raider | 179 °/s | 2,2 s |
-| Remorqueur (plus petit civil, rayon 4,2) | 73 °/s | 5,5 s |
-| porte-drones | 62 °/s | 6,5 s |
-| gunship | 48 °/s | 8,4 s |
-| Cargo · Transport · Citerne · Hôpital | 35 → 30 °/s | 11,5 → 13,6 s |
-| **Paquebot Cloud 9** (plus grosse coque civile, 7,2) | 26 °/s | **15,6 s** |
-| CUIRASSÉ cylon | 24 °/s (mesuré) | — |
+> **RÈGLE : rayon 4,2 → 19 °/s. Toute coque plus grosse tourne PLUS LENTEMENT que la baleine.**
+> Le taux vaut `convoyTurnRate × (4,2 / rayon)^turnMassExp`. Ce n'est plus un tâtonnement mais
+> une loi ancrée sur un point validé en jeu.
 
-⚠ Deux corrections sont nées de cette simple mesure, et aucune ne se voyait à la lecture :
+| vaisseau | rayon | rotation | demi-tour |
+|---|---|---|---|
+| **BALEINE** (référence validée) | 4,2 | **19 °/s** | **9,7 s** |
+| Remorqueur — même taille, donc même virage | 4,2 | 19 °/s | 10,1 s |
+| Cargo lourd | 6,0 | 11,1 °/s | 17,3 s |
+| Transport Gemenon | 6,2 | 10,6 °/s | 18,1 s |
+| Citerne à tylium | 6,4 | 10,1 °/s | 19,0 s |
+| Navire-hôpital | 6,6 | 9,6 °/s | 19,9 s |
+| **Paquebot Cloud 9** | 7,2 | 8,5 °/s | 22,7 s |
+| **CUIRASSÉ cylon** | 46 | 7 °/s | 27,4 s |
+
+Les ennemis sont **tous plus petits que la baleine**, donc la règle les autorise à être vifs :
+chasseur 275 °/s (0,7 s) · raider 179 °/s (1,1 s) · porte-drones 62 °/s (3,1 s) · gunship
+48 °/s (4,0 s). ⚠ Sous la même loi ils tomberaient à 54 · 39 · 31 · 22 °/s — c'est un choix de
+design ouvert (une chasse embarquée doit-elle rester acrobatique ?), pas un oubli.
+
+⚠ **Quatre corrections sont nées de cette seule question, et aucune ne se voyait à la lecture :**
 - **`lag` était tiré de l'INDICE dans la liste** (`0.35 + ((i * 0.317) % 1) * 0.5`). Le paquebot
   étant premier, il recevait la valeur la plus basse et devenait **le plus vif des six** :
   demi-tour en 2,5 s contre 8,6 s pour le navire-hôpital. La plus grosse coque du jeu était la
-  plus agile, par accident de rangement. `lag` dérive maintenant du **rayon de coque**, plus un
-  petit écart par indice pour qu'aucun ne soit identique — c'était la seule intention
-  défendable du tirage d'origine. Comme `lag` sert AUSSI à l'inertie de station, la masse
-  commande désormais les deux, ce qui est physiquement juste.
+  plus agile, **par accident de rangement**. La rotation vient maintenant du **rayon**, et `lag`
+  ne garde que l'inertie de translation (elle aussi dérivée de la masse).
 - **`Math.min(1, dt * taux)` sature sur une frame longue** et fait pivoter la coque d'un bloc
-  (relevé des pointes impossibles en headless). Remplacé par une **vitesse angulaire
-  plafonnée** : on garde le caractère proportionnel — vif quand le cap est loin, doux à
-  l'arrivée — mais borné à `taux × 1,2` rad/s. Sur un bâtiment lourd, ce saut ruinait à lui
-  seul l'impression de masse.
+  (relevé des pointes impossibles en headless). Remplacé partout — convoi, ennemis, cuirassé —
+  par une **vitesse angulaire plafonnée**. Sur un bâtiment lourd, ce saut ruinait à lui seul
+  l'impression de masse.
+- **L'amorti d'approche mangeait la moitié du virage.** Il commençait à 69° du but, donc à
+  vitesse de rotation ÉGALE un civil mettait 15,4 s là où la baleine met 9,7 : les deux familles
+  devenaient **incomparables**, et aucun étalonnage n'était possible. D'où `TURN_GAIN = 3`, qui
+  réserve l'amorti aux 23 derniers degrés.
+- **Le cuirassé tournait à 24 °/s**, donc plus vite que la baleine, pour une coque **dix fois
+  plus longue**. C'était la violation la plus grossière de la règle. Ramené à 7 °/s ; il ne fait
+  que présenter sa bordée, la lenteur ne le pénalise pas, elle le rend imposant.
 
 **Le poste clé était la ROTATION, pas la vitesse.** La baleine tournait à **95 °/s**
 (`angAccel` 3,0 ÷ `angDrag` 1,8) : le chiffre d'un chasseur. Elle est à **19 °/s**, soit un

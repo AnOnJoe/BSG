@@ -150,16 +150,21 @@ export const TUNE = {
   // rallonge PAS la traversée utile : le bout du couloir n'est pas un objectif, on
   // saute dès que le calcul aboutit et que la flotte est dans la bulle.
   convoySpeedMul: 1.3,
-  // VIVACITÉ D'ORIENTATION DU CONVOI. Était **codée en dur** à 0,18, ce qui violait la
-  // règle du projet (toute valeur d'équilibrage est une jauge) — et ça s'est payé :
-  // impossible de savoir, sur un « la vitesse de rotation des civils n'est pas bonne »,
-  // s'il fallait monter ou descendre. Mesuré à 0,18 : 1 à 12° en 5 s, soit à la limite
-  // du perceptible, donc ils avaient probablement encore l'air de GLISSER en crabe.
-  // Le taux effectif est divisé par la mollesse propre de chaque navire (`lag`, de 0,35
-  // à 0,85), d'où six allures de virage distinctes : constante de temps de 1,2 à 2,9 s
-  // au défaut. Monter = ils pointent franchement où ils vont ; descendre = ils dérivent
-  // en travers, ce qui peut être le rendu voulu pour des cargos sans manœuvre.
-  convoyTurnRate: 0.32,
+  // VIVACITÉ D'ORIENTATION DU CONVOI, exprimée **pour une coque de la taille de la
+  // baleine** (rayon 4,2). C'est l'étalonnage donné par le joueur : « la baleine fait la
+  // taille du remorqueur, sa vitesse de rotation est parfaite, mais les autres qui sont
+  // beaucoup plus gros tournent beaucoup trop vite ». Sa rotation validée vaut 19 °/s,
+  // donc 0,276 rad/s au plafond — d'où ce chiffre, qui n'est PAS arbitraire : à rayon
+  // égal, un civil vire exactement comme la baleine.
+  // Chaque navire est ensuite ralenti par sa taille via `turnMassExp`.
+  convoyTurnRate: 0.276,
+  // COMMENT LA TAILLE RALENTIT LA ROTATION : facteur (4,2 / rayon) élevé à cette
+  // puissance. C'est la formalisation de « la masse commande la lenteur », et elle
+  // manquait — la mollesse était tirée de l'ordre de la liste, donc la plus grosse coque
+  // du jeu était la plus agile. À 1,5, le paquebot (rayon 7,2) tourne 2,25× moins vite
+  // que la baleine et met 21 s à faire demi-tour ; à 1 l'écart se resserre (×1,7), à 2
+  // il se creuse (×2,9) et un paquebot devient presque impossible à réorienter.
+  turnMassExp: 1.5,
   convoyHpMul: 1,      // PV de tous les transports (×) — appliqué au montage
   crippledAt: 0.4,     // part de coque sous laquelle un transport DÉCROCHE
   crippledSpeedMin: 0.2, // allure d'un transport à 0 % de coque (× la nominale)
@@ -247,7 +252,8 @@ export const TUNE_SPECS = [
 
   // --- Flotte civile ---
   ['convoySpeedMul', 'Allure des transports (×)', 0.4, 2.5, 0.05, 'Flotte civile', 'Allure de tous les transports : 5,2 à 7,3 au défaut. ⚠ C\'est L\'HORLOGE DU NIVEAU — la clarté du calcul de saut dépend de la fraction de couloir parcourue, donc ralentir le convoi RETARDE la fin du secteur. Repères de masse : cuirassé cylon 4,4 · gunship 5,0 · porte-drones 6,9 · ta baleine 16,9. Un civil ne devrait pas distancer un bâtiment de guerre.'],
-  ['convoyTurnRate', 'Vivacité de virage des transports', 0.05, 1.5, 0.01, 'Flotte civile', 'Vitesse à laquelle un transport oriente sa proue vers sa direction de marche. Divisée par la mollesse propre de chaque navire, d\'où six allures distinctes. Bas = ils dérivent en travers (rendu « cargo sans manœuvre ») ; haut = ils pointent franchement où ils vont. À 0,18 le virage n\'était que de 1 à 12° en 5 s, à la limite du perceptible.'],
+  ['convoyTurnRate', 'Virage des transports (à taille de baleine)', 0.05, 1.5, 0.002, 'Flotte civile', 'Vitesse de virage d\'un transport qui aurait la TAILLE DE LA BALEINE (rayon 4,2, comme le remorqueur). Au défaut il vire exactement comme elle : 19 °/s. Les plus gros sont ralentis par le réglage ci-dessous. Bas = ils dérivent en travers (rendu « cargo sans manœuvre ») ; haut = ils pointent franchement où ils vont.'],
+  ['turnMassExp', 'La taille ralentit la rotation (puissance)', 0, 3, 0.1, 'Flotte civile', 'Comment la taille de coque ralentit le virage : facteur (4,2 ÷ rayon) à cette puissance. C\'est la formalisation de « la masse commande la lenteur ». À 0 tout le monde vire pareil ; à 1,5 (défaut) le paquebot Cloud 9 tourne 2,25× moins vite que la baleine et met 21 s à faire demi-tour ; à 2 il devient presque impossible à réorienter.'],
   ['convoyHpMul', 'PV des transports (×)', 0.3, 3, 0.1, 'Flotte civile', 'PV de tous les transports. Appliqué au montage de la flotte, donc au prochain départ — pas en pleine bataille.'],
   ['crippledAt', 'Décrochage sous (part de coque)', 0.1, 0.9, 0.05, 'Flotte civile', 'Part de coque sous laquelle un transport perd sa propulsion et DÉCROCHE. Monter = des traînards plus tôt et plus souvent.'],
   ['crippledSpeedMin', 'Allure d\'un éclopé à 0 % (×)', 0.05, 0.5, 0.05, 'Flotte civile', 'Allure d\'un transport à 0 % de coque. Bas = un éclopé est vraiment perdu ; haut = il suit encore et le dilemme disparaît.'],

@@ -248,11 +248,25 @@ export class CapitalShip {
 
       // Il présente le FLANC à la flotte : ses bordées sont latérales, il ne pointe
       // pas sa proue.
+      //
+      // ⚠ C'EST LA PLUS GROSSE MASSE DU JEU, elle doit être la plus lente à s'orienter.
+      // Le lissage à 0,25 donnait 24 °/s mesurés — soit PLUS VITE QUE LA BALEINE (19 °/s)
+      // pour une coque dix fois plus longue. Grief exact : « les autres qui sont beaucoup
+      // plus gros tournent beaucoup trop vite ». Ramené à 7 °/s au plafond, soit un
+      // demi-tour en ~26 s ; ça reste jouable parce qu'il ne fait que présenter sa bordée,
+      // il n'a pas de cap à tenir.
+      // Vitesse angulaire PLAFONNÉE et non lissage saturable, comme partout ailleurs :
+      // `min(1, dt * taux)` fait pivoter la coque d'un bloc sur une frame longue, et sur
+      // une masse de 46 unités ce saut est le plus visible de tous.
       const want = Math.atan2(fleetY - this.group.position.y,
         fleetX - this.group.position.x) + Math.PI / 2;
       let d = ((want - this.group.rotation.z + Math.PI) % (Math.PI * 2)) - Math.PI;
       if (d < -Math.PI) d += Math.PI * 2;
-      this.group.rotation.z += d * Math.min(1, dt * 0.25); // manœuvre pesante
+      const rate = this.config.turnRate ?? 0.1;   // rad/s par rad d'écart
+      // Gain d'approche : cf. `TURN_GAIN` dans Convoy.js.
+      const omega = Math.max(-rate * 1.2, Math.min(rate * 1.2, d * rate * 3));
+      const step = omega * dt;
+      this.group.rotation.z += Math.abs(step) > Math.abs(d) ? d : step;
     }
 
     this.group.position.x = THREE.MathUtils.clamp(this.group.position.x, -ctx.bounds.x + 26, ctx.bounds.x - 26);

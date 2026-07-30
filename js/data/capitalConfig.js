@@ -82,6 +82,12 @@ export const CAPITAL_CONFIG = {
   // est déjà pesante (lissage 0,25 dans `CapitalShip.update`) ; c'est la translation
   // qui manquait. Repère : convoi 8-12, raider 12,6, chasseur 18,9.
   speed: 4.4,
+  // Vitesse d'orientation (rad/s par rad d'écart) : plafonnée à ×1,2, soit **7 °/s** et
+  // un demi-tour en ~26 s. La plus grosse masse du jeu doit être la plus lente à
+  // s'orienter — elle tournait à 24 °/s, donc plus vite que la baleine (19 °/s) pour une
+  // coque dix fois plus longue. Il ne fait que présenter sa bordée, il n'a pas de cap à
+  // tenir : la lenteur ne le pénalise pas, elle le rend imposant.
+  turnRate: 0.102,
   standoff: 71.4,        // distance de bombardement qu'il cherche à tenir
   bridgeFirePenalty: 0.5, // cadence des batteries (×) quand le pont est détruit
   reward: 900,         // crédits pour l'avoir démonté
