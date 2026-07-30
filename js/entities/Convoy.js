@@ -515,17 +515,18 @@ export class Convoy {
       // (« il faut imaginer de gros vaisseaux lents ») : une masse tourne LENTEMENT,
       // mais elle tourne, et c'est précisément cette lenteur qui se voit et qui pèse.
       // La proue est en +X (cf. les profils dans `convoyConfig`), donc aucun décalage.
-      // Taux volontairement bas et fonction de la mollesse propre du navire (`lag`
-      // ∈ [0,35 ; 0,85]) : constante de temps de **2 à 4,7 s** selon le navire, donc
-      // six masses qui ne virent pas ensemble. Un taux plus vif (essayé à 0,55) ramenait
-      // la constante sous la seconde et rendait le convoi frétillant — exactement le
-      // défaut qu'on corrige.
+      // Le taux est divisé par la mollesse propre du navire (`lag` ∈ [0,35 ; 0,85]) :
+      // six masses qui ne virent pas ensemble, et jamais toutes à la même vitesse.
+      // ⚠ RÉGLABLE (`TUNE.convoyTurnRate`) et pas codé en dur : il l'était à 0,18, et sur
+      // un « la vitesse de rotation des civils n'est pas bonne » il était impossible de
+      // savoir s'il fallait monter ou descendre sans toucher au code. C'est exactement le
+      // cas que la règle du panneau T existe pour éviter.
       const spd = Math.hypot(t._vx, t._vy);
       if (spd > 0.4) {
         const wantRot = Math.atan2(t._vy, t._vx);
         let dr = ((wantRot - t.group.rotation.z + Math.PI) % (Math.PI * 2)) - Math.PI;
         if (dr < -Math.PI) dr += Math.PI * 2;
-        t.group.rotation.z += dr * Math.min(1, dt * (0.18 / Math.max(0.35, tr.lag)));
+        t.group.rotation.z += dr * Math.min(1, dt * (TUNE.convoyTurnRate / Math.max(0.35, tr.lag)));
       }
 
       // FORCER : les moteurs s'usent, et ça se paie en coque.

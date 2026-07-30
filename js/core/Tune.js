@@ -134,7 +134,32 @@ export const TUNE = {
   ftlForcedRate: 2.4,  // vitesse du calcul en mode FORCÉ (×)
   ftlForcedDrain: 14,  // énergie ponctionnée par le mode FORCÉ (/s)
   // ===== FLOTTE CIVILE (elle est l'économie de la partie) =====
-  convoySpeedMul: 2.1,   // allure de tous les transports (×)
+  // ⚠ ALLURE DU CONVOI — et c'est L'HORLOGE DU NIVEAU, pas un simple réglage visuel.
+  // Relevé en partie test : « la vitesse de mon vaisseau semble ok mais pas celle des
+  // civils ». Mesuré, le grief était fondé et même chiffrable : le paquebot Cloud 9,
+  // la plus grosse coque civile (rayon 7,2 · 20 400 âmes), filait à 9,7 — DEUX FOIS
+  // l'allure d'un gunship cylon (5,0) et du cuirassé (4,4). Un paquebot qui distance
+  // des bâtiments de guerre contredit la règle « la masse commande la lenteur ».
+  // Pire, `convoyCatchup` portait un traînard à 17,1, donc plus vite que l'escorte
+  // elle-même (16,9) : un civil qui recolle dépassait le vaisseau qui le protège.
+  //
+  // ⚠ CE QUE ÇA COÛTE, et il faut le savoir avant de bouger ce curseur : la qualité du
+  // calcul de saut dépend de la FRACTION du couloir parcourue (`FtlDrive.clarity`).
+  // Ralentir le convoi fait donc monter la clarté moins vite, donc **retarde
+  // l'aboutissement du calcul** — c'est-à-dire la fin du secteur. En revanche ça ne
+  // rallonge PAS la traversée utile : le bout du couloir n'est pas un objectif, on
+  // saute dès que le calcul aboutit et que la flotte est dans la bulle.
+  convoySpeedMul: 1.3,
+  // VIVACITÉ D'ORIENTATION DU CONVOI. Était **codée en dur** à 0,18, ce qui violait la
+  // règle du projet (toute valeur d'équilibrage est une jauge) — et ça s'est payé :
+  // impossible de savoir, sur un « la vitesse de rotation des civils n'est pas bonne »,
+  // s'il fallait monter ou descendre. Mesuré à 0,18 : 1 à 12° en 5 s, soit à la limite
+  // du perceptible, donc ils avaient probablement encore l'air de GLISSER en crabe.
+  // Le taux effectif est divisé par la mollesse propre de chaque navire (`lag`, de 0,35
+  // à 0,85), d'où six allures de virage distinctes : constante de temps de 1,2 à 2,9 s
+  // au défaut. Monter = ils pointent franchement où ils vont ; descendre = ils dérivent
+  // en travers, ce qui peut être le rendu voulu pour des cargos sans manœuvre.
+  convoyTurnRate: 0.32,
   convoyHpMul: 1,      // PV de tous les transports (×) — appliqué au montage
   crippledAt: 0.4,     // part de coque sous laquelle un transport DÉCROCHE
   crippledSpeedMin: 0.2, // allure d'un transport à 0 % de coque (× la nominale)
@@ -221,7 +246,8 @@ export const TUNE_SPECS = [
   ['contactDelay', 'Sursis avant contact (s)', 2, 40, 1, 'Fuite & saut', 'Sursis en arrivant dans le couloir, avant que les Cylons ne tombent. Le temps de se placer.'],
 
   // --- Flotte civile ---
-  ['convoySpeedMul', 'Allure des transports (×)', 0.4, 2.5, 0.05, 'Flotte civile', 'Allure de tous les transports. Monter = la flotte traverse vite, donc moins d\'assauts et un calcul moins perturbé. Effet fort sur la durée d\'un secteur.'],
+  ['convoySpeedMul', 'Allure des transports (×)', 0.4, 2.5, 0.05, 'Flotte civile', 'Allure de tous les transports : 5,2 à 7,3 au défaut. ⚠ C\'est L\'HORLOGE DU NIVEAU — la clarté du calcul de saut dépend de la fraction de couloir parcourue, donc ralentir le convoi RETARDE la fin du secteur. Repères de masse : cuirassé cylon 4,4 · gunship 5,0 · porte-drones 6,9 · ta baleine 16,9. Un civil ne devrait pas distancer un bâtiment de guerre.'],
+  ['convoyTurnRate', 'Vivacité de virage des transports', 0.05, 1.5, 0.01, 'Flotte civile', 'Vitesse à laquelle un transport oriente sa proue vers sa direction de marche. Divisée par la mollesse propre de chaque navire, d\'où six allures distinctes. Bas = ils dérivent en travers (rendu « cargo sans manœuvre ») ; haut = ils pointent franchement où ils vont. À 0,18 le virage n\'était que de 1 à 12° en 5 s, à la limite du perceptible.'],
   ['convoyHpMul', 'PV des transports (×)', 0.3, 3, 0.1, 'Flotte civile', 'PV de tous les transports. Appliqué au montage de la flotte, donc au prochain départ — pas en pleine bataille.'],
   ['crippledAt', 'Décrochage sous (part de coque)', 0.1, 0.9, 0.05, 'Flotte civile', 'Part de coque sous laquelle un transport perd sa propulsion et DÉCROCHE. Monter = des traînards plus tôt et plus souvent.'],
   ['crippledSpeedMin', 'Allure d\'un éclopé à 0 % (×)', 0.05, 0.5, 0.05, 'Flotte civile', 'Allure d\'un transport à 0 % de coque. Bas = un éclopé est vraiment perdu ; haut = il suit encore et le dilemme disparaît.'],

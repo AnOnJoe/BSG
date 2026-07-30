@@ -522,12 +522,20 @@ Hiérarchie mesurée après correction (unités/s) :
 | cuirassé | 6,7 | **4,4** |
 | gunship (bâtiment léger) | 7,6 | **5,0** |
 | porte-drones | 10,1 | **6,9** |
-| convoi civil | 8,4-10,9 | inchangé (c'est l'horloge du niveau) |
+| **convoi civil** | 8,4-10,9 | **5,2-6,8** |
 | raider | 12,6 | inchangé |
-| **baleine (pointe)** | 21 | **16,9** |
+| **baleine (pointe)** | 21 | **16,9** — validée par le joueur |
 | chasseur | 18,9 | inchangé |
-| intercepteur / drone | 36 | inchangé |
+| intercepteur / drone | 36 | inchangé — validé par le joueur |
 | missile | 46 | **78** |
+
+**Le convoi était le pire contre-exemple**, et il avait été laissé de côté au premier passage
+sous prétexte qu'il est « l'horloge du niveau ». Mesuré : le paquebot Cloud 9, plus grosse coque
+civile du jeu (rayon 7,2 · 20 400 âmes), filait à **9,7 — deux fois l'allure d'un gunship cylon
+et du cuirassé**. Et `convoyCatchup` portait un traînard à **17,1**, donc plus vite que
+l'escorte elle-même (16,9) : un civil qui recolle dépassait le vaisseau censé le protéger.
+Corrigé par `convoySpeedMul` 2,1 → 1,3 ; vérifié qu'aucun civil, même en recollant (9,8 au
+plus), ne dépasse plus la baleine.
 
 **Le poste clé était la ROTATION, pas la vitesse.** La baleine tournait à **95 °/s**
 (`angAccel` 3,0 ÷ `angDrag` 1,8) : le chiffre d'un chasseur. Elle est à **19 °/s**, soit un
@@ -538,10 +546,16 @@ pour un chasseur.
 
 **Les transports ne tournaient pas du tout** : `rotation.z` restait à 0 pour toujours, donc
 un cargo qui montait en formation se déplaçait **en crabe**, proue obstinément vers la sortie.
-Ils ont maintenant un cap qui suit leur marche avec une constante de temps de **2 à 4,7 s**
-selon leur mollesse propre — mesuré, six caps distincts en permanence. Un premier essai à
-0,55 ramenait la constante sous la seconde et rendait le convoi frétillant : exactement le
-défaut qu'on corrigeait.
+Ils ont maintenant un cap qui suit leur marche, divisé par leur mollesse propre — six allures
+de virage distinctes en permanence. Mesuré sur un demi-tour demandé : **60 à 85° en 2 s**,
+puis 75 à 185° au bout de 8 s.
+
+⚠ **Ce taux était CODÉ EN DUR (0,18), et ça s'est payé cash.** Sur un retour de partie « la
+vitesse de rotation des civils n'est pas bonne », il était impossible de savoir s'il fallait
+monter ou descendre — seule une mesure a montré que le virage ne faisait que 1 à 12° en 5 s,
+donc à la limite du perceptible. C'est exactement le cas que la règle du panneau T existe pour
+éviter : `TUNE.convoyTurnRate`. **Une valeur de sensation doit être une jauge, sinon chaque
+retour du joueur devient une devinette.**
 
 Corollaire : **le déplacement au clic devient le geste principal**, pas une option. C'est
 l'idiome du genre, et il est le seul praticable avec une telle inertie.
@@ -656,12 +670,21 @@ d'engagement à l'échelle. Mesuré après :
 | espacement des obstacles | 37 | **116** |
 | couloir en écrans | 5,3 | **8,3** |
 
-⚠ **La HAUTEUR est gratuite, la LONGUEUR ne l'est pas.** Le couloir se traverse en X :
-l'allonger rallonge la traversée en secondes et casse la course contre `sector.ftlTime`,
-déjà calibrée. La hauteur ne se traverse pas — on peut l'ouvrir largement, et c'est ce qu'on
-veut en dézoomant : voir du vide, pas les bords du niveau. Vérifié après rescale : calcul
-prêt à **170 s**, flotte au bout du couloir à **230 s**, soit les **+60 s** d'avance
-documentés (clarté 0,43 → 0,92, taux 0,101 → 0,207 %/s).
+⚠ **La hauteur est gratuite ; la longueur se paie, mais pas comme je l'ai d'abord écrit.**
+J'ai longtemps documenté que rallonger le couloir « rallonge la traversée et casse la course
+contre `sector.ftlTime` ». C'est faux, et la confusion vient d'avoir pris **l'arrivée au bout
+du couloir pour la fin du secteur**. Elle ne l'est pas :
+
+> **Le bout du couloir n'est PAS un objectif.** `CONVOY_LIMIT` est seulement l'endroit où la
+> flotte cesse d'avancer. Le secteur se termine quand le **calcul de saut aboutit** et qu'on
+> ordonne le départ. La longueur du couloir n'agit donc que sur la **clarté** (`FtlDrive.clarity`,
+> fonction de la FRACTION parcourue), c'est-à-dire sur la vitesse du calcul — pas sur une
+> distance à couvrir.
+
+Conséquence pratique : un couloir long est **bon marché**. Mesuré, en ralentissant le convoi de
+8,4-10,9 à 5,2-6,8 sans toucher à la longueur, le calcul aboutit à **200 s au lieu de 170 s** —
+30 s de plus, et la flotte n'a parcouru que **69 %** du couloir au moment du saut. Elle en
+épuisait la quasi-totalité avant, donc la longueur sert enfin à quelque chose.
 
 ### ⚠⚠ CINQ VALEURS ABSOLUES OUBLIÉES PAR LE RESCALE
 Le piège de ce genre de chantier : chaque oubli fait disparaître un effet **en silence**.
@@ -1053,8 +1076,12 @@ Les cinq chantiers décidés sont faits : **5** (scènes par secteur), **2** (é
    (0,9 → 19 °/s ; à 1,4 on passe à 31 °/s). Points ouverts :
    - un demi-tour en **9,7 s** est-il jouable à la barre, ou faut-il que le clic devienne le seul
      mode de conduite ?
-   - le cuirassé à **4,4** est-il devenu ennuyeux à attendre ?
-   - les transports virent de 1 à 12° en 5 s : est-ce visible, ou faut-il exagérer le roulis ?
+   - **les ennemis** : point explicitement laissé ouvert par le joueur (« j'ai un doute »), à
+     juger maintenant que les civils sont à leur allure. Les deux lectures possibles étaient : le
+     chasseur à 18,9 dépasse la baleine (normal dans le genre — c'est ce qui le rend menaçant),
+     ou le cuirassé à 4,4 et le gunship à 5,0 sont devenus ennuyeux à attendre.
+   - le convoi à **5,2-6,8** : bonne masse, ou trop pesant ? Deux jauges, `convoySpeedMul` et
+     `convoyTurnRate`, et elles se règlent en jeu.
 1. **JOUER UNE TRAVERSÉE COMPLÈTE.** La boucle a un début, une économie, cinq postes et deux fins,
    mais **elle n'a jamais été jouée en entier**. Les tests headless valident les mécanismes, jamais
    le dosage. À juger manette en main :
