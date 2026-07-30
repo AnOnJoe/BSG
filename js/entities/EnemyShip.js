@@ -4,11 +4,9 @@ import { TUNE } from '../core/Tune.js';
 
 const _v = new THREE.Vector3();
 
-function lerpAngle(a, b, t) {
-  let d = ((b - a + Math.PI) % (Math.PI * 2)) - Math.PI;
-  if (d < -Math.PI) d += Math.PI * 2;
-  return a + d * t;
-}
+// (`lerpAngle` a été retiré : l'orientation passe maintenant par une vitesse angulaire
+// plafonnée, cf. `update` — un lissage `min(1, dt * taux)` sature sur une frame longue et
+// fait pivoter la coque d'un bloc.)
 
 // Silhouette « raider » (nez vers -X en local)
 const PROFILE = [
@@ -231,10 +229,17 @@ export class EnemyShip {
     // paresseusement que le bâtiment est lourd (`turn`). Le taux était fixé à 4 pour
     // tous : un cuirassé léger pivotait aussi sec qu'un chasseur, ce qui est
     // exactement le « trop nerveux » relevé en partie test.
+    // ⚠ Vitesse angulaire PLAFONNÉE, pour la même raison que côté convoi : un lissage
+    // `min(1, dt * taux)` sature sur une frame longue et fait pivoter la coque d'un
+    // bloc. Sur un bâtiment lourd, ce saut ruine à lui seul l'impression de masse.
     if (sp > 0.5) {
-      const angV = Math.atan2(vy, vx);
-      this.group.rotation.z = lerpAngle(this.group.rotation.z, angV + Math.PI,
-        Math.min(1, dt * (this.turnRate || 4)));
+      const angV = Math.atan2(vy, vx) + Math.PI;
+      const rate = this.turnRate || 4;
+      let dr = ((angV - this.group.rotation.z + Math.PI) % (Math.PI * 2)) - Math.PI;
+      if (dr < -Math.PI) dr += Math.PI * 2;
+      const omega = Math.max(-rate * 1.2, Math.min(rate * 1.2, dr * rate));
+      const step = omega * dt;
+      this.group.rotation.z += Math.abs(step) > Math.abs(dr) ? dr : step;
     }
 
     if (this.flash > 0) {

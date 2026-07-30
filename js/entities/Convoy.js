@@ -392,9 +392,21 @@ export class Convoy {
       // Traits stables tirés une fois par vaisseau : sans eux ils bougent tous
       // exactement pareil, et six coques distinctes se lisent comme un bloc.
       if (t._trait === undefined) {
+        // ⚠ `lag` COMMANDE LA MOLLESSE (inertie de station ET vivacité de virage), et il
+        // était tiré de l'INDICE DANS LA LISTE : `0.35 + ((i * 0.317) % 1) * 0.5`. Le
+        // paquebot Cloud 9 étant premier, il recevait 0,35 — la valeur la plus basse,
+        // donc la plus vive. Résultat mesuré : la PLUS GROSSE coque du jeu (rayon 7,2 ·
+        // 20 400 âmes) faisait son demi-tour en 2,5 s quand le navire-hôpital en mettait
+        // 8,6. La plus lourde était la plus agile, par accident de rangement, ce qui
+        // contredit frontalement « la masse commande la lenteur ».
+        // Il dérive donc du RAYON DE COQUE (4,2 pour le remorqueur → 7,2 pour le
+        // paquebot), plus un petit écart par indice pour qu'aucun ne soit identique à un
+        // autre — c'était la seule intention défendable du tirage d'origine.
+        const rMin = 4.2, rMax = 7.2;
+        const mass = Math.max(0, Math.min(1, ((t.def.radius ?? rMin) - rMin) / (rMax - rMin)));
         t._trait = {
           pace: 0.9 + ((i * 0.173) % 1) * 0.22,   // allure de croisière propre
-          lag: 0.35 + ((i * 0.317) % 1) * 0.5,    // mollesse à rejoindre sa station
+          lag: 0.30 + mass * 0.55 + ((i * 0.317) % 1) * 0.06, // mollesse ∝ masse
           drift: ((i * 0.611) % 1) * Math.PI * 2, // phase de son balancement
           off: (((i * 0.437) % 1) * 2 - 1) * 9,   // décalage de station personnel
         };
@@ -526,7 +538,16 @@ export class Convoy {
         const wantRot = Math.atan2(t._vy, t._vx);
         let dr = ((wantRot - t.group.rotation.z + Math.PI) % (Math.PI * 2)) - Math.PI;
         if (dr < -Math.PI) dr += Math.PI * 2;
-        t.group.rotation.z += dr * Math.min(1, dt * (TUNE.convoyTurnRate / Math.max(0.35, tr.lag)));
+        // ⚠ VITESSE ANGULAIRE PLAFONNÉE, et non un simple lissage `min(1, dt * taux)`.
+        // Ce lissage sature dès que `dt` s'allonge (une frame longue suffit) : la proue
+        // saute alors d'un coup, ce qui est le contraire de la masse qu'on veut vendre
+        // et se lit comme un défaut d'affichage. Mesuré en headless, des pointes à plus
+        // de 100 °/s sur un hoquet de frame. On garde le caractère proportionnel — vif
+        // quand le cap est loin, doux à l'arrivée — mais borné.
+        const rate = TUNE.convoyTurnRate / Math.max(0.3, tr.lag);   // rad/s par rad d'écart
+        const omega = Math.max(-rate * 1.2, Math.min(rate * 1.2, dr * rate));
+        const step = omega * dt;
+        t.group.rotation.z += Math.abs(step) > Math.abs(dr) ? dr : step;
       }
 
       // FORCER : les moteurs s'usent, et ça se paie en coque.

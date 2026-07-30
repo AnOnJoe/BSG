@@ -50,6 +50,11 @@ Chacun de ces cas a produit un rapport alarmant et faux.
   « cible immobile » ne l'est pas. Pour juger la conduite de tir, appeler
   `weapons._fireControl()` **directement** sur une cible synthétique
   (`{position, radius}`), et mettre `assaultTimer = Infinity`.
+  ⚠ Et `assaultTimer = Infinity` **ne suffit pas** : un `spawn()` remet `rotation.z` à 0, ce
+  qui a produit des pointes de rotation de **3247 °/s** là où le code plafonne à 275. Vérifier
+  que `e.type` n'a pas changé pendant la mesure, et sinon **ne pas passer par le pool du tout** :
+  pour une loi explicite (rotation, dispersion), la simuler hors du jeu est plus fiable que de
+  la mesurer dedans.
 - **Le laser est HITSCAN** : il ne crée aucun projectile. Compter `range.bolts` mesure
   zéro quoi qu'il arrive ; il faut lire les dégâts cumulés.
 - **`WeaponControl.ordered` est une liste MISE EN CACHE.** Monter un module en test sans
@@ -536,6 +541,46 @@ et du cuirassé**. Et `convoyCatchup` portait un traînard à **17,1**, donc plu
 l'escorte elle-même (16,9) : un civil qui recolle dépassait le vaisseau censé le protéger.
 Corrigé par `convoySpeedMul` 2,1 → 1,3 ; vérifié qu'aucun civil, même en recollant (9,8 au
 plus), ne dépasse plus la baleine.
+
+### Temps de rotation, tous vaisseaux (référence)
+Le chiffre à citer pour la baleine est **18,9 s le tour complet**, mais il n'y en a pas qu'un :
+sa rotation passe par le **bus moteurs** (`angAccel * engineMul`), donc le profil d'énergie la
+change du simple au double. C'est un effet de gameplay réel — le profil COURSE est aussi un
+profil de manœuvre.
+
+| baleine, profil d'énergie | rotation | 180° | **360°** |
+|---|---|---|---|
+| COURSE (moteurs 60 %) | 28,1 °/s | 6,6 s | **12,9 s** |
+| ÉQUILIBRE | 19,0 °/s | 9,7 s | **18,9 s** |
+| ATTAQUE ou DÉFENSE (moteurs 20 %) | 14,4 °/s | 12,6 s | **24,8 s** |
+
+Les autres ne tournent pas par couple mais **rejoignent un cap voulu**, donc ils ne font jamais
+360° — au pire un demi-tour, et la fin est asymptotique. Calculé depuis la loi implémentée :
+
+| vaisseau | rotation de pointe | 180° |
+|---|---|---|
+| chasseur cylon | 275 °/s | 1,4 s |
+| raider | 179 °/s | 2,2 s |
+| Remorqueur (plus petit civil, rayon 4,2) | 73 °/s | 5,5 s |
+| porte-drones | 62 °/s | 6,5 s |
+| gunship | 48 °/s | 8,4 s |
+| Cargo · Transport · Citerne · Hôpital | 35 → 30 °/s | 11,5 → 13,6 s |
+| **Paquebot Cloud 9** (plus grosse coque civile, 7,2) | 26 °/s | **15,6 s** |
+| CUIRASSÉ cylon | 24 °/s (mesuré) | — |
+
+⚠ Deux corrections sont nées de cette simple mesure, et aucune ne se voyait à la lecture :
+- **`lag` était tiré de l'INDICE dans la liste** (`0.35 + ((i * 0.317) % 1) * 0.5`). Le paquebot
+  étant premier, il recevait la valeur la plus basse et devenait **le plus vif des six** :
+  demi-tour en 2,5 s contre 8,6 s pour le navire-hôpital. La plus grosse coque du jeu était la
+  plus agile, par accident de rangement. `lag` dérive maintenant du **rayon de coque**, plus un
+  petit écart par indice pour qu'aucun ne soit identique — c'était la seule intention
+  défendable du tirage d'origine. Comme `lag` sert AUSSI à l'inertie de station, la masse
+  commande désormais les deux, ce qui est physiquement juste.
+- **`Math.min(1, dt * taux)` sature sur une frame longue** et fait pivoter la coque d'un bloc
+  (relevé des pointes impossibles en headless). Remplacé par une **vitesse angulaire
+  plafonnée** : on garde le caractère proportionnel — vif quand le cap est loin, doux à
+  l'arrivée — mais borné à `taux × 1,2` rad/s. Sur un bâtiment lourd, ce saut ruinait à lui
+  seul l'impression de masse.
 
 **Le poste clé était la ROTATION, pas la vitesse.** La baleine tournait à **95 °/s**
 (`angAccel` 3,0 ÷ `angDrag` 1,8) : le chiffre d'un chasseur. Elle est à **19 °/s**, soit un
