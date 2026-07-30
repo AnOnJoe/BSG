@@ -1087,8 +1087,14 @@ export class Range {
           Math.min(this.ship.structureMax, this.ship.structure + effect.structure));
       }
       if (effect.salvage) this.app.addSalvage(effect.salvage);
+      // ⚠ Plafond à 88 et non 95. Vécu en partie test complète : au premier secteur, deux
+      // choix favorables (+10 et +18) portaient le calcul à 92-95 % dès l'arrivée — le
+      // secteur se gagnait en attendant ~50 s sans combattre, ce qui casse LE ressort du
+      // jeu (« il manque toujours quelques pourcents, et il faut les tenir sous le feu »).
+      // À 88 %, même en payant tous les bonus il reste au moins un assaut à encaisser ;
+      // les bonus restent rentables (ils écourtent), ils n'achètent plus un secteur blanc.
       if (effect.ftlBonus) {
-        this.ftl.charge = Math.max(0, Math.min(95, this.ftl.charge + effect.ftlBonus));
+        this.ftl.charge = Math.max(0, Math.min(88, this.ftl.charge + effect.ftlBonus));
       }
       // Jalon du dénouement : on note que le commandant a payé pour chercher
       // l'émission. Aucune mécanique encore — le transport compromis viendra.
@@ -1109,9 +1115,17 @@ export class Range {
     // par `JUMP_REPAIR`) — un prêt d'équipage se dénoue quand on est à l'abri.
     if (this.modulesOffline > 0) {
       const cut = [];
+      // ⚠ ON NE DÉTACHE JAMAIS LA DERNIÈRE ARME. Vécu en partie test complète : au
+      // premier secteur l'équipement de départ n'a QU'UN canon, et le choix « prêter une
+      // équipe » le coupait — vaisseau totalement désarmé pendant tout le secteur, coque
+      // 100 → 26, zéro Cylon abattu, zéro matériel. Le choix annonce un malus, pas un
+      // désarmement : une pénalité qui supprime le seul moyen d'agir n'est plus un
+      // arbitrage, c'est un piège invisible au moment de choisir.
+      const armes = () => this.ship.orderedModules()
+        .filter((m) => m.kind === 'weapon' && m.active && !m._sectionDown);
       for (const m of this.ship.orderedModules()) {
         if (cut.length >= this.modulesOffline) break;
-        if (m.kind === 'weapon' && m.active && !m._sectionDown) {
+        if (m.kind === 'weapon' && m.active && !m._sectionDown && armes().length > 1) {
           m.setActive(false);
           m._crewDetached = true;
           cut.push(m.def.name);
@@ -1120,6 +1134,9 @@ export class Range {
       if (cut.length) {
         this.hud.pushLog(`Équipe détachée sur un transport : ${cut.join(' et ')} hors service `
           + 'jusqu\'au prochain saut.');
+      }
+      if (cut.length < this.modulesOffline) {
+        this.hud.pushLog('L\'équipe du dernier canon reste à bord — on ne désarme pas le vaisseau.');
       }
       this.hud.refreshStates();
     }

@@ -48,7 +48,21 @@ export const START_PLANS = ['laser', 'reactor', 'radar'];
  * encore acquis) — la progression est donc lisible et jamais bloquée par le hasard.
  * Démonter un cuirassé en donne un de plus (cf. `Range._destroyCapital`).
  */
-export const PLAN_ORDER = ['armor', 'shield', 'missile', 'ciws', 'interceptor', 'emp'];
+/**
+ * ⚠ L'ORDRE SUIT LES MENACES, pas l'inverse. Vérifié en partie test complète : avec
+ * l'ancien ordre (armor, shield, missile, ciws…), l'ESCADRE PORTE-DRONES apparaît dès
+ * 30 % de la traversée (secteur 2) mais le canon anti-drone n'arrivait qu'au secteur 5 —
+ * trois secteurs face à une menace que la règle du projet qualifie elle-même
+ * d'incontrable au laser (mesuré : 9,2 s et 22 tirs pour 3 drones, contre 1,0 s au CIWS).
+ * Correspondance visée, un contre par menace AVANT qu'elle ne domine :
+ *   S2 → ciws     (porte-drones dès 0,30 de progression)
+ *   S3 → missile  (colonne blindée à 0,45)
+ *   S4 → shield   (groupe de combat à 0,60)
+ *   S5 → armor    (force de siège à 0,80)
+ * Interceptor et emp restent en prime de démontage de cuirassé : des outils de confort,
+ * pas des contres indispensables.
+ */
+export const PLAN_ORDER = ['ciws', 'missile', 'shield', 'armor', 'interceptor', 'emp'];
 export const PLANS_PER_SECTOR = 1;
 
 /** Libellé de chaque plan pour l'annonce au journal. */

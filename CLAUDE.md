@@ -1197,6 +1197,28 @@ cockpit**, **ambiance sonore**).
 Les cinq chantiers décidés sont faits : **5** (scènes par secteur), **2** (économie de campagne),
 **4** (dénouement), **3** (ingénieur) et **6** (finitions).
 
+## PARTIE TEST COMPLÈTE « À LA PLACE DU JOUEUR » (tour du 31/07)
+Menu → CIC → combat → saut → hangar → dénouement, captures d'écran jugées à l'œil.
+Trois défauts d'équilibrage corrigés, tous trouvés EN JOUANT et invisibles dans le code :
+- **Un choix du CIC désarmait totalement le vaisseau.** L'équipement de départ n'a qu'un
+  canon ; « prêter une équipe » (`modulesOffline`) le coupait ⇒ secteur entier sans arme,
+  coque 100 → 26, zéro Cylon abattu, zéro matériel. Règle posée : **on ne détache jamais la
+  dernière arme active**, et le refus est annoncé.
+- **Les bonus FTL du CIC achetaient un secteur blanc.** +10 et +18 au premier arc ⇒ 92-95 %
+  dès l'arrivée, il suffisait d'attendre ~50 s sans combattre. Plafond 95 → **88** : les
+  bonus écourtent, ils n'annulent plus « tenir les derniers pourcents sous le feu ».
+- **Le plan anti-drone arrivait 3 secteurs après les drones.** ESCADRE PORTE-DRONES dès
+  0,30 (S2), plan `ciws` en 4e position (S5). `PLAN_ORDER` suit maintenant l'ordre des
+  menaces : ciws (S2) → missile (S3, colonne blindée 0,45) → shield (S4, groupe 0,60) →
+  armor → interceptor/emp en prime de cuirassé.
+Validé à l'œil au passage : arrivée au combat lisible (formation, rôles, effets du CIC
+annoncés), refus de saut explicite avec traînard nommé et distance, pastille « DÉT. »,
+console ÉMISSION du dénouement complète (suspects, coût du relevé, compteur).
+Points laissés au jugement du propriétaire (pas des bugs) : l'en-tête « GALACTICA · CIC »
+alors que le vaisseau est une baleine anonyme ; la zone d'entrée très vide au premier
+secteur (zone franche + obstacles étalés sur 8 écrans) ; la baleine peu repérable au milieu
+de civils plus gros qu'elle.
+
 0. **REJOUER APRÈS LE VIRAGE HOMEWORLD.** La première partie a dit « trop nerveux » et l'échelle
    « est bonne » : le chantier suivant est donc de vérifier que l'inertie va dans le bon sens sans
    tomber dans l'excès inverse. Le seul curseur à toucher si c'est trop pesant est **`angAccel`**
