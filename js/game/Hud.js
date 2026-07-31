@@ -461,7 +461,7 @@ export class Hud {
          ${this._orderRowHtml('fleet', 'FLOTTE', FLEET_ORDERS)}
          ${this._orderRowHtml('helm', 'PILOTE', HELM_ORDERS)}
          ${this._orderRowHtml('gunnery', 'ARTILLEUR', FIRE_MODES)}
-         ${this._orderRowHtml('drones', 'DRONES', DRONE_ORDERS)}
+         ${this._orderRowHtml('drones', 'CHASSE', DRONE_ORDERS)}
          ${this._orderRowHtml('engineer', 'INGÉNIEUR', ENGINEER_ORDERS)}
        </div>
        <div class="ck-group ck-modules">
@@ -634,11 +634,12 @@ export class Hud {
     this.gunNrg = b.querySelector('.g-nrg .g-val');
   }
 
-  /** DRONES : effectif et santé de l'escadron. */
+  /** CHASSE : effectif et santé de l'escadrille (nos appareils sont pilotés — ce
+   *  sont les Cylons qui envoient des drones, cf. Stations). */
   _buildDroneCockpit() {
     this.cockpits.drones.body.innerHTML =
       `<div class="ck-group">
-         <div class="ck-label">ESCADRON</div>
+         <div class="ck-label">ESCADRILLE</div>
          <div class="squad-row"></div>
        </div>
        <div class="ck-group">

@@ -440,6 +440,34 @@ latéralement, plus un `push` de sécurité. Vérifié : 0 encastrement sur 60 r
 Les astéroïdes DENSES sont réservés à `belt` — ailleurs, débris et épaves, pour ne pas répéter le
 même motif à chaque secteur.
 
+### ⚠⚠ LES ASSAUTS NE S'ADDITIONNAIENT PAS (bug fondateur, corrigé le 31/07)
+Le design dit depuis le début « assauts CONTINUS : le compteur ne s'arrête jamais, même si le
+précédent n'est pas nettoyé — la pression ne dépend pas de nos kills ». **Cette pression n'a
+jamais existé** : `_launchAssault` prenait `enemies[slot++]` depuis le DÉBUT du pool sans
+regarder qui y vivait, donc chaque assaut **remplaçait** les survivants du précédent
+(respawn par-dessus : téléportation, PV neufs). On n'a jamais eu plus d'une vague à l'écran,
+et c'est le fond des retours « il n'y a pas assez d'ennemis ». Corrigé : spawn dans les
+créneaux **libres** uniquement, pool 8 → 14 (deux NUÉES pleines peuvent se chevaucher), et
+si le pool sature l'excédent est perdu **et dit** (pas de plafonnement silencieux). Mesuré,
+équipage désarmé : 4 → 8 → 13 → **14 ennemis vivants** au fil des assauts.
+
+### ⚠ TOUT TIMER EN SECONDES DE JEU EST DILUÉ PAR `gameSpeed`
+`assaultEvery` ET `ftlTime` se comptent en secondes de jeu : l'introduction de `gameSpeed`
+(0,8) a donc étiré silencieusement TOUS les rythmes de 25 % en temps réel — d'où, coup sur
+coup, « ça manque d'action » puis « la phase de combat est un peu longue ». Les deux échelles
+ont été multipliées par 0,8 pour restituer les durées réelles calibrées à l'origine :
+`assaultEvery` 26/23/20/18/16 → **21/18/16/14/13**, `ftlTime` 110/125/140/150/165 →
+**88/100/112/120/132**. Règle : quand on touche à `gameSpeed`, repasser sur tout ce qui se
+compte en secondes de jeu — ou régler `assaultRateMul`/`ftlChargeRate` en compensation.
+
+### L'ESCADRILLE EST PILOTÉE (pas nos drones)
+« Finalement ce n'est pas des drones que l'on a nous, car Starbuck pilote un des
+intercepteurs. » Renommages : module **Escadrille Vipères** (5/7/10 appareils par niveau,
+contre 2/3/4 qui se lisaient comme trois mouches), poste **CHASSE**, cockpit **ESCADRILLE**.
+⚠ L'**id** `drones` du poste et `interceptor` du module ne bougent pas : câblés partout
+(ordres, HUD, sauvegardes), un renommage d'id casserait sans rien apporter au joueur. Côté
+Cylons, « drones » reste le bon mot — c'est exactement la distinction de la série.
+
 ### Le cycle « 33 » (mécanique, côté combat)
 Repris de l'épisode : les Cylons reviennent toutes les **33 minutes**. Le décompte est affiché
 en temps FICTION (33:00 → 00:00), comprimé par `TUNE.dradisCompress` (16,5×) pour tenir dans une

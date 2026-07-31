@@ -56,12 +56,17 @@ export const MODULE_CONFIG = {
   },
 
   interceptor: {
-    id: 'interceptor', name: 'Baie Intercepteurs', kind: 'interceptor', slotType: 'weapon',
+    // ⚠ NOS APPAREILS SONT PILOTÉS, ce sont les Cylons qui envoient des drones —
+    // « finalement ce n'est pas des drones que l'on a nous, car Starbuck pilote un des
+    // intercepteurs » (partie test). D'où le nom ESCADRILLE, et des effectifs de vraie
+    // patrouille (2-3-4 se lisaient comme trois mouches) : demandés « peut-être 10 »,
+    // posés à 5/7/10 pour que la montée en niveau reste un vrai gain.
+    id: 'interceptor', name: 'Escadrille Vipères', kind: 'interceptor', slotType: 'weapon',
     color: PALETTE.interceptor,
     levels: [
-      { count: 2, orbitSpeed: 1.0, radius: 4.5 },
-      { count: 3, orbitSpeed: 1.3, radius: 5.2 },
-      { count: 4, orbitSpeed: 1.6, radius: 6.0 },
+      { count: 5, orbitSpeed: 1.0, radius: 4.5 },
+      { count: 7, orbitSpeed: 1.3, radius: 5.2 },
+      { count: 10, orbitSpeed: 1.6, radius: 6.0 },
     ],
   },
 

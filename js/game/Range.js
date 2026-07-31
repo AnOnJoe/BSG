@@ -54,9 +54,11 @@ const ENTRY_X = -ARENA.x + 126;     // là où la flotte débouche (marge à l'�
 // siens avant de déclencher.
 const CONVOY_LIMIT = ARENA.x - 84;  // là où la flotte cesse d'avancer (idem)
 // Le rayon de la bulle est DÉRIVÉ du champ visible : voir `Range.gatherR` et TUNE.gatherView.
-// Dimensionné pour le plus gros thème (NUÉE : 7 chasseurs). Le pool est
-// pré-alloué une fois pour toutes et réutilisé de vague en vague.
-const MAX_ENEMIES = 8;
+// ⚠ Dimensionné pour que DEUX assauts pleins puissent se chevaucher (NUÉE = 7), puisque
+// les assauts sont CONTINUS : le compteur ne s'arrête pas quand le précédent n'est pas
+// nettoyé. À 8, le pool ne pouvait contenir qu'une vague — et comme le spawn écrasait
+// les survivants (cf. `_launchAssault`), la pression cumulative du design n'existait pas.
+const MAX_ENEMIES = 14;
 const SHIELD_COLOR = 0xa97bff;
 const REWARD = { fighter: 20, raider: 30, gunship: 70, carrier: 50 };
 
@@ -696,10 +698,21 @@ export class Range {
     const hx = head ? head.position.x : this.ship.group.position.x;
     const hy = head ? head.position.y : 0;
 
+    // ⚠⚠ ON NE SPAWNE QUE DANS LES CRÉNEAUX LIBRES. Le code prenait `enemies[slot++]`
+    // depuis le DÉBUT du pool sans regarder qui y vivait encore : chaque assaut
+    // REMPLAÇAIT donc les survivants du précédent (respawn par-dessus, téléportation et
+    // PV neufs) au lieu de s'y ajouter. Les « assauts continus » du design n'ont jamais
+    // existé — on n'a jamais eu plus d'une vague à l'écran, et c'est le fond du « il n'y
+    // a pas assez d'ennemis » des parties test. Si le pool est plein, l'excédent est
+    // perdu ET DIT (règle du projet : pas de plafonnement silencieux).
+    const libres = this.enemies.filter((e) => e.state !== 'alive');
     let slot = 0;
     for (const type of types) {
-      const e = this.enemies[slot++];
-      if (!e) break;
+      const e = libres[slot++];
+      if (!e) {
+        this.hud.pushLog(`Assaut n°${this.assaultNo} : une partie des contacts se tient en retrait (ciel saturé).`);
+        break;
+      }
       const t = ENEMY_TYPES[type];
       // Ils arrivent surtout par l'avant et les flancs : la flotte va vers eux.
       const ahead = Math.random() < 0.7;

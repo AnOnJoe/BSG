@@ -23,7 +23,11 @@ export const SECTORS = [
     // Le calcul aboutit avant l'arrivée du traînard, et l'écart se resserre de
     // secteur en secteur : 57 s ici, 2 s à la Porte.
     ftlPreCharge: 74,   // % de calcul acquis pendant les 33 minutes
-    ftlTime: 110,       // secondes de calcul RESTANT après le contact
+    // ⚠ `ftlTime` aussi se compte en secondes de JEU : même dilution par `gameSpeed`
+    // que les assauts (110 s de jeu = 137 s réelles à 0,8), d'où « la phase de combat
+    // est un peu longue ». Échelle 110/125/140/150/165 → 88/100/112/120/132, ce qui
+    // rend en temps réel les durées calibrées à l'origine.
+    ftlTime: 88,        // secondes de calcul RESTANT après le contact
     // ⚠ Les `assaultEvery` se comptent en secondes de JEU : l'introduction de
     // `gameSpeed` (0,8) les a donc tous étirés de 25 % en temps réel — 26 s de jeu
     // étaient devenues 32,5 s d'attente réelle, et le premier retour est tombé :
@@ -39,7 +43,7 @@ export const SECTORS = [
     subtitle: 'Roches serrées · radar aveugle',
     terrain: 'belt',
     ftlPreCharge: 70,
-    ftlTime: 125,
+    ftlTime: 100,
     assaultEvery: 18,
     themes: ['harass', 'swarm', 'patrol'],
     capital: false,
@@ -49,7 +53,7 @@ export const SECTORS = [
     subtitle: 'Les restes d\'une autre flotte',
     terrain: 'wreck',
     ftlPreCharge: 64,
-    ftlTime: 140,
+    ftlTime: 112,
     assaultEvery: 16,
     themes: ['carriers', 'swarm', 'armored'],
     capital: true,      // un basestar coupe la route
@@ -59,7 +63,7 @@ export const SECTORS = [
     subtitle: 'Vide dégagé · rien pour se cacher',
     terrain: 'void',
     ftlPreCharge: 58,
-    ftlTime: 150,
+    ftlTime: 120,
     assaultEvery: 14,
     themes: ['armored', 'battle', 'carriers'],
     capital: false,
@@ -69,7 +73,7 @@ export const SECTORS = [
     subtitle: 'Dernier saut avant le refuge',
     terrain: 'hulks',
     ftlPreCharge: 50,
-    ftlTime: 165,
+    ftlTime: 132,
     assaultEvery: 13,
     themes: ['battle', 'siege', 'swarm'],
     capital: true,

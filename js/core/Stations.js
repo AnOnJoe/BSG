@@ -22,7 +22,11 @@ export const STATION_DEFS = [
   { id: 'command', name: 'COMMANDANT', icon: '✦', role: 'énergie · modules · IEM' },
   { id: 'helm', name: 'PILOTE', icon: '⛭', role: 'cap · allure · manœuvres' },
   { id: 'gunnery', name: 'ARTILLEUR', icon: '⌖', role: 'ciblage · mode de tir' },
-  { id: 'drones', name: 'DRONES', icon: '◈', role: 'ordres d\'escadron' },
+  // ⚠ Le nom affiché est CHASSE, pas DRONES : nos appareils sont PILOTÉS (« Starbuck
+  // pilote un des intercepteurs » — partie test), ce sont les Cylons qui envoient des
+  // drones. L'id `drones` reste tel quel : il est câblé partout (ordres, HUD, sauvegardes)
+  // et un renommage d'id casserait sans rien apporter au joueur.
+  { id: 'drones', name: 'CHASSE', icon: '◈', role: 'ordres d\'escadrille' },
   // INGÉNIEUR : répare les sections de coque. Son IA colmate le plus abîmé, ce qui
   // est presque toujours le mauvais choix — cf. core/Engineer.js.
   { id: 'engineer', name: 'INGÉNIEUR', icon: '⚒', role: 'sections · réparations' },
