@@ -24,7 +24,13 @@ export const SECTORS = [
     // secteur en secteur : 57 s ici, 2 s à la Porte.
     ftlPreCharge: 74,   // % de calcul acquis pendant les 33 minutes
     ftlTime: 110,       // secondes de calcul RESTANT après le contact
-    assaultEvery: 26,   // intervalle entre deux assauts (s)
+    // ⚠ Les `assaultEvery` se comptent en secondes de JEU : l'introduction de
+    // `gameSpeed` (0,8) les a donc tous étirés de 25 % en temps réel — 26 s de jeu
+    // étaient devenues 32,5 s d'attente réelle, et le premier retour est tombé :
+    // « sur le 1er saut ça manque un peu d'action, de vaisseaux ennemis ». L'échelle
+    // 26/23/20/18/16 a été resserrée à 21/18/16/14/13 pour retrouver, à 0,8, le
+    // rythme réel calibré à l'origine. Réglage global : `TUNE.assaultRateMul`.
+    assaultEvery: 21,   // intervalle entre deux assauts (s de jeu)
     themes: ['patrol', 'harass'],
     capital: false,
   },
@@ -34,7 +40,7 @@ export const SECTORS = [
     terrain: 'belt',
     ftlPreCharge: 70,
     ftlTime: 125,
-    assaultEvery: 23,
+    assaultEvery: 18,
     themes: ['harass', 'swarm', 'patrol'],
     capital: false,
   },
@@ -44,7 +50,7 @@ export const SECTORS = [
     terrain: 'wreck',
     ftlPreCharge: 64,
     ftlTime: 140,
-    assaultEvery: 20,
+    assaultEvery: 16,
     themes: ['carriers', 'swarm', 'armored'],
     capital: true,      // un basestar coupe la route
   },
@@ -54,7 +60,7 @@ export const SECTORS = [
     terrain: 'void',
     ftlPreCharge: 58,
     ftlTime: 150,
-    assaultEvery: 18,
+    assaultEvery: 14,
     themes: ['armored', 'battle', 'carriers'],
     capital: false,
   },
@@ -64,7 +70,7 @@ export const SECTORS = [
     terrain: 'hulks',
     ftlPreCharge: 50,
     ftlTime: 165,
-    assaultEvery: 16,
+    assaultEvery: 13,
     themes: ['battle', 'siege', 'swarm'],
     capital: true,
     // DÉNOUEMENT : ici, sauter ne suffit plus. Tant que le transport compromis

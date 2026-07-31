@@ -2542,7 +2542,12 @@ export class Range {
       this._launchAssault();
       // Refuser de rompre la boucle coûte : chaque tour resserre les assauts, pour
       // que l'obstination ait une fin plutôt que de s'étirer indéfiniment.
-      this.assaultTimer = this.sector.assaultEvery
+      // ⚠ `assaultRateMul` : l'intervalle par secteur est une donnée de campagne
+      // (`campaign.js`), mais son échelle GLOBALE doit être une jauge — c'est le
+      // levier direct du « ça manque d'action » / « c'est l'enfer », et il se juge
+      // manette en main. Noter que `gameSpeed` étire aussi cet intervalle en temps
+      // réel : à 0,8, 26 s de jeu = 32,5 s réelles.
+      this.assaultTimer = this.sector.assaultEvery * TUNE.assaultRateMul
         * Math.pow(TUNE.loopAssaultTighten, this.loopCount);
     } else if (this.assaultTimer < 5 && !this.nextTheme) {
       this._announceNextWave();

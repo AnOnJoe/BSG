@@ -17,13 +17,18 @@
  * thèmes lourds n'apparaissent pas d'entrée.
  */
 export const WAVE_THEMES = {
+  // ⚠ Les deux thèmes du PREMIER secteur, renforcés d'une coque chacun : « sur le 1er
+  // saut ça manque un peu d'action, de vaisseaux ennemis ». À 3-4 chasseurs légers
+  // étalés sur un couloir de 8 écrans, l'assaut se dissolvait — on voyait deux points
+  // orange mordre un transport au loin. La difficulté réelle bouge peu (chasseurs et
+  // raiders restent les coques les plus faibles), c'est la DENSITÉ à l'écran qui monte.
   patrol: {
     id: 'patrol', name: 'PATROUILLE', from: 0,
-    comp: ['raider', 'fighter', 'fighter'],
+    comp: ['raider', 'raider', 'fighter', 'fighter'],
   },
   harass: {
     id: 'harass', name: 'HARCÈLEMENT', from: 0.1,
-    comp: ['fighter', 'fighter', 'fighter', 'raider'],
+    comp: ['fighter', 'fighter', 'fighter', 'fighter', 'raider'],
   },
   swarm: {
     id: 'swarm', name: 'NUÉE', from: 0.25,

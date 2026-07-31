@@ -169,8 +169,18 @@ export class AutoHelm {
         closing = dist > TUNE.helmBrakeDist ? 1
           : dist > TUNE.helmArriveDist ? dist / TUNE.helmBrakeDist : 0;
       } else if (goal) {
-        // Une caisse se ramasse en la SURVOLANT : on va dessus, sans zone morte.
-        closing = 1;
+        // Une caisse se ramasse en la SURVOLANT — mais une masse qui fonce la RATE, et
+        // pour toujours. ⚠ Vu en partie test : « le pilote auto tourne autour de la
+        // caisse ». C'est de la géométrie, pas du réglage : à pleine vitesse le rayon de
+        // giration de la baleine vaut v/ω ≈ 16,9 / 0,33 ≈ **51 unités**, or le ramassage
+        // se fait à 6,6 (coque 4,2 + caisse 2,4). Une fois la caisse décalée du nez, la
+        // baleine ne peut physiquement plus resserrer son cercle dessus : elle s'installe
+        // en orbite stable à ~20 unités, cible à 60° du nez, indéfiniment.
+        // On freine donc à l'approche comme pour un point de route — en vitesse réduite
+        // le cercle de giration devient plus petit que la caisse — mais avec un PLANCHER,
+        // jamais l'arrêt : le point de route se pose À CÔTÉ, une caisse se traverse.
+        closing = dist > TUNE.helmBrakeDist ? 1
+          : Math.max(0.25, dist / TUNE.helmBrakeDist);
       } else if (order === 'break') {
         // ROMPRE : demi-tour, on s'écarte de la menace.
         desired += Math.PI;

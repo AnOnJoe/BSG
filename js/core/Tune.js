@@ -86,6 +86,10 @@ export const TUNE = {
   // se coller à la coque, donc faciles à toucher mais illisibles ; monter = ils
   // bombardent de loin, hors de portée de la défense rapprochée.
   enemyRangeMul: 1,
+  // Intervalle entre les assauts (× celui du secteur). C'est LE levier du « ça manque
+  // d'action » : le rythme de base vient de campaign.js (26 s au premier secteur, 16 au
+  // dernier), ce multiplicateur le règle globalement sans casser la progression.
+  assaultRateMul: 1,
   waveBreak: 8,        // respiration entre deux vagues (s) — hérité, peu utilisé
   ftlChargeRate: 1.0,  // multiplicateur global du calcul de saut (le rythme de
                        // base vient de sector.ftlTime, pas d'ici)
@@ -329,6 +333,7 @@ export const TUNE_SPECS = [
   ['enemySpeedMul', 'Vitesse ennemis (×)', 0.3, 2.5, 0.02, 'Ennemis', 'Vitesse des ennemis. Volontairement basse RELATIVEMENT au monde : mise à l\'échelle du rescale (×2,1), un jeu de postes a besoin de temps pour changer de poste.'],
   ['enemyFireMul', 'Intervalle tir ennemi (×)', 0.4, 3, 0.1, 'Ennemis', 'Intervalle entre leurs tirs (>1 = ils tirent MOINS souvent).'],
   ['spawnDist', 'Distance d\'apparition', 60, 320, 4, 'Ennemis', 'Distance d\'apparition. Grand = approche longue et lisible, on a le temps de préparer.'],
+  ['assaultRateMul', 'Intervalle des assauts (×)', 0.3, 2.5, 0.05, 'Ennemis', 'Intervalle entre deux assauts, × celui du secteur (26 s au premier, 16 au dernier). Baisser = plus d\'action, mais un jeu de postes a besoin de respirations pour changer de poste. ⚠ « Allure générale » étire aussi cet intervalle en temps réel.'],
   ['enemyRangeMul', 'Distance d\'engagement (×)', 0.3, 2.5, 0.05, 'Ennemis', 'Distance à laquelle les ennemis se stabilisent pour tirer (× celle de leur type : 25 pour un chasseur, 50 pour un cuirassé léger). Bas = ils se collent à la coque, faciles à abattre mais illisibles et hors de portée de tes tourelles longues ; haut = ils te bombardent de loin, où l\'équipage tire mal.'],
   ['cylonPlayerAggro', 'Distance d\'agressivité', 15, 140, 5, 'Ennemis', 'En dessous de cette distance, un Cylon s\'occupe de toi plutôt que des civils. Grand = ils te suivent, donc « escorter » perd son sens.'],
   ['rewardMul', 'Matériel par ennemi (×)', 0, 4, 0.1, 'Ennemis', 'Matériel récupéré par ennemi détruit. Monter = on aménage et on équipe plus tôt.'],
